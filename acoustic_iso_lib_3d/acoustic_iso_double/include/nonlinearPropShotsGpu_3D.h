@@ -1,0 +1,52 @@
+#ifndef NL_PROP_SHOTS_GPU_3D_H
+#define NL_PROP_SHOTS_GPU_3D_H 1
+
+#include <tbb/tbb.h>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <tbb/parallel_reduce.h>
+#include <vector>
+#include "double2DReg.h"
+#include "double3DReg.h"
+#include "double4DReg.h"
+#include "ioModes.h"
+#include "deviceGpu_3D.h"
+#include "fdParam_3D.h"
+#include "operator.h"
+
+using namespace SEP;
+
+class nonlinearPropShotsGpu_3D : public Operator<SEP::double2DReg, SEP::double3DReg> {
+
+	private:
+		int _nShot, _nGpu, _info, _deviceNumberInfo, _iGpuAlloc;
+		int _saveWavefield, _wavefieldShotNumber;
+		std::shared_ptr<SEP::double3DReg> _vel;
+		std::shared_ptr<paramObj> _par;
+		std::vector<std::shared_ptr<deviceGpu_3D>> _sourcesVector, _receiversVector;
+		std::shared_ptr<SEP::double4DReg> _wavefield;
+		std::vector<int> _gpuList;
+
+	public:
+
+		/* Overloaded constructors */
+		nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double2DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector);
+
+		/* Destructor */
+		~nonlinearPropShotsGpu_3D(){};
+
+		/* Create Gpu list */
+		void createGpuIdList();
+
+		/* FWD / ADJ */
+		void forward(const bool add, const std::shared_ptr<double2DReg> model, std::shared_ptr<double3DReg> data) const;
+		void adjoint(const bool add, std::shared_ptr<double2DReg> model, const std::shared_ptr<double3DReg> data) const;
+
+		/* Accessor */
+		std::shared_ptr<SEP::double4DReg> getWavefield_3D(){ return _wavefield; }
+
+		/* Mutator */
+		void setVel_3D(std::shared_ptr<SEP::double3DReg> vel){_vel = vel;}
+};
+
+#endif

@@ -1,0 +1,52 @@
+#ifndef FD_PARAM_3D_H
+#define FD_PARAM_3D_H 1
+
+#include <string>
+#include "double2DReg.h"
+#include "double3DReg.h"
+#include "double5DReg.h"
+#include "ioModes.h"
+#include <iostream>
+
+using namespace SEP;
+
+class fdParam_3D{
+
+ 	public:
+
+		// Constructor
+  		fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared_ptr<paramObj> par);
+		// Destructor
+  		~fdParam_3D();
+
+		// QC stuff
+		bool checkParfileConsistencyTime_3D(const std::shared_ptr<double2DReg> seismicTraces, int timeAxisIndex, std::string fileToCheck) const;
+		bool checkParfileConsistencySpace_3D(const std::shared_ptr<double3DReg> model, std::string fileToCheck) const;
+		bool checkParfileConsistencySpace_3D(const std::shared_ptr<double5DReg> modelExt, std::string fileToCheck) const;
+
+		bool checkFdStability_3D(double courantMax=0.45);
+		bool checkFdDispersion_3D(double dispersionRatioMin=3.0);
+		bool checkModelSize_3D(); // Make sure the domain size (without the FAT) is a multiple of the dimblock size
+		void getInfo_3D();
+
+		// Variables
+		std::shared_ptr<paramObj> _par;
+		std::shared_ptr<double3DReg> _vel;
+		axis _timeAxisCoarse, _timeAxisFine, _zAxis, _xAxis, _extAxis;
+
+		double *_vel2Dtw2, *_reflectivityScale;
+		double _errorTolerance;
+		double _minVel, _maxVel, _minDzDxDy, _maxDzDxDy;
+		int _nts, _sub, _ntw;
+		double _ots, _dts, _otw, _dtw, _oExt, _dExt;
+		double _Courant, _dispersionRatio;
+		int _nz, _nx, _nz, _nExt1, _nExt2, _hExt1, _hExt2;
+		int _zPadMinus, _zPadPlus, _xPadMinus, _xPadPlus, _yPadMinus, _yPadPlus, _zPad, _xPad, _yPad, _minPad;
+		double _dz, _dx, _dy, _oz, _ox, _oy, _fMax;
+		int _saveWavefield, _blockSize, _fat;
+		double _alphaCos;
+		std::string _extension;
+
+};
+
+#endif
