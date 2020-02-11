@@ -90,23 +90,40 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
         // y-axis
         _oExt2 = 0.0;
 		_dExt2 = 1.0;
-		_extAxis2 = axis(_nExt, _oExt2, _dExt2);
+		_extAxis2 = axis(_nExt2, _oExt2, _dExt2);
     }
 
 	/***** Other parameters *****/
 	_fMax = _par->getFloat("fMax",1000.0);
 	_blockSize = _par->getInt("blockSize");
 	_fat = _par->getInt("fat");
-	_minPad = std::min(_zPad, _xPad, _yPad);
+	_minPad = std::min(_zPad, std::min(_xPad, _yPad));
 	_saveWavefield = _par->getInt("saveWavefield", 0);
 	_alphaCos = par->getFloat("alphaCos", 0.99);
 	_errorTolerance = par->getFloat("errorTolerance", 0.000001);
 
 	/***** QC *****/
 	assert(checkParfileConsistencySpace_3D(_vel, "Velocity file")); // Parfile - velocity file consistency
+	axis nzSmallAxis(_nz-2*_fat, 0.0, _dz);
+	axis nxSmallAxis(_nx-2*_fat, 0.0, _dx);
+	axis nySmallAxis(_ny-2*_fat, 0.0, _dy);
+	std::shared_ptr<SEP::hypercube> smallVelHyper(new hypercube(nzSmallAxis, nxSmallAxis, nySmallAxis));
+	_smallVel = std::make_shared<double3DReg>(smallVelHyper);
+
+	#pragma omp parallel for collapse(3)
+	for (int iy = 0; iy < _ny-2*_fat; iy++){
+		for (int ix = 0; ix < _nx-2*_fat; ix++){
+			for (int iz = 0; iz < _nz-2*_fat; iz++){
+				(*_smallVel->_mat)[iy][ix][iz] = (*_vel->_mat)[iy+_fat][ix+_fat][iz+_fat];
+			}
+		}
+	}
 	assert(checkFdStability_3D());
 	assert(checkFdDispersion_3D());
 	assert(checkModelSize_3D());
+
+	// Deallocate small velocity
+	_smallVel.reset();
 
 	/***** Scaling for propagation *****/
 	// v^2 * dtw^2
@@ -133,6 +150,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
             }
         }
     }
+}
 
 void fdParam_3D::getInfo_3D(){
 
@@ -193,10 +211,16 @@ void fdParam_3D::getInfo_3D(){
 		// Extended axis
 		if ( _extension=="time" ){
 			std::cout << std::setprecision(3);
-			std::cout << "-------------------- Extended axis #1: time-lags ---------------------" << std::endl;
-			std::cout << "nTau = " << _hExt << " [samples], dTau= " << _dExt << " [s], oTau = " << _oExt << " [s]" << std::endl;
-			std::cout << "Total extension length nTau = " << _nExt << " [samples], which corresponds to " << _nExt*_dExt << " [s]" << std::endl;
+			std::cout << "-------------------- Extended axis #1: time-lags 1 ---------------------" << std::endl;
+			std::cout << "nTau1 = " << _hExt1 << " [samples], dTau1= " << _dExt1 << " [s], oTau1 = " << _oExt1 << " [s]" << std::endl;
+			std::cout << "Total extension length nTau1 = " << _nExt1 << " [samples], which corresponds to " << _nExt1*_dExt1 << " [s]" << std::endl;
 			std::cout << " " << std::endl;
+
+			std::cout << "-------------------- Extended axis #2: time-lags 2 ---------------------" << std::endl;
+			std::cout << "nTau2 = " << _hExt1 << " [samples], dTau2= " << _dExt2 << " [s], oTau2 = " << _oExt2 << " [s]" << std::endl;
+			std::cout << "Total extension length nTau2 = " << _nExt2 << " [samples], which corresponds to " << _nExt2*_dExt2 << " [s]" << std::endl;
+			std::cout << " " << std::endl;
+
 		}
 
 		if ( _extension=="offset" ){
@@ -228,7 +252,7 @@ void fdParam_3D::getInfo_3D(){
 		std::cout << "Minimum velocity value = " << _minVel << " [km/s]" << std::endl;
 		std::cout << "Maximum velocity value = " << _maxVel << " [km/s]" << std::endl;
 		std::cout << std::setprecision(1);
-		std::cout << "Maximum frequency without dispersion = " << _minVel/(3.0*std::max(_dz, _dx, _dy)) << " [Hz]" << std::endl;
+		std::cout << "Maximum frequency without dispersion = " << _minVel/(3.0*std::max(_dz, std::max(_dx, _dy))) << " [Hz]" << std::endl;
 		std::cout << " " << std::endl;
 		std::cout << "*******************************************************************" << std::endl;
 		std::cout << " " << std::endl;
@@ -237,8 +261,8 @@ void fdParam_3D::getInfo_3D(){
 }
 
 bool fdParam_3D::checkFdStability_3D(double CourantMax){
-	_maxVel = _vel->max();
-	_minDzDxDy = std::min(_dz, _dx, _dy);
+	_maxVel = _smallVel->max();
+	_minDzDxDy = std::min(_dz, std::min(_dx, _dy));
 	_Courant = _maxVel * _dtw / _minDzDxDy;
 	if (_Courant > CourantMax){
 		std::cout << "**** ERROR [fdParam_3D]: Courant is too big: " << _Courant << " ****" << std::endl;
@@ -252,8 +276,8 @@ bool fdParam_3D::checkFdStability_3D(double CourantMax){
 
 bool fdParam_3D::checkFdDispersion_3D(double dispersionRatioMin){
 
-	_minVel = _vel->min();
-	_maxDzDxDy = std::max(_dz, _dx, _dy);
+	_minVel = _smallVel->min();
+	_maxDzDxDy = std::max(_dz, std::max(_dx, _dy));
 	_dispersionRatio = _minVel / (_fMax*_maxDzDxDy);
 
 	if (_dispersionRatio < dispersionRatioMin){

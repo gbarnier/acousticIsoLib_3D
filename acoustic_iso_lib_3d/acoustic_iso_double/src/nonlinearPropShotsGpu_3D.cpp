@@ -14,8 +14,6 @@ nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3D
 	_info = par->getInt("info", 0);
 	_deviceNumberInfo = par->getInt("deviceNumberInfo", _gpuList[0]);
 	assert(getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo));
-	_saveWavefield = _par->getInt("saveWavefield", 0);
-	_wavefieldShotNumber = _par->getInt("wavefieldShotNumber", 0);
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 
@@ -65,17 +63,21 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 	int constantSrcSignal, constantRecGeom;
 
 	// Check whether we use the same source signals for all shots
-	if (model->getHyper()->getAxis(2).n == 1) {constantSrcSignal = 1;}
+	if (model->getHyper()->getAxis(2).n == 1) {
+			std::cout << "Constant source signal over shots" << std::endl;
+			constantSrcSignal = 1; }
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
-	if (_receiversVector.size() == 1) {constantRecGeom=1;}
+	if (_receiversVector.size() == 1) {
+		std::cout << "Constant receiver geometry over shots" << std::endl;
+		constantRecGeom=1;}
 	else {constantRecGeom=0;}
 
 	// Create a vector that will contain copies of the model that will be sent to each GPU
 	std::vector<std::shared_ptr<double2DReg>> modelSliceVector;
 	axis dummyAxis(1);
-	std::shared_ptr<SEP::hypercube> hyperModelSlice(new hypercube(model->getHyper()->getAxis(1), dummyaxis));
+	std::shared_ptr<SEP::hypercube> hyperModelSlice(new hypercube(model->getHyper()->getAxis(1), dummyAxis)); // Add a dummy axis so that each component of the model slice vector is a 2D array
 
     // Create a vector that will contain copies of the data (for each shot) that will be sent to each GPU
 	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
@@ -87,6 +89,7 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 	// Initialization for each GPU:
 	// (1) Creation of vector of objects, model, and data
 	// (2) Memory allocation on GPU
+
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
 		// Nonlinear propagator object
@@ -135,6 +138,8 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
     		// Set GPU number for propagator object
     		propObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 
+			// std::cout << "Before" << std::endl;
+			// std::cout << "data" << dataSliceVector[iGpu]->max() << std::endl;
     		// Launch modeling
     		propObjectVector[iGpu]->forward(false, modelSliceVector[iGpu], dataSliceVector[iGpu]);
 
@@ -145,6 +150,8 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
                     (*data->_mat)[iShot][iReceiver][its] += (*dataSliceVector[iGpu]->_mat)[iReceiver][its];
                 }
             }
+			// std::cout << "After" << std::endl;
+			// std::cout << "data" << dataSliceVector[iGpu]->max() << std::endl;
         }
 
 	// Deallocate memory on device
@@ -233,7 +240,7 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 			propObjectVector[iGpu]->adjoint(false, modelSliceVector[iGpu], dataSliceVector[iGpu]);
 			#pragma omp parallel for
 			for (int its=0; its<hyperModelSlice->getAxis(1).n; its++){
-				(*model->_mat)[iShot][its] += (*modelSliceVector[0][iGpu]->_mat)[its];
+				(*model->_mat)[iShot][its] += (*modelSliceVector[iGpu]->_mat)[0][its];
 			}
 		}
 	}
@@ -244,7 +251,7 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 		#pragma omp parallel for
 		for (int its=0; its<hyperModelSlice->getAxis(1).n; its++){
 			for (int iGpu=0; iGpu<_nGpu; iGpu++){
-				(*model->_mat)[0][its] += (*modelSliceVector[iGpu]->_mat)[its];
+				(*model->_mat)[0][its] += (*modelSliceVector[iGpu]->_mat)[0][its];
 			}
 		}
 	}

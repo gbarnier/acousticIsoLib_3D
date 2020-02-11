@@ -20,30 +20,25 @@ class nonlinearPropShotsGpu_3D : public Operator<SEP::double2DReg, SEP::double3D
 
 	private:
 		int _nShot, _nGpu, _info, _deviceNumberInfo, _iGpuAlloc;
-		int _saveWavefield, _wavefieldShotNumber;
 		std::shared_ptr<SEP::double3DReg> _vel;
 		std::shared_ptr<paramObj> _par;
 		std::vector<std::shared_ptr<deviceGpu_3D>> _sourcesVector, _receiversVector;
-		std::shared_ptr<SEP::double4DReg> _wavefield;
 		std::vector<int> _gpuList;
 
 	public:
 
 		/* Overloaded constructors */
-		nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double2DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector);
+		nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector);
 
 		/* Destructor */
 		~nonlinearPropShotsGpu_3D(){};
 
 		/* Create Gpu list */
-		void createGpuIdList();
+		void createGpuIdList_3D();
 
 		/* FWD / ADJ */
 		void forward(const bool add, const std::shared_ptr<double2DReg> model, std::shared_ptr<double3DReg> data) const;
 		void adjoint(const bool add, std::shared_ptr<double2DReg> model, const std::shared_ptr<double3DReg> data) const;
-
-		/* Accessor */
-		std::shared_ptr<SEP::double4DReg> getWavefield_3D(){ return _wavefield; }
 
 		/* Mutator */
 		void setVel_3D(std::shared_ptr<SEP::double3DReg> vel){_vel = vel;}

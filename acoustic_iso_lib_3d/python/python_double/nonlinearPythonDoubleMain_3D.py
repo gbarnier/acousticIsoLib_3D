@@ -9,84 +9,125 @@ import sys
 
 if __name__ == '__main__':
 
-    # Initialize operator
-    modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector=Acoustic_iso_double.nonlinearOpInitDouble(sys.argv)
+	# Initialize operator
+	modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector,dataHyperForOutput=Acoustic_iso_double_3D.nonlinearOpInitDouble_3D(sys.argv)
 
-    # Construct nonlinear operator object
-    nonlinearOp=Acoustic_iso_double.nonlinearPropShotsGpu(modelDouble,dataDouble,velDouble,parObject.param,sourcesVector,receiversVector)
+	# QC
+	# print("model n1",modelDouble.getHyper().axes[0].n)
+	# print("model n2",modelDouble.getHyper().axes[1].n)
+	#
+	# print("dataDouble n1",dataDouble.getHyper().axes[0].n)
+	# print("dataDouble n2",dataDouble.getHyper().axes[1].n)
+	# print("dataDouble n3",dataDouble.getHyper().axes[2].n)
+	#
+	# print("dataHyperForOutput",dataHyperForOutput.getNdim())
+	# print("dataOutput n1",dataHyperForOutput.axes[0].n)
+	# print("dataOutput n2",dataHyperForOutput.axes[1].n)
+	# print("dataOutput n3",dataHyperForOutput.axes[2].n)
 
-    # Forward
-    if (parObject.getInt("adj",0) == 0):
+	# Construct nonlinear operator object
+	nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector)
 
-        print("-------------------------------------------------------------------")
-        print("------------------ Running Python nonlinear forward ---------------")
-        print("-------------------- Double precision Python code -----------------")
-        print("-------------------------------------------------------------------\n")
+	#Testing dot-product test of the operator
+	if (parObject.getInt("dpTest",0) == 1):
+		nonlinearOp.dotTest(True)
+		nonlinearOp.dotTest(True)
+		nonlinearOp.dotTest(True)
+		quit(0)
 
-        # Check that model was provided
-        modelFile=parObject.getString("model","noModelFile")
-        if (modelFile == "noModelFile"):
-            print("**** ERROR: User did not provide model file ****\n")
-            quit()
+	# Forward
+	if (parObject.getInt("adj",0) == 0):
 
-        # Read model
-        modelFloat=genericIO.defaultIO.getVector(modelFile,ndims=3)
-        modelDMat=modelDouble.getNdArray()
-        modelSMat=modelFloat.getNdArray()
-        modelDMat[:]=modelSMat
+		print("-------------------------------------------------------------------")
+		print("----------------- Running Python nonlinear forward 3D -------------")
+		print("-------------------- Double precision Python code -----------------")
+		print("-------------------------------------------------------------------\n")
 
-        # Apply forward
-        nonlinearOp.forward(False,modelDouble,dataDouble)
+		# Check that model was provided
+		modelFile=parObject.getString("model","noModelFile")
+		if (modelFile == "noModelFile"):
+		    raise ValueError("**** ERROR [nonlinearPythonDoubleMain_3D]: User did not provide model file ****\n")
+		dataFile=parObject.getString("data","noDataFile")
+		if (dataFile == "noDataFile"):
+		    raise ValueError("**** ERROR [nonlinearPythonDoubleMain_3D]: User did not provide data file name ****\n")
 
-        # Write data
-        dataFloat=SepVector.getSepVector(dataDouble.getHyper(),storage="dataFloat")
-        dataFloatNp=dataFloat.getNdArray()
-        dataDoubleNp=dataDouble.getNdArray()
-        dataFloatNp[:]=dataDoubleNp
-        dataFile=parObject.getString("data","noDataFile")
-        if (dataFile == "noDataFile"):
-            print("**** ERROR: User did not provide data file name ****\n")
-            quit()
-        genericIO.defaultIO.writeVector(dataFile,dataFloat)
+		# Read model
+		modelFloat=genericIO.defaultIO.getVector(modelFile,ndims=2)
+		# Check that the length of the second axis of the model are consistent
+		if (modelDouble.getHyper().axes[1].n != modelFloat.getHyper().axes[1].n):
+			raise ValueError("**** ERROR [nonlinearPythonDoubleMain_3D]: Length of axis#2 for model file (n2=%d) is not consistent with length from parameter file (n2=%d) ****\n" %(modelFloat.getHyper().axes[1].n,modelDouble.getHyper().axes[1].n))
+		modelDMat=modelDouble.getNdArray()
+		modelSMat=modelFloat.getNdArray()
+		modelDMat[:]=modelSMat
 
-        print("-------------------------------------------------------------------")
-        print("--------------------------- All done ------------------------------")
-        print("-------------------------------------------------------------------\n")
+		# Apply forward
+		nonlinearOp.forward(False,modelDouble,dataDouble)
 
-    # Adjoint
-    else:
+		# QC data size
+		# print("dataDouble nDim=",dataDouble.getHyper().getNdim())
+		# print("dataDouble n1=",dataDouble.getHyper().axes[0].n)
+		# print("dataDouble n2=",dataDouble.getHyper().axes[1].n)
+		# print("dataDouble n3=",dataDouble.getHyper().axes[2].n)
+		#
+		# print("dataHyperForOutput nDim",dataHyperForOutput.getNdim())
+		# print("dataHyperForOutput n1",dataHyperForOutput.axes[0].n)
+		# print("dataHyperForOutput n2",dataHyperForOutput.axes[1].n)
+		# print("dataHyperForOutput n3",dataHyperForOutput.axes[2].n)
+		# print("dataHyperForOutput n4",dataHyperForOutput.axes[3].n)
+		# print("dataHyperForOutput n5",dataHyperForOutput.axes[4].n)
+		# print("dataHyperForOutput n6",dataHyperForOutput.axes[5].n)
+		# print("dataHyperForOutput n7",dataHyperForOutput.axes[6].n)
 
-        print("-------------------------------------------------------------------")
-        print("----------------- Running Python nonlinear adjoint ----------------")
-        print("-------------------- Double precision Python code -----------------")
-        print("-------------------------------------------------------------------\n")
+		# Write data
+		dataFloat=SepVector.getSepVector(dataDouble.getHyper(),storage="dataFloat")
+		dataFloatNp=dataFloat.getNdArray()
+		dataDoubleNp=dataDouble.getNdArray()
+		dataFloatNp[:]=dataDoubleNp
+		genericIO.defaultIO.writeVector(dataFile,dataFloat)
+		# if dataHyperForOutput.getNdim() == 7:
+		# 	fileObj=genericIO.regFile(ioM=genericIO.io,tag=dataFile,fromHyper=dataHyperForOutput,usage="output")
+		# 	fileObj.writeWindow(dataFloat)
+		# else:
+		# 	genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
-        # Check that data was provided
-        dataFile=parObject.getString("data","noDataFile")
-        if (dataFile == "noDataFile"):
-            print("**** ERROR: User did not provide data file ****\n")
-            quit()
+		print("-------------------------------------------------------------------")
+		print("--------------------------- All done ------------------------------")
+		print("-------------------------------------------------------------------\n")
 
-        # Read data
-        dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
-        dataFloatNp=dataFloat.getNdArray()
-        dataDoubleNp=dataDouble.getNdArray()
-        dataDoubleNp[:]=dataFloatNp
+	# Adjoint
+	else:
 
-        # Apply adjoint
-        nonlinearOp.adjoint(False,modelDouble,dataDouble)
+		print("-------------------------------------------------------------------")
+		print("----------------- Running Python nonlinear adjoint ----------------")
+		print("-------------------- Double precision Python code -----------------")
+		print("-------------------------------------------------------------------\n")
 
-        # Write model
-        modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")
-        modelFloatNp=modelFloat.getNdArray()
-        modelDoubleNp=modelDouble.getNdArray()
-        modelFloatNp[:]=modelDoubleNp
-        modelFile=parObject.getString("model","noModelFile")
-        if (modelFile == "noModelFile"):
-            print("**** ERROR: User did not provide model file name ****\n")
-            quit()
-        genericIO.defaultIO.writeVector(modelFile,modelFloat)
+		# Check that data was provided
+		dataFile=parObject.getString("data","noDataFile")
+		if (dataFile == "noDataFile"):
+		    print("**** ERROR: User did not provide data file ****\n")
+		    quit()
 
-        print("-------------------------------------------------------------------")
-        print("--------------------------- All done ------------------------------")
-        print("-------------------------------------------------------------------\n")
+		# Read data
+		dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
+		dataFloatNp=dataFloat.getNdArray()
+		dataDoubleNp=dataDouble.getNdArray()
+		dataDoubleNp[:]=dataFloatNp
+
+		# Apply adjoint
+		nonlinearOp.adjoint(False,modelDouble,dataDouble)
+
+		# Write model
+		modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")
+		modelFloatNp=modelFloat.getNdArray()
+		modelDoubleNp=modelDouble.getNdArray()
+		modelFloatNp[:]=modelDoubleNp
+		modelFile=parObject.getString("model","noModelFile")
+		if (modelFile == "noModelFile"):
+		    print("**** ERROR: User did not provide model file name ****\n")
+		    quit()
+		genericIO.defaultIO.writeVector(modelFile,modelFloat)
+
+		print("-------------------------------------------------------------------")
+		print("--------------------------- All done ------------------------------")
+		print("-------------------------------------------------------------------\n")

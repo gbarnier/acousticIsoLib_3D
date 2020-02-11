@@ -4,17 +4,18 @@
 
 /*********************************** Initialization **************************************/
 bool getGpuInfo_3D(std::vector<int> gpuList, int info, int deviceNumber);
-void initNonlinearGpu_3D(float dz, float dx, float dy, int nz, int nx, int ny, int nts, float dts, int sub, int minPad, int blockSize, float alphaCos, int nGpu, int iGpuId, int iGpuAlloc);
-void allocateNonlinearGpu_3D(float *vel2Dtw2, int iGpu, int iGpuId);
+void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int nts, double dts, int sub, int minPad, int blockSize, double alphaCos, int nGpu, int iGpuId, int iGpuAlloc);
+void allocateNonlinearGpu_3D(double *vel2Dtw2, int iGpu, int iGpuId);
 void deallocateNonlinearGpu_3D(int iGpu, int iGpuId);
 
 /*********************************** Nonlinear FWD **************************************/
-void propShotsFwdGpu_3D(float *modelRegDtw, float *dataRegDts, int *sourcesPositionReg, int nSourcesReg, int *receiversPositionReg, int nReceiversReg, float *wavefieldDts, int iGpu, int iGpuId);
-void propShotsFwdGpuWavefield_3D(float *modelRegDtw, float *dataRegDts, int *sourcesPositionReg, int nSourcesReg, int *receiversPositionReg, int nReceiversReg, float *wavefieldDts, int iGpu, int iGpuId);
+void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefieldDts, int iGpu, int iGpuId);
 
 /*********************************** Nonlinear ADJ **************************************/
-/* Adjoint propagation -- Data recorded at fine scale */
-void propShotsAdjGpu_3D(float *modelRegDtw, float *dataRegDtw, int *sourcesPositionReg, int nSourcesReg, int *receiversPositionReg, int nReceiversReg, float *wavefieldDts, int iGpu, int iGpuId);
-void propShotsAdjGpuWavefield_3D(float *modelRegDtw, float *dataRegDtw, int *sourcesPositionReg, int nSourcesReg, int *receiversPositionReg, int nReceiversReg, float *wavefieldDts, int iGpu, int iGpuId);
+void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDtw, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefieldDts, int iGpu, int iGpuId);
+
+/****************************** Laplacian **********************************/
+void laplacianFwd_3d(double *model, double *data, int iGpu, int iGpuId);
+void laplacianAdj_3d(double *model, double *data, int iGpu, int iGpuId);
 
 #endif

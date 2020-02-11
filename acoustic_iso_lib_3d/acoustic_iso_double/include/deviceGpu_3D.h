@@ -17,7 +17,7 @@ class deviceGpu_3D : public Operator<SEP::double2DReg, SEP::double2DReg> {
 		/* Spatial interpolation */
 		std::shared_ptr<double3DReg> _vel;
 		std::shared_ptr<double1DReg> _zCoord, _xCoord, _yCoord;
-		std::vector<int> _gridPointIndexUnique; // Array containing all the positions of the excited grid points - each grid point is unique
+		std::vector<long long> _gridPointIndexUnique; // Array containing all the positions of the excited grid points - each grid point is unique
 		std::map<int, int> _indexMap;
 		std::map<int, int>::iterator _iteratorIndexMap;
 		double *_weight;
@@ -49,8 +49,10 @@ class deviceGpu_3D : public Operator<SEP::double2DReg, SEP::double2DReg> {
   		void checkOutOfBounds(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double1DReg> yCoord, const std::shared_ptr<double3DReg> vel); // For constructor #1
 		void checkOutOfBounds(const int &nzDevice, const int &ozDevice, const int &dzDevice , const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice, const std::shared_ptr<double3DReg> vel); // For constructor #3
   		void convertIrregToReg();
+		void calcLinearWeights();
+		void calcSincWeights();
 
-  		int *getRegPosUnique(){ return _gridPointIndexUnique.data(); }
+  		long long *getRegPosUnique(){ return _gridPointIndexUnique.data(); }
   		int *getRegPos(){ return _gridPointIndex; }
   		int getNt(){ return _nt; }
   		int getNDeviceReg(){ return _nDeviceReg; }

@@ -3,9 +3,13 @@
 #include <double3DReg.h>
 #include <iostream>
 #include "deviceGpu_3D.h"
+#include <boost/math/special_functions/sinc.hpp>
+#include <boost/math/special_functions/cos_pi.hpp>
+#include <boost/math/distributions/normal.hpp>
+#include <math.h>
 #include <vector>
 
-// Constructor #1
+// Constructor #1 -- OOnly for irregular geometry
 deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double1DReg> yCoord, const std::shared_ptr<double3DReg> vel, int &nt, int dipole, double zDipoleShift, double xDipoleShift, double yDipoleShift, std::string interpMethod, int hFilter1d){
 
 	// Get domain dimensions
@@ -24,6 +28,7 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std:
 	_zCoord = zCoord;
 	_xCoord = xCoord;
     _yCoord = yCoord;
+
 	_dipole = dipole; // Default value is 0
 	_zDipoleShift = zDipoleShift; // Default value is 0
 	_xDipoleShift = xDipoleShift; // Default value is 0
@@ -61,12 +66,13 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std:
 	} else {
 		std::cerr << "**** ERROR [deviceGpu_3D]: Space interpolation method not supported ****" << std::endl;
 	}
-	// Convert the list +
+	// Convert the list -> Create a new list with unique indices of the regular grid points involved in the interpolation
 	convertIrregToReg();
+
 }
 
-// Constructor #2
-// This contructor only allows for linear interpolation
+// Constructor #2 -- Only for regular geometry
+// This contructor only allows linear interpolation
 deviceGpu_3D::deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &dzDevice , const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice, const std::shared_ptr<double3DReg> vel, int &nt, int dipole, int zDipoleShift, int xDipoleShift, int yDipoleShift, std::string interpMethod, int hFilter1d){
 
 	_vel = vel;
@@ -81,6 +87,22 @@ deviceGpu_3D::deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &
 	_nDeviceIrreg = nzDevice * nxDevice * nyDevice; // Nb of devices on irregular grid
 	int _nz = vel->getHyper()->getAxis(1).n;
     int _nx = vel->getHyper()->getAxis(2).n;
+
+	// Debug
+    // int ny = vel->getHyper()->getAxis(3).n;
+	// std::cout << "nz" << _nz << std::endl;
+	// std::cout << "nx" << _nx << std::endl;
+	// std::cout << "ny" << ny << std::endl;
+	// std::cout << "nzDevice" << nzDevice << std::endl;
+	// std::cout << "ozDevice" << ozDevice << std::endl;
+	// std::cout << "dzDevice" << dzDevice << std::endl;
+	// std::cout << "nxDevice" << nxDevice << std::endl;
+	// std::cout << "oxDevice" << oxDevice << std::endl;
+	// std::cout << "dxDevice" << dxDevice << std::endl;
+	// std::cout << "nyDevice" << nyDevice << std::endl;
+	// std::cout << "oyDevice" << oyDevice << std::endl;
+	// std::cout << "dyDevice" << dyDevice << std::endl;
+	// End debug
 
 	// Check that the user is not asking for sinc interpolation
 	if (interpMethod != "linear"){
@@ -148,7 +170,7 @@ deviceGpu_3D::deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &
 				if (_dipole == 1){
 
 					// Top front left (dipole point)
-					_gridPointIndex[i1+8] = (iyDevice + yDipoleShidt) * _nz * _nx + (ixDevice + xDipoleShift) * _nz + izDevice + zDipoleShift;
+					_gridPointIndex[i1+8] = (iyDevice + yDipoleShift) * _nz * _nx + (ixDevice + xDipoleShift) * _nz + izDevice + zDipoleShift;
 					_weight[i1+8] = -1.0;
 
 					// Bottom front left (dipole point)
@@ -183,6 +205,20 @@ deviceGpu_3D::deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &
 		}
 	}
 	convertIrregToReg();
+
+	// std::cout << "_nDeviceIrreg" << _nDeviceIrreg << std::endl;
+	// int sizeGridPointIndex = _nFilter3d*_nDeviceIrreg;
+	// for (int i=0; i<sizeGridPointIndex; i++){
+	// 	std::cout << "gridPointIndex [" << i << "] =" << _gridPointIndex[i] << std::endl;
+	// }
+
+	// std::cout << "_nDeviceRegUnique" << _nDeviceReg << std::endl;
+	// for (int i=0; i<_nDeviceReg; i++){
+	// 	std::cout << "gridPointIndexUnique [" << i << "] =" << _gridPointIndexUnique[i] << std::endl;
+	// }
+
+	// std::cout << "Done constructor" << std::endl;
+
 }
 
 void deviceGpu_3D::convertIrregToReg() {
@@ -247,7 +283,7 @@ void deviceGpu_3D::adjoint(const bool add, std::shared_ptr<double2DReg> signalRe
 	}
 }
 
-void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double3DReg> vel){
+void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double1DReg> yCoord, const std::shared_ptr<double3DReg> vel){
 
 	int nDevice = zCoord->getHyper()->getAxis(1).n;
 	double zMax = vel->getHyper()->getAxis(1).o + (vel->getHyper()->getAxis(1).n - 1) * vel->getHyper()->getAxis(1).d;
@@ -264,25 +300,25 @@ void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<double1DReg> zCoord, c
 
 void deviceGpu_3D::checkOutOfBounds(const int &nzDevice, const int &ozDevice, const int &dzDevice , const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice, const std::shared_ptr<double3DReg> vel){
 
-	float zIntMax = ozDevice + (nzDevice - 1) * dzDevice;
-	float xIntMax = oxDevice + (nxDevice - 1) * dxDevice;
-	float yIntMax = oyDevice + (nyDevice - 1) * dyDevice;
+	double zIntMax = ozDevice + (nzDevice - 1) * dzDevice;
+	double xIntMax = oxDevice + (nxDevice - 1) * dxDevice;
+	double yIntMax = oyDevice + (nyDevice - 1) * dyDevice;
 	if ( (zIntMax >= _vel->getHyper()->getAxis(1).n) || (xIntMax >= _vel->getHyper()->getAxis(2).n) || (yIntMax >= _vel->getHyper()->getAxis(3).n) ){
 		std::cout << "**** ERROR [deviceGpu_3D]: One of the device is out of bounds ****" << std::endl;
 		assert (1==2);
 	}
 }
 
-// Compute weights for lienar interpolation
+// Compute weights for linear interpolation
 void deviceGpu_3D::calcLinearWeights(){
 
 	for (int iDevice = 0; iDevice < _nDeviceIrreg; iDevice++) {
 
 		// Find the 8 neighboring points for all devices and compute the weights for the spatial interpolation
 		int i1 = iDevice * _nFilter3d;
-		double wz = ( (*_zCoord->_mat)[iDevice] - vel->getHyper()->getAxis(1).o ) / vel->getHyper()->getAxis(1).d;
-		double wx = ( (*_xCoord->_mat)[iDevice] - vel->getHyper()->getAxis(2).o ) / vel->getHyper()->getAxis(2).d;
-        double wy = ( (*_yCoord->_mat)[iDevice] - vel->getHyper()->getAxis(3).o ) / vel->getHyper()->getAxis(3).d;
+		double wz = ( (*_zCoord->_mat)[iDevice] - _vel->getHyper()->getAxis(1).o ) / _vel->getHyper()->getAxis(1).d;
+		double wx = ( (*_xCoord->_mat)[iDevice] - _vel->getHyper()->getAxis(2).o ) / _vel->getHyper()->getAxis(2).d;
+        double wy = ( (*_yCoord->_mat)[iDevice] - _vel->getHyper()->getAxis(3).o ) / _vel->getHyper()->getAxis(3).d;
 		int zReg = wz; // z-coordinate on regular grid
 		wz = wz - zReg;
 		wz = 1.0 - wz;
@@ -343,9 +379,9 @@ void deviceGpu_3D::calcLinearWeights(){
 		if (_dipole == 1){
 
 			// Find the 8 neighboring points for all devices dipole points and compute the weights for the spatial interpolation
-			double wzDipole = ( (*_zCoord->_mat)[iDevice] + zDipoleShift - vel->getHyper()->getAxis(1).o ) / vel->getHyper()->getAxis(1).d;
-			double wxDipole = ( (*_xCoord->_mat)[iDevice] + xDipoleShift - vel->getHyper()->getAxis(2).o ) / vel->getHyper()->getAxis(2).d;
-            double wxDipole = ( (*_xCoord->_mat)[iDevice] + xDipoleShift - vel->getHyper()->getAxis(3).o ) / vel->getHyper()->getAxis(3).d;
+			double wzDipole = ( (*_zCoord->_mat)[iDevice] + _zDipoleShift - _vel->getHyper()->getAxis(1).o ) / _vel->getHyper()->getAxis(1).d;
+			double wxDipole = ( (*_xCoord->_mat)[iDevice] + _xDipoleShift - _vel->getHyper()->getAxis(2).o ) / _vel->getHyper()->getAxis(2).d;
+            double wyDipole = ( (*_yCoord->_mat)[iDevice] + _yDipoleShift - _vel->getHyper()->getAxis(3).o ) / _vel->getHyper()->getAxis(3).d;
 			int zRegDipole = wzDipole; // z-coordinate on regular grid
 			wzDipole = wzDipole - zRegDipole;
 			wzDipole = 1.0 - wzDipole;
@@ -417,9 +453,9 @@ void deviceGpu_3D::calcSincWeights(){
 		double zIrreg = (*_zCoord->_mat)[iDevice];
 		double xIrreg = (*_xCoord->_mat)[iDevice];
 		double yIrreg = (*_yCoord->_mat)[iDevice];
-		double zReg = (zIrregFloat - _oz) / _dz;
-		double xReg = (xIrregFloat - _ox) / _dx;
-		double yReg = (yIrregFloat - _oy) / _dy;
+		double zReg = (zIrreg - _oz) / _dz;
+		double xReg = (xIrreg - _ox) / _dx;
+		double yReg = (yIrreg - _oy) / _dy;
 
 		// Index of top left grid point closest to the acquisition device
 		int zRegInt = zReg;
@@ -456,7 +492,7 @@ void deviceGpu_3D::calcSincWeights(){
 					double wz = (zIrreg-zCur)/_dz;
 
 					// Compute global index of grid point used in the interpolation (on the main FD grid)
-					int iPointInterp = nz*_nx*(yRegInt+iy-_hFilter1d+1) + _nz*(xRegInt+ix-_hFilter1d+1) + (zRegInt+iz-_hFilter1d+1);
+					int iPointInterp = _nz*_nx*(yRegInt+iy-_hFilter1d+1) + _nz*(xRegInt+ix-_hFilter1d+1) + (zRegInt+iz-_hFilter1d+1);
 
 					// Compute index in the array that contains the positions of the grid points involved in the interpolation
 					int iGridPointIndex = i1+iy*_nFilter1d*_nFilter1d+ix*_nFilter1d+iz;
@@ -471,7 +507,7 @@ void deviceGpu_3D::calcSincWeights(){
 			}
 		}
 
-		if (dipole == 1){
+		if (_dipole == 1){
 
 			int i1Dipole = i1 + _nFilter3dDipole;
 
@@ -518,7 +554,7 @@ void deviceGpu_3D::calcSincWeights(){
 						double wzDipole = (zIrregDipole-zCurDipole)/_dz;
 
 						// Compute global index of grid point used in the interpolation (on the main FD grid) for the other pole
-						int iPointInterpDipole = nz*_nx*(yRegDipoleInt+iy-_hFilter1d+1) + _nz*(xRegDipoleInt+ix-_hFilter1d+1) + (zRegDipoleInt+iz-_hFilter1d+1);
+						int iPointInterpDipole = _nz*_nx*(yRegDipoleInt+iy-_hFilter1d+1) + _nz*(xRegDipoleInt+ix-_hFilter1d+1) + (zRegDipoleInt+iz-_hFilter1d+1);
 
 						// Compute index in the array that contains the positions of the grid points (non-unique) involved in the interpolation
 						int iGridPointIndexDipole = i1Dipole+iy*_nFilter1d*_nFilter1d+ix*_nFilter1d+iz;

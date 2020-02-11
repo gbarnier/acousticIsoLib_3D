@@ -31,16 +31,16 @@ class fdParam_3D{
 
 		// Variables
 		std::shared_ptr<paramObj> _par;
-		std::shared_ptr<double3DReg> _vel;
-		axis _timeAxisCoarse, _timeAxisFine, _zAxis, _xAxis, _extAxis;
+		std::shared_ptr<double3DReg> _vel, _smallVel;
+		axis _timeAxisCoarse, _timeAxisFine, _zAxis, _xAxis, _yAxis, _extAxis1, _extAxis2;
 
 		double *_vel2Dtw2, *_reflectivityScale;
 		double _errorTolerance;
 		double _minVel, _maxVel, _minDzDxDy, _maxDzDxDy;
 		int _nts, _sub, _ntw;
-		double _ots, _dts, _otw, _dtw, _oExt, _dExt;
+		double _ots, _dts, _otw, _dtw, _oExt1, _oExt2, _dExt1, _dExt2;
 		double _Courant, _dispersionRatio;
-		int _nz, _nx, _nz, _nExt1, _nExt2, _hExt1, _hExt2;
+		int _nz, _nx, _ny, _nExt1, _nExt2, _hExt1, _hExt2;
 		int _zPadMinus, _zPadPlus, _xPadMinus, _xPadPlus, _yPadMinus, _yPadPlus, _zPad, _xPad, _yPad, _minPad;
 		double _dz, _dx, _dy, _oz, _ox, _oy, _fMax;
 		int _saveWavefield, _blockSize, _fat;

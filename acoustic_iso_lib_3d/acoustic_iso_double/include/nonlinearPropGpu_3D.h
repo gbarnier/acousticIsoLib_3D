@@ -14,6 +14,7 @@
 #include "seismicOperator_3D.h"
 #include "interpTimeLinTbb_3D.h"
 #include "nonlinearShotsGpuFunctions_3D.h"
+#include "laplacianGpu_3D.h"
 
 using namespace SEP;
 
@@ -46,6 +47,9 @@ class nonlinearPropGpu_3D : public seismicOperator_3D<SEP::double2DReg, SEP::dou
 
 		/* Variable */
 		std::shared_ptr<double2DReg> _dataDtw;
+
+		int _iGpuAlloc;
+		std::shared_ptr<laplacianGpu_3D> _laplacianObj;
 
 };
 

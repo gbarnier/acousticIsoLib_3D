@@ -5,7 +5,6 @@ set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 # include folder for ACOUSTIC_ISO_DOUBLE library
 include_directories(../../acoustic_iso_double/include)
 
-
 # This is a CMake example for Python
 find_package(pybind11)
 if (pybind11_FOUND)
@@ -34,15 +33,21 @@ if (pybind11_FOUND)
 
   set(LIBS genericCpp buffers jsonCpp hypercube  ${OpenMP_EXE_LINKER_FLAGS} ${TBB_LIBRARIES} ${GENERIC_EXPORT_LIBS})
 
-  #Compiling and adding module to library
-  # pybind11_add_module(pyAcoustic_iso_double_nl MODULE pyAcoustic_iso_double_nl.cpp)
-  # target_link_libraries(pyAcoustic_iso_double_nl PRIVATE ACOUSTIC_ISO_DOUBLE_NL ${LIBS})
+  # Compiling and adding module to library
+  pybind11_add_module(pyAcoustic_iso_double_nl_3D MODULE pyAcoustic_iso_double_nl_3D.cpp)
+  target_link_libraries(pyAcoustic_iso_double_nl_3D PRIVATE ACOUSTIC_ISO_DOUBLE_NL_3D ${LIBS})
+  pybind11_add_module(pyAcoustic_iso_double_Born_3D MODULE pyAcoustic_iso_double_Born_3D.cpp)
+  target_link_libraries(pyAcoustic_iso_double_Born_3D PRIVATE ACOUSTIC_ISO_DOUBLE_BORN_3D ${LIBS})
 
-	#Installing library
-	# install( TARGETS pyAcoustic_iso_double_nl DESTINATION lib/python) #Module for non-linear operator
+  # Installing library
+  install( TARGETS pyAcoustic_iso_double_nl_3D DESTINATION lib/python) # Module for nonlinear operator
+  install( FILES Acoustic_iso_double_3D.py DESTINATION lib/python)
+  install( TARGETS pyAcoustic_iso_double_Born_3D DESTINATION lib/python) # Module for Born operator
+  install( FILES Acoustic_iso_double_3D.py DESTINATION lib/python)
 
-	#Installing Python executables
-  # install( FILES nonlinearPythonDoubleMain.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
+  # Installing Python executables
+  install( FILES nonlinearPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
+  install( FILES BornPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 
 
 else(pybind11_FOUND)
