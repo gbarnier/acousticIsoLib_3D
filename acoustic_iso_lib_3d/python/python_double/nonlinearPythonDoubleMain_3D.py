@@ -12,19 +12,6 @@ if __name__ == '__main__':
 	# Initialize operator
 	modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector,dataHyperForOutput=Acoustic_iso_double_3D.nonlinearOpInitDouble_3D(sys.argv)
 
-	# QC
-	# print("model n1",modelDouble.getHyper().axes[0].n)
-	# print("model n2",modelDouble.getHyper().axes[1].n)
-	#
-	# print("dataDouble n1",dataDouble.getHyper().axes[0].n)
-	# print("dataDouble n2",dataDouble.getHyper().axes[1].n)
-	# print("dataDouble n3",dataDouble.getHyper().axes[2].n)
-	#
-	# print("dataHyperForOutput",dataHyperForOutput.getNdim())
-	# print("dataOutput n1",dataHyperForOutput.axes[0].n)
-	# print("dataOutput n2",dataHyperForOutput.axes[1].n)
-	# print("dataOutput n3",dataHyperForOutput.axes[2].n)
-
 	# Construct nonlinear operator object
 	nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector)
 
@@ -85,8 +72,12 @@ if __name__ == '__main__':
 		dataFloatNp[:]=dataDoubleNp
 		genericIO.defaultIO.writeVector(dataFile,dataFloat)
 		# if dataHyperForOutput.getNdim() == 7:
-		# 	fileObj=genericIO.regFile(ioM=genericIO.io,tag=dataFile,fromHyper=dataHyperForOutput,usage="output")
-		# 	fileObj.writeWindow(dataFloat)
+		# 	dataTest=SepVector.getSepVector(dataDouble.getHyper(),storage="dataFloat")
+		# 	io=genericIO.defaultIO
+		# 	fle=io.getRegFile("toto.H",fromHyper=dataHyperForOutput)
+		# 	fle.writeWindow(dataTest)
+		# 	# fileObj=genericIO.regFile(ioM=genericIO.io,tag=dataFile,fromHyper=dataHyperForOutput,usage="output")
+		# 	# fileObj.writeWindow(dataFloat)
 		# else:
 		# 	genericIO.defaultIO.writeVector(dataFile,dataFloat)
 

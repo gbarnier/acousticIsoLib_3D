@@ -14,15 +14,11 @@
 #include "seismicOperator_3D.h"
 #include "interpTimeLinTbb_3D.h"
 #include "nonlinearShotsGpuFunctions_3D.h"
-#include "laplacianGpu_3D.h"
+#include "freeSurfaceDebugOp.h"
 
 using namespace SEP;
 
 class nonlinearPropGpu_3D : public seismicOperator_3D<SEP::double2DReg, SEP::double2DReg> {
-
-	private:
-
-		std::shared_ptr<double4DReg> _wavefield;
 
 	public:
 
@@ -42,14 +38,11 @@ class nonlinearPropGpu_3D : public seismicOperator_3D<SEP::double2DReg, SEP::dou
 		/* Destructor */
 		~nonlinearPropGpu_3D(){};
 
-		/* Accessor */
-		std::shared_ptr<double4DReg> getWavefield_3D() { return _wavefield; }
-
 		/* Variable */
 		std::shared_ptr<double2DReg> _dataDtw;
 
-		int _iGpuAlloc;
-		std::shared_ptr<laplacianGpu_3D> _laplacianObj;
+		// int _iGpuAlloc;
+		// std::shared_ptr<freeSurfaceDebugOp> _freeSurfaceDebugOpObj;
 
 };
 

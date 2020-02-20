@@ -28,7 +28,8 @@ set(SOURCE_NL 		${SRC_DIR}/nonlinearPropShotsGpu_3D.cpp
 					${SRC_DIR}/deviceGpu_3D.cpp
 					${SRC_DIR}/nonlinearShotsGpuFunctions_3D.cu
 					${SRC_DIR}/interpTimeLinTbb_3D.cpp
-					${SRC_DIR}/laplacianGpu_3D.cpp
+					# ${SRC_DIR}/laplacianGpu_3D.cpp
+					# ${SRC_DIR}/freeSurfaceDebugOp.cpp
 		      		# ${SRC_DIR}/secondTimeDerivative_3D.cpp
 )
 

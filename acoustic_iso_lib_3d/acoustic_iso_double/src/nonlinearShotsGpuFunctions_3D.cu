@@ -91,6 +91,8 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 	host_nz = nz;
 	host_nx = nx;
     host_ny = ny;
+	host_nModel = nz * nx * ny;
+	host_yStride = nz * nx;
 	host_nts = nts;
 	host_sub = sub;
 	host_ntw = (nts - 1) * sub + 1;
@@ -119,9 +121,17 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 		dev_modelDebug = new double*[nGpu];
 		dev_dataDebug = new double*[nGpu];
 
+		// Compute and transfer stream
+		topStream = new cudaStream_t[nGpu];
+		compStream = new cudaStream_t[nGpu];
+
+		// Events
+		// eventTopFreeSurface = new cudaEvent_t[nGpu];
+
 	}
 
 	/**************************** COMPUTE LAPLACIAN COEFFICIENTS ************************/
+	// Compute coefficients for 8th order central finite difference Laplacian
 	double host_coeff[COEFF_SIZE] = get_coeffs((double)dz,(double)dx,(double)dy); // Stored on host
 
 	/**************************** COMPUTE TIME-INTERPOLATION FILTER *********************/
@@ -143,11 +153,6 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 		interpFilter[iFilter] = interpFilter[iFilter] * (1.0 / sqrt(double(host_ntw)/double(host_nts)));
 		interpFilter[iFilter+hInterpFilter] = interpFilter[iFilter+hInterpFilter] * (1.0 / sqrt(double(host_ntw)/double(host_nts)));
 	}
-
-	// std::cout << "Size of time filter" << 2*(SUB_MAX+1) << std::endl;
-	// for (int i = 0; i < nInterpFilter; i++){
-	// 	std::cout << "interpFilter[" << i << "] =" << interpFilter[i] << std::endl;
-	// }
 
 	/************************* COMPUTE COSINE DAMPING COEFFICIENTS **********************/
 	if (minPad>=PAD_MAX){
@@ -187,6 +192,8 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 	cuda_call(cudaMemcpyToSymbol(dev_nz, &nz, sizeof(int), 0, cudaMemcpyHostToDevice)); // Copy model size to device
 	cuda_call(cudaMemcpyToSymbol(dev_nx, &nx, sizeof(int), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMemcpyToSymbol(dev_ny, &ny, sizeof(int), 0, cudaMemcpyHostToDevice));
+	cuda_call(cudaMemcpyToSymbol(dev_yStride, &host_yStride, sizeof(long long), 0, cudaMemcpyHostToDevice));
+	cuda_call(cudaMemcpyToSymbol(dev_nModel, &host_nModel, sizeof(unsigned long long), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMemcpyToSymbol(dev_nts, &nts, sizeof(int), 0, cudaMemcpyHostToDevice)); // Copy number of coarse time parameters to device
 	cuda_call(cudaMemcpyToSymbol(dev_sub, &sub, sizeof(int), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMemcpyToSymbol(dev_ntw, &host_ntw, sizeof(int), 0, cudaMemcpyHostToDevice)); // Copy number of coarse time parameters to device
@@ -198,12 +205,12 @@ void allocateNonlinearGpu_3D(double *vel2Dtw2, int iGpu, int iGpuId){
 	cudaSetDevice(iGpuId);
 
 	// Scaled velocity
-	cuda_call(cudaMalloc((void**) &dev_vel2Dtw2[iGpu], host_nz*host_nx*host_ny*sizeof(double))); // Allocate scaled velocity model on device
-	cuda_call(cudaMemcpy(dev_vel2Dtw2[iGpu], vel2Dtw2, host_nz*host_nx*host_ny*sizeof(double), cudaMemcpyHostToDevice));
+	cuda_call(cudaMalloc((void**) &dev_vel2Dtw2[iGpu], host_nModel*sizeof(double))); // Allocate scaled velocity model on device
+	cuda_call(cudaMemcpy(dev_vel2Dtw2[iGpu], vel2Dtw2, host_nModel*sizeof(double), cudaMemcpyHostToDevice));
 
 	// Allocate time slices on device
-	cuda_call(cudaMalloc((void**) &dev_p0[iGpu], host_nz*host_nx*host_ny*sizeof(double))); // Allocate time slices on device (for the stepper)
-	cuda_call(cudaMalloc((void**) &dev_p1[iGpu], host_nz*host_nx*host_ny*sizeof(double)));
+	cuda_call(cudaMalloc((void**) &dev_p0[iGpu], host_nModel*sizeof(double))); // Allocate time slices on device (for the stepper)
+	cuda_call(cudaMalloc((void**) &dev_p1[iGpu], host_nModel*sizeof(double)));
 
 }
 void deallocateNonlinearGpu_3D(int iGpu, int iGpuId){
@@ -216,7 +223,7 @@ void deallocateNonlinearGpu_3D(int iGpu, int iGpuId){
 /****************************************************************************************/
 /******************************* Nonlinear forward propagation **************************/
 /****************************************************************************************/
-void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefieldDts, int iGpu, int iGpuId) {
+void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int freeSurface, int iGpu, int iGpuId) {
 
 	// Set device number on GPU cluster
 	cudaSetDevice(iGpuId);
@@ -240,58 +247,82 @@ void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize output on device
 
 	// Time slices
-  	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nz*host_nx*host_ny*sizeof(double)));
-	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nz*host_nx*host_ny*sizeof(double)));
+  	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(double)));
+	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(double)));
 
 	// Laplacian grid and blocks
 	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
 	int nblocky = (host_nx-2*FAT) / BLOCK_SIZE_X;
+	int nblockz = (host_ny-2*FAT+BLOCK_SIZE_Y-1) / BLOCK_SIZE_Y;
 	dim3 dimGrid(nblockx, nblocky);
 	dim3 dimBlock(BLOCK_SIZE_Z, BLOCK_SIZE_X);
+	dim3 dimGridFreeSurface(nblocky, nblockz);
+	dim3 dimBlockFreeSurface(BLOCK_SIZE_X, BLOCK_SIZE_Y);
 
 	// Extraction grid size
 	int nblockData = (nReceiversReg+BLOCK_SIZE_DATA-1) / BLOCK_SIZE_DATA;
-	// std::cout << "nblockData= " << nblockData << std::endl;
-	// std::cout << "BLOCK_SIZE_DATA= " << BLOCK_SIZE_DATA << std::endl;
-	// std::cout << "nz= " << host_nz << std::endl;
-	// std::cout << "nx= " << host_nx << std::endl;
-	// std::cout << "ny= " << host_ny << std::endl;
-	// std::cout << "nzSmall= " << host_nz-2*FAT << std::endl;
-	// std::cout << "nxSmall= " << host_nx-2*FAT << std::endl;
-	// std::cout << "nySmall= " << host_ny-2*FAT << std::endl;
-	// std::cout << "nblockx= " << nblockx << std::endl;
-	// std::cout << "nblocky= " << nblocky << std::endl;
-	// std::cout << "nSourcesReg= " << nSourcesReg << std::endl;
-	// std::cout << "nReceiversReg= " << nReceiversReg << std::endl;
 
 	// Start propagation
-	for (long long its = 0; its < host_nts-1; its++){
+	if (freeSurface != 1){
+		// Loop over coarse time samples
+		for (long long its = 0; its < host_nts-1; its++){
+			// Loop over sub loop
+			for (long long it2 = 1; it2 < host_sub+1; it2++){
 
-		// std::cout << "its= " << its << std::endl;
+				// Compute fine time-step index
+				long long itw = its * host_sub + it2;
 
-		for (long long it2 = 1; it2 < host_sub+1; it2++){
+				// Step forward
+				kernel_exec(stepFwdGpu_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]));
 
-			// Compute fine time-step index
-			long long itw = its * host_sub + it2;
+				// Inject source
+				kernel_exec(injectSourceLinear_3D<<<1, nSourcesReg>>>(dev_modelRegDtw[iGpu], dev_p0[iGpu], itw-1, dev_sourcesPositionReg[iGpu]));
 
-			// Step forward
-			kernel_exec(stepFwdGpu_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]));
+				// Damp wavefields
+				kernel_exec(dampCosineEdge_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu]));
 
-			// Inject source
-			kernel_exec(injectSourceLinear_3D<<<1, nSourcesReg>>>(dev_modelRegDtw[iGpu], dev_p0[iGpu], itw-1, dev_sourcesPositionReg[iGpu]));
+				// Extract and interpolate data
+				kernel_exec(recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
 
-			// Damp wavefields
-			kernel_exec(dampCosineEdge_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu]));
+				// Switch pointers
+				dev_temp1[iGpu] = dev_p0[iGpu];
+				dev_p0[iGpu] = dev_p1[iGpu];
+				dev_p1[iGpu] = dev_temp1[iGpu];
+				dev_temp1[iGpu] = NULL;
 
-			// Extract and interpolate data
-			kernel_exec(recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
+			}
+		}
+	} else {
+		std::cout << "Free surface forward" << std::endl;
+		// Loop over coarse time samples
+		for (long long its = 0; its < host_nts-1; its++){
+			// Loop over sub loop
+			for (long long it2 = 1; it2 < host_sub+1; it2++){
 
-			// Switch pointers
-			dev_temp1[iGpu] = dev_p0[iGpu];
-			dev_p0[iGpu] = dev_p1[iGpu];
-			dev_p1[iGpu] = dev_temp1[iGpu];
-			dev_temp1[iGpu] = NULL;
+				// Compute fine time-step index
+				long long itw = its * host_sub + it2;
 
+				// Apply free surface conditions for Laplacian
+				kernel_exec(setFreeSurfaceConditionFwdGpu_3D<<<dimGridFreeSurface, dimBlockFreeSurface>>>(dev_p1[iGpu]));
+
+				// Step forward in time
+				kernel_exec(stepFwdGpu_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]));
+
+				// Inject source
+				kernel_exec(injectSourceLinear_3D<<<1, nSourcesReg>>>(dev_modelRegDtw[iGpu], dev_p0[iGpu], itw-1, dev_sourcesPositionReg[iGpu]));
+
+				// Damp wavefields
+				kernel_exec(dampCosineEdgeFreeSurface_3D<<<dimGrid, dimBlock>>>(dev_p1[iGpu], dev_p0[iGpu]));
+
+				// Extract and interpolate data
+				kernel_exec(recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
+
+				// Switch pointers
+				dev_temp1[iGpu] = dev_p0[iGpu];
+				dev_p0[iGpu] = dev_p1[iGpu];
+				dev_p1[iGpu] = dev_temp1[iGpu];
+				dev_temp1[iGpu] = NULL;
+			}
 		}
 	}
 
@@ -309,10 +340,21 @@ void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 /****************************************************************************************/
 /******************************* Nonlinear adjoint propagation **************************/
 /****************************************************************************************/
-void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefieldDts, int iGpu, int iGpuId) {
+void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int freeSurface, int iGpu, int iGpuId) {
 
 	// Set device number on GPU cluster
 	cudaSetDevice(iGpuId);
+
+	// Create streams
+	cudaStreamCreate(&topStream[iGpu]);
+	cudaStreamCreate(&compStream[iGpu]);
+
+	// Create to synchornize top/body for free surface computation
+	// cudaEventCreate(&eventTopFreeSurface[iGpu]);
+	cudaEvent_t start, end, test;
+	cudaEventCreate(&start);
+	cudaEventCreate(&end);
+	cudaEventCreate(&test);
 
 	// Sources geometry
 	cuda_call(cudaMemcpyToSymbol(dev_nSourcesReg, &nSourcesReg, sizeof(int), 0, cudaMemcpyHostToDevice));
@@ -333,44 +375,163 @@ void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 	cuda_call(cudaMemcpy(dev_dataRegDts[iGpu], dataRegDts, nReceiversReg*host_nts*sizeof(double), cudaMemcpyHostToDevice)); // Copy data on device
 
 	// Initialize time slices on device
-	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nz*host_nx*host_ny*sizeof(double)));
-  	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nz*host_nx*host_ny*sizeof(double)));
+	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(double)));
+  	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(double)));
 
 	// Grid and block dimensions for stepper
 	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
 	int nblocky = (host_nx-2*FAT) / BLOCK_SIZE_X;
+	int nblockz = (host_ny-2*FAT+BLOCK_SIZE_Y-1) / BLOCK_SIZE_Y;
 	dim3 dimGrid(nblockx, nblocky);
+	dim3 dimGridTop(1, nblocky);
+	dim3 dimGridBody(nblockx-1, nblocky);
 	dim3 dimBlock(BLOCK_SIZE_Z, BLOCK_SIZE_X);
+	dim3 dimGridFreeSurface(nblocky, nblockz);
+	dim3 dimBlockFreeSurface(BLOCK_SIZE_X, BLOCK_SIZE_Y);
 
+	int nEvents = (host_nts-1)*host_sub;
+	eventTopFreeSurface = new cudaEvent_t[nEvents];
+	for (int iEvent = 0; iEvent < nEvents; iEvent++){
+		cudaEventCreateWithFlags(&(eventTopFreeSurface[iEvent]), cudaEventDisableTiming);
+	}
+
+	int eventTopBodyFreeSurface = 0;
+	int iEvent = 0;
 	// Grid and block dimensions for data injection
 	int nblockData = (nReceiversReg+BLOCK_SIZE_DATA-1) / BLOCK_SIZE_DATA;
 
-	// Start propagation
-	for (int its = host_nts-2; its > -1; its--){
-		// std::cout << "its= " << its << std::endl;
-		for (int it2 = host_sub-1; it2 > -1; it2--){
+	if (freeSurface != 1){
+		// Loop over coarse time samples
+		for (int its = host_nts-2; its > -1; its--){
+			// Loop over sub loop
+			for (int it2 = host_sub-1; it2 > -1; it2--){
 
-			// Compute fine time-step index
-			int itw = its * host_sub + it2;
+				// Compute fine time-step index
+				int itw = its * host_sub + it2;
 
-			// Step forward in time
-			kernel_exec(stepAdjGpu_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]));
+				// Step forward in time
+				kernel_exec(stepAdjGpu_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]));
 
-			// Inject data
-			kernel_exec(interpLinearInjectData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_dataRegDts[iGpu], dev_p0[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
+				// Inject data
+				kernel_exec(interpLinearInjectData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_dataRegDts[iGpu], dev_p0[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
 
-			// Damp wavefield
-			kernel_exec(dampCosineEdge_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu]));
+				// Damp wavefield
+				kernel_exec(dampCosineEdge_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu]));
 
-			// Extract model
-			kernel_exec(recordSource_3D<<<1, nSourcesReg>>>(dev_p0[iGpu], dev_modelRegDtw[iGpu], itw, dev_sourcesPositionReg[iGpu]));
+				// Extract model
+				kernel_exec(recordSource_3D<<<1, nSourcesReg>>>(dev_p0[iGpu], dev_modelRegDtw[iGpu], itw, dev_sourcesPositionReg[iGpu]));
 
-			// Switch pointers
-			dev_temp1[iGpu] = dev_p0[iGpu];
-			dev_p0[iGpu] = dev_p1[iGpu];
-			dev_p1[iGpu] = dev_temp1[iGpu];
-			dev_temp1[iGpu] = NULL;
+				// Switch pointers
+				dev_temp1[iGpu] = dev_p0[iGpu];
+				dev_p0[iGpu] = dev_p1[iGpu];
+				dev_p1[iGpu] = dev_temp1[iGpu];
+				dev_temp1[iGpu] = NULL;
+			}
 		}
+	} else if (eventTopBodyFreeSurface != 1){
+		std::cout << "Free surface" << std::endl;
+		// Loop over coarse time samples
+		for (int its = host_nts-2; its > -1; its--){
+			// Loop over sub loop
+			for (int it2 = host_sub-1; it2 > -1; it2--){
+
+				// Compute fine time-step index
+				int itw = its * host_sub + it2;
+
+				// Step backward in time
+				kernel_exec(stepAdjFreeSurfaceGpu_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]));
+
+				// Inject data
+				kernel_exec(interpLinearInjectData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_dataRegDts[iGpu], dev_p0[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
+
+				// Damp wavefield
+				kernel_exec(dampCosineEdgeFreeSurface_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu]));
+
+				// Extract model
+				kernel_exec(recordSource_3D<<<1, nSourcesReg>>>(dev_p0[iGpu], dev_modelRegDtw[iGpu], itw, dev_sourcesPositionReg[iGpu]));
+
+				dev_temp1[iGpu] = dev_p0[iGpu];
+				dev_p0[iGpu] = dev_p1[iGpu];
+				dev_p1[iGpu] = dev_temp1[iGpu];
+				dev_temp1[iGpu] = NULL;
+			}
+		}
+	} else {
+		std::cout << "Free surface + top-body separation" << std::endl;
+		// Loop over coarse time samples
+		for (int its = host_nts-2; its > -1; its--){
+			// cudaEventRecord(start, NULL);
+			// Loop over sub loop
+			for (int it2 = host_sub-1; it2 > -1; it2--){
+				// std::cout << "before its=" << its << std::endl;
+				// cudaEventCreate(&eventTopFreeSurface[iEvent]);
+				// std::cout << "after its=" << its << std::endl;
+
+				// cudaEventCreate(&toto);
+				// Compute fine time-step index
+				int itw = its * host_sub + it2;
+				// stepAdjFreeSurfaceGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]);
+				// cudaEventCreate(&eventTopFreeSurface[iGpu]);
+
+				// Launch top free surface compuation
+				stepAdjFreeSurfaceGpu_3D<<<dimGridTop, dimBlock, 0, topStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]);
+				cudaEventRecord(eventTopFreeSurface[iEvent], topStream[iGpu]); // Top stream triggers toto
+				// cudaStreamWaitEvent(compStream[iGpu], eventTopFreeSurface[iEvent], 0);
+				cudaEventSynchronize(eventTopFreeSurface[iEvent]);
+				stepAdjBodyFreeSurfaceGpu_3D<<<dimGridBody, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]);
+
+				// cudaDeviceSynchronize();
+
+				// cudaEventSynchronize(toto);
+				// cudaEventDestroy(toto);
+
+				// Inject data
+				interpLinearInjectData_3D<<<nblockData, BLOCK_SIZE_DATA, 0, compStream[iGpu]>>>(dev_dataRegDts[iGpu], dev_p0[iGpu], its, it2, dev_receiversPositionReg[iGpu]);
+
+				// Damp wavefield
+				dampCosineEdgeFreeSurface_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
+
+				// Extract model
+				recordSource_3D<<<1, nSourcesReg, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_modelRegDtw[iGpu], itw, dev_sourcesPositionReg[iGpu]);
+
+				dev_temp1[iGpu] = dev_p0[iGpu];
+				dev_p0[iGpu] = dev_p1[iGpu];
+				dev_p1[iGpu] = dev_temp1[iGpu];
+				dev_temp1[iGpu] = NULL;
+				iEvent++;
+			}
+			// cudaEventRecord(end, NULL);
+			// cudaEventSynchronize(end);
+			// cudaStreamWaitEvent(compStream[iGpu], end, 0);
+			// cudaStreamWaitEvent(topStream[iGpu], end, 0);
+			// float ms=0.0;
+			// cudaEventElapsedTime(&ms, start, end);
+			// std::cout << "its = " << its << ", ms = " << ms << std::endl;
+			// ms = 0.0;
+		}
+
+		// Create two arrays (one on device, other one host)
+		// int *host_array, *dev_array;
+		// host_array = new int[12];
+		// cuda_call(cudaMalloc((void**) &dev_array, 12*sizeof(int)));
+		// for (int j=0; j<12; j++){
+		// 	host_array[j]=j;
+		// }
+		// cuda_call(cudaMemcpy(dev_array, host_array, 12*sizeof(int), cudaMemcpyHostToDevice));
+		//
+		// // My thaang
+		// for (int j=0; j<2; j++){
+		//
+		// 	kA1<<<1, 1, 0, compStream[iGpu]>>>(j, dev_array);
+		//
+		// 	for (int i=2; i<12; i++){
+		// 		kA2<<<1, 1, 0, topStream[iGpu]>>>(i, j, dev_array);
+		// 	}
+		// 	cudaEventRecord(test, NULL);
+		// 	cudaStreamWaitEvent(compStream[iGpu], test, 0);
+		// 	kA3<<<1, 1, 0, compStream[iGpu]>>>(j, dev_array);
+		// 	std::cout << "Done j = " << j << std::endl;
+		// }
 	}
 
 	// Copy data back to host
@@ -381,77 +542,5 @@ void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
     cuda_call(cudaFree(dev_dataRegDts[iGpu]));
     cuda_call(cudaFree(dev_sourcesPositionReg[iGpu]));
     cuda_call(cudaFree(dev_receiversPositionReg[iGpu]));
-
-}
-
-
-// Debug Laplacian
-void laplacianFwd_3d(double *modelDebug, double *dataDebug, int iGpu, int iGpuId) {
-
-	// Set device number on GPU cluster
-	cudaSetDevice(iGpuId);
-
-	// Model
-	cuda_call(cudaMalloc((void**) &dev_modelDebug[iGpu], host_nz*host_nx*host_ny*sizeof(double)));
-	cuda_call(cudaMemcpy(dev_modelDebug[iGpu], modelDebug, host_nz*host_nx*host_ny*sizeof(double), cudaMemcpyHostToDevice)); // Copy input signals on device
-
-	// Data
-	cuda_call(cudaMalloc((void**) &dev_dataDebug[iGpu], host_nz*host_nx*host_ny*sizeof(double)));
-	cuda_call(cudaMemset(dev_dataDebug[iGpu], 0, host_nz*host_nx*host_ny*sizeof(double)));
-
-	// std::cout << "Inside Laplacian cuda forward 1" << std::endl;
-
-	// Laplacian grid and blocks
-	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
-	int nblocky = (host_nx-2*FAT) / BLOCK_SIZE_X;
-	dim3 dimGrid(nblockx, nblocky);
-	dim3 dimBlock(BLOCK_SIZE_Z, BLOCK_SIZE_X);
-
-	// std::cout << "nz= " << host_nz << std::endl;
-	// std::cout << "nx= " << host_nx << std::endl;
-	// std::cout << "ny= " << host_ny << std::endl;
-	// std::cout << "nzSmall= " << host_nz-2*FAT << std::endl;
-	// std::cout << "nxSmall= " << host_nx-2*FAT << std::endl;
-	// std::cout << "nySmall= " << host_ny-2*FAT << std::endl;
-	// std::cout << "nblockx= " << nblockx << std::endl;
-	// std::cout << "nblocky= " << nblocky << std::endl;
-
-	// Apply forward Laplacian
-	kernel_exec(LaplacianFwdGpu_3D<<<dimGrid, dimBlock>>>(dev_modelDebug[iGpu], dev_dataDebug[iGpu], dev_vel2Dtw2[iGpu]));
-
-	// std::cout << "Inside Laplacian cuda forward 2" << std::endl;
-
-	// Copy data back to host
-	cuda_call(cudaMemcpy(dataDebug, dev_dataDebug[iGpu], host_nz*host_nx*host_ny*sizeof(double), cudaMemcpyDeviceToHost));
-
-}
-
-void laplacianAdj_3d(double *modelDebug, double *dataDebug, int iGpu, int iGpuId) {
-
-	// Set device number on GPU cluster
-	cudaSetDevice(iGpuId);
-
-	// Model
-	cuda_call(cudaMalloc((void**) &dev_modelDebug[iGpu], host_nz*host_nx*host_ny*sizeof(double)));
-
-	// Data
-	cuda_call(cudaMalloc((void**) &dev_dataDebug[iGpu], host_nz*host_nx*host_ny*sizeof(double)));
-	cuda_call(cudaMemcpy(dev_dataDebug[iGpu], dataDebug, host_nz*host_nx*host_ny*sizeof(double), cudaMemcpyHostToDevice));
-
-	// Initialize model to zero
-	cuda_call(cudaMemset(dev_modelDebug[iGpu], 0, host_nz*host_nx*host_ny*sizeof(double)));
-
-	// Laplacian grid and blocks
-	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
-	int nblocky = (host_nx-2*FAT) / BLOCK_SIZE_X;
-	dim3 dimGrid(nblockx, nblocky);
-	dim3 dimBlock(BLOCK_SIZE_Z, BLOCK_SIZE_X);
-
-	// Apply adjoint Laplacian
-	kernel_exec(LaplacianAdjGpu_3D<<<dimGrid, dimBlock>>>(dev_modelDebug[iGpu], dev_dataDebug[iGpu],dev_vel2Dtw2[iGpu]));
-	// kernel_exec(LaplacianFwdGpu_3D<<<dimGrid, dimBlock>>>(dev_dataDebug[iGpu], dev_modelDebug[iGpu], dev_vel2Dtw2[iGpu]));
-
-	// Copy data back to host
-	cuda_call(cudaMemcpy(modelDebug, dev_modelDebug[iGpu], host_nz*host_nx*host_ny*sizeof(double), cudaMemcpyDeviceToHost));
 
 }

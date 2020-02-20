@@ -89,7 +89,7 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
 	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
 	std::vector<std::shared_ptr<BornGpu_3D>> BornObjectVector;
-
+	
 	// Loop over GPUs
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 

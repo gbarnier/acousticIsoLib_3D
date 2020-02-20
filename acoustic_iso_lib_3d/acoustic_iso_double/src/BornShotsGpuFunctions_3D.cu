@@ -146,15 +146,10 @@ void initBornGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int
 		dev_pStream = new double*[nGpu];
 		dev_pSourceWavefield = new double*[nGpu];
 
-
-
 	}
 
 	/**************************** COMPUTE LAPLACIAN COEFFICIENTS ************************/
 	double host_coeff[COEFF_SIZE] = get_coeffs((double)dz,(double)dx,(double)dy); // Stored on host
-    // for (int iCoeff=0; iCoeff<COEFF_SIZE; iCoeff++){
-	// 	std::cout << "Coeff [" << iCoeff << "] = " << host_coeff[iCoeff]<< std::endl;
-    // }
 
 	/**************************** COMPUTE TIME-INTERPOLATION FILTER *********************/
 	// Time interpolation filter length / half length
@@ -175,11 +170,6 @@ void initBornGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int
 		interpFilter[iFilter] = interpFilter[iFilter] * (1.0 / sqrt(double(host_ntw)/double(host_nts)));
 		interpFilter[iFilter+hInterpFilter] = interpFilter[iFilter+hInterpFilter] * (1.0 / sqrt(double(host_ntw)/double(host_nts)));
 	}
-
-	// std::cout << "Size of time filter" << 2*(SUB_MAX+1) << std::endl;
-	// for (int i = 0; i < nInterpFilter; i++){
-	// 	std::cout << "interpFilter[" << i << "] =" << interpFilter[i] << std::endl;
-	// }
 
 	/************************* COMPUTE COSINE DAMPING COEFFICIENTS **********************/
 	if (minPad>=PAD_MAX){
@@ -308,6 +298,11 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 	// Initialize pinned memory
 	cudaMemset(pin_wavefieldSlice[iGpu], 0, host_nModel*sizeof(double));
 
+
+	// Data for debugging
+  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate output on device
+  	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize output on device
+
 	// Blocks for Laplacian
 	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
 	int nblocky = (host_nx-2*FAT) / BLOCK_SIZE_X;
@@ -327,14 +322,14 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 
 	/********************** Source wavefield computation **********************/
 
-	// cudaEvent_t start,stop;
-	// cudaEventCreate(&start);
-	// float ms;
-	// cudaEventCreate(&stop);
-	// cudaEventRecord(start, 0);
+	cudaEvent_t start,stop;
+	cudaEventCreate(&start);
+	float ms;
+	cudaEventCreate(&stop);
+	cudaEventRecord(start, 0);
 
 	for (int its = 0; its < host_nts-1; its++){
-		std::cout << "its #1 = " << its << std::endl;
+
 		// Loop within two values of its (coarse time grid)
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
@@ -353,6 +348,9 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 			// Spread energy to dev_pLeft and dev_pRight
 			interpFineToCoarseSlice<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], its, it2);
 
+			// Extract and interpolate data
+			kernel_exec(recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
+
 			// Switch pointers
 			dev_temp1[iGpu] = dev_p0[iGpu];
 			dev_p0[iGpu] = dev_p1[iGpu];
@@ -360,16 +358,16 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 			dev_temp1[iGpu] = NULL;
 
 		}
-		std::cout << "its #2 = " << its << std::endl;
+
 		/* Note: At that point pLeft [its] is ready to be transfered back to host */
 		// Synchronize [transfer] (make sure the temporary device array dev_pStream has been transfered to host)
 		cuda_call(cudaStreamSynchronize(transferStream[iGpu])); // Blocks host until all issued cuda calls in transfer stream are completed
 		// At that point, the value of pStream has been transfered back to host pinned memory
-		std::cout << "its #3 = " << its << std::endl;
+
 		// Asynchronous copy of dev_pLeft => dev_pStream [its] [compute]
 		cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 		// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
-		std::cout << "its #4 = " << its << std::endl;
+
 		if (its>0) {
 			// Standard library
 			std::memcpy(srcWavefieldDts+(its-1)*host_nModel, pin_wavefieldSlice[iGpu], host_nModel*sizeof(double));
@@ -417,10 +415,13 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 	std::memcpy(srcWavefieldDts+(host_nts-1)*host_nModel,pin_wavefieldSlice[iGpu], host_nz*host_nx*host_ny*sizeof(double)); // Copy pinned array to wavefield array for the last sample [nts-1] [host]
 	// cuda_call(cudaMemcpyAsync(srcWavefieldDts+(host_nts-1)*host_nz*host_nx*host_ny, pin_wavefieldSlice[iGpu], host_nz*host_nx*host_ny*sizeof(double), cudaMemcpyHostToHost, transferStream[iGpu]));
 
-	// cudaEventRecord(stop, 0);
-	// cudaEventSynchronize(stop);
-	// cudaEventElapsedTime(&ms, start, stop);
-	// std::cout << "Duration: " << ms/1000 << " [s]" << std::endl;
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&ms, start, stop);
+	std::cout << "Duration: " << ms/1000 << " [s]" << std::endl;
+
+	// Copy data back to host
+	cuda_call(cudaMemcpy(dataRegDts, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost));
 
 	/********************** Scattered wavefield computation *******************/
 

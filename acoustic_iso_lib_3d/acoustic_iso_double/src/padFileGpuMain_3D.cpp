@@ -29,16 +29,30 @@ int main(int argc, char **argv) {
     int yPad = par->getInt("yPad");
 	int fat = par->getInt("fat", 4);
 	int blockSize = par->getInt("blockSize", 16);
+	int freeSurface = par->getInt("freeSurface", 0);
 
 	// Compute size of zPadPlus
 	int zPadPlus;
-	long long nzTotal = zPad * 2 + nz;
-	float ratioz = float(nzTotal) / float(blockSize);
-	ratioz = ceilf(ratioz);
-	long long nbBlockz = ratioz;
-	zPadPlus = nbBlockz * blockSize - nz - zPad;
-	long long nzNew = zPad + zPadPlus + nz;
-	long long nzNewTotal = nzNew + 2*fat;
+	long long nzNew;
+	long long nzNewTotal;
+	if (freeSurface == 1){
+		long long nzTotal = zPad + nz;
+		float ratioz = float(nzTotal) / float(blockSize);
+		ratioz = ceilf(ratioz);
+		long long nbBlockz = ratioz;
+		zPadPlus = nbBlockz * blockSize - nz;
+		nzNew = zPadPlus + nz;
+		nzNewTotal = nzNew + 2*fat;
+		zPad = 0;
+	} else {
+		long long nzTotal = zPad * 2 + nz;
+		float ratioz = float(nzTotal) / float(blockSize);
+		ratioz = ceilf(ratioz);
+		long long nbBlockz = ratioz;
+		zPadPlus = nbBlockz * blockSize - nz - zPad;
+		nzNew = zPad + zPadPlus + nz;
+		nzNewTotal = nzNew + 2*fat;
+	}
 
 	// Compute size of xPadPlus
 	int xPadPlus;
@@ -132,7 +146,11 @@ int main(int argc, char **argv) {
 	std::cout << "Original nx = " << nx << " [samples]" << std::endl;
 	std::cout << "Original ny = " << ny << " [samples]" << std::endl;
 	std::cout << " " << std::endl;
-	std::cout << "zPadMinus = " << zPad << " [samples]" << std::endl;
+	if (freeSurface == 1){
+		std::cout << "zPadMinus = " << zPad << " [samples] => Model designed with a free surface at the top" << std::endl;
+	} else {
+		std::cout << "zPadMinus = " << zPad << " [samples]" << std::endl;
+	}
 	std::cout << "zPadPlus = " << zPadPlus << " [samples]" << std::endl;
 	std::cout << "xPadMinus = " << xPad << " [samples]" << std::endl;
 	std::cout << "xPadPlus = " << xPadPlus << " [samples]" << std::endl;

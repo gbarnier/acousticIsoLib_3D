@@ -64,13 +64,13 @@ if __name__ == '__main__':
 		genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
 		# Saving source wavefield
-		# if (parObject.getInt("saveSrcWavefield",0) == 1):
-		# 	srcWavefieldDouble = BornOp.getSrcWavefield_3D(iSrcWavefield)
-		# 	srcWavefieldFloat=SepVector.getSepVector(srcWavefieldDouble.getHyper())
-		# 	srcWavefieldDoubleNp=srcWavefieldDouble.getNdArray()
-		# 	srcWavefieldFloatNp=srcWavefieldFloat.getNdArray()
-		# 	srcWavefieldFloatNp[:]=srcWavefieldDoubleNp
-		# 	genericIO.defaultIO.writeVector(srcWavefieldFile,srcWavefieldFloat)
+		if (parObject.getInt("saveSrcWavefield",0) == 1):
+			srcWavefieldDouble = BornOp.getSrcWavefield_3D(iSrcWavefield)
+			srcWavefieldFloat=SepVector.getSepVector(srcWavefieldDouble.getHyper())
+			srcWavefieldDoubleNp=srcWavefieldDouble.getNdArray()
+			srcWavefieldFloatNp=srcWavefieldFloat.getNdArray()
+			srcWavefieldFloatNp[:]=srcWavefieldDoubleNp
+			genericIO.defaultIO.writeVector(srcWavefieldFile,srcWavefieldFloat)
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")

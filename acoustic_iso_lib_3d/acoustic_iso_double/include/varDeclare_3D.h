@@ -70,7 +70,7 @@ __constant__ double dev_cCenter;
 // Global memory
 long long **dev_sourcesPositionReg; // Array containing the positions of the sources on the regular grid
 long long **dev_receiversPositionReg; // Array containing the positions of the receivers on the regular grid
-double **dev_p0, **dev_p1, **dev_temp1; // Temporary slices for stepping
+double **dev_p0, **dev_p1, **dev_p2, **dev_temp1, **dev_p1_temp; // Temporary slices for stepping
 double **dev_vel2Dtw2; // Precomputed scaling v^2 * dtw^2
 
 // Nonlinear modeling
@@ -85,7 +85,9 @@ double **dev_pLeft, **dev_pRight, **dev_pTemp;
 
 // Streams
 double **pin_wavefieldSlice, **dev_pStream, **dev_pSourceWavefield;
-cudaStream_t *compStream, *transferStream;
+cudaStream_t *compStream, *transferStream, *topStream;
+
+cudaEvent_t *eventTopFreeSurface;
 
 /******************************************************************************/
 /**************************** Declaration on host *****************************/

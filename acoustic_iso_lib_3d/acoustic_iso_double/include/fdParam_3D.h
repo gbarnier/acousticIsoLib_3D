@@ -43,7 +43,7 @@ class fdParam_3D{
 		int _nz, _nx, _ny, _nExt1, _nExt2, _hExt1, _hExt2;
 		int _zPadMinus, _zPadPlus, _xPadMinus, _xPadPlus, _yPadMinus, _yPadPlus, _zPad, _xPad, _yPad, _minPad;
 		double _dz, _dx, _dy, _oz, _ox, _oy, _fMax;
-		int _saveWavefield, _blockSize, _fat;
+		int _saveWavefield, _blockSize, _fat, _freeSurface;
 		double _alphaCos;
 		std::string _extension;
 

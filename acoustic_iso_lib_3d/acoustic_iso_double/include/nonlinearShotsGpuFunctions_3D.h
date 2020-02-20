@@ -9,13 +9,16 @@ void allocateNonlinearGpu_3D(double *vel2Dtw2, int iGpu, int iGpuId);
 void deallocateNonlinearGpu_3D(int iGpu, int iGpuId);
 
 /*********************************** Nonlinear FWD **************************************/
-void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefieldDts, int iGpu, int iGpuId);
+void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int freeSurface, int iGpu, int iGpuId);
 
 /*********************************** Nonlinear ADJ **************************************/
-void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDtw, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefieldDts, int iGpu, int iGpuId);
+void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDtw, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int freeSurface, int iGpu, int iGpuId);
 
 /****************************** Laplacian **********************************/
-void laplacianFwd_3d(double *model, double *data, int iGpu, int iGpuId);
-void laplacianAdj_3d(double *model, double *data, int iGpu, int iGpuId);
+// void laplacianFwd_3d(double *model, double *data, int iGpu, int iGpuId);
+// void laplacianAdj_3d(double *model, double *data, int iGpu, int iGpuId);
+//
+// void freeSurfaceDebugFwd(double *model, double *data, int iGpu, int iGpuId);
+// void freeSurfaceDebugAdj(double *model, double *data, int iGpu, int iGpuId);
 
 #endif

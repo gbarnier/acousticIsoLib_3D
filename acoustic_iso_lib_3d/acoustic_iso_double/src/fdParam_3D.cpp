@@ -28,9 +28,11 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 
 	/***** Vertical axis *****/
 	_nz = _par->getInt("nz");
+	_freeSurface = _par->getInt("freeSurface");
 	_zPadPlus = _par->getInt("zPadPlus");
 	_zPadMinus = _par->getInt("zPadMinus");
-	_zPad = std::min(_zPadMinus, _zPadPlus);
+	if (_freeSurface == 1){_zPad = _zPadPlus;}
+	else {_zPad = std::min(_zPadMinus, _zPadPlus);}
 	_dz = _par->getFloat("dz",-1.0);
 	_oz = _vel->getHyper()->getAxis(1).o;
 	_zAxis = axis(_nz, _oz, _dz);
@@ -154,110 +156,110 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 
 void fdParam_3D::getInfo_3D(){
 
-		std::cout << " " << std::endl;
-		std::cout << "*******************************************************************" << std::endl;
-		std::cout << "************************ FD PARAMETERS INFO ***********************" << std::endl;
-		std::cout << "*******************************************************************" << std::endl;
-		std::cout << " " << std::endl;
+	std::cout << " " << std::endl;
+	std::cout << "*******************************************************************" << std::endl;
+	std::cout << "************************ FD PARAMETERS INFO ***********************" << std::endl;
+	std::cout << "*******************************************************************" << std::endl;
+	std::cout << " " << std::endl;
 
-		// Coarse time sampling
-		std::cout << "------------------------ Coarse time sampling ---------------------" << std::endl;
-		std::cout << std::fixed;
+	// Coarse time sampling
+	std::cout << "------------------------ Coarse time sampling ---------------------" << std::endl;
+	std::cout << std::fixed;
+	std::cout << std::setprecision(3);
+	std::cout << "nts = " << _nts << " [samples], dts = " << _dts << " [s], ots = " << _ots << " [s]" << std::endl;
+	std::cout << std::setprecision(1);
+	std::cout << "Nyquist frequency = " << 1.0/(2.0*_dts) << " [Hz]" << std::endl;
+	std::cout << "Maximum frequency from seismic source = " << _fMax << " [Hz]" << std::endl;
+	std::cout << std::setprecision(3);
+	std::cout << "Total recording time = " << (_nts-1) * _dts << " [s]" << std::endl;
+	std::cout << "Subsampling = " << _sub << std::endl;
+	std::cout << " " << std::endl;
+
+	// Coarse time sampling
+	std::cout << "------------------------ Fine time sampling -----------------------" << std::endl;
+	std::cout << "ntw = " << _ntw << " [samples], dtw = " << _dtw << " [s], otw = " << _otw << " [s]" << std::endl;
+	std::cout << " " << std::endl;
+
+	// Vertical spatial sampling
+	std::cout << "--------------------------- Vertical axis -------------------------" << std::endl;
+	std::cout << std::setprecision(2);
+	std::cout << "nz = " << _nz-2*_fat-_zPadMinus-_zPadPlus << " [samples], dz = " << _dz << " [km], oz = " << _oz+(_fat+_zPadMinus)*_dz << " [km]" << std::endl;
+	std::cout << "Model thickness (area of interest) = " << _oz+(_fat+_zPadMinus)*_dz+(_nz-2*_fat-_zPadMinus-_zPadPlus-1)*_dz << " [km]" << std::endl;
+	std::cout << "Top padding = " << _zPadMinus << " [samples], bottom padding = " << _zPadPlus << " [samples]" << std::endl;
+	std::cout << "nz (padded) = " << _nz << " [samples], oz (padded) = " << _oz << " [km]" << std::endl;
+	std::cout << "Model thickness (padding+fat) = " << _oz+(_nz-1)*_dz << " [km]" << std::endl;
+	std::cout << " " << std::endl;
+
+	// Horizontal spatial sampling
+	std::cout << "-------------------------- Horizontal x-axis ----------------------" << std::endl;
+	std::cout << std::setprecision(2);
+	std::cout << "nx = " << _nx-2*_fat-_xPadMinus-_xPadPlus << " [samples], dx = " << _dx << " [km], ox = " << _ox+(_fat+_xPadMinus)*_dx << " [km]" << std::endl;
+	std::cout << "Model width in x-direction (area of interest) = " << _ox+(_fat+_xPadMinus)*_dx+(_nx-2*_fat-_xPadMinus-_xPadPlus-1)*_dx << " [km]" << std::endl;
+	std::cout << "Left padding = " << _xPadMinus << " [samples], right padding = " << _xPadPlus << " [samples]" << std::endl;
+	std::cout << "nx (padded) = " << _nx << " [samples], ox (padded) = " << _ox << " [km]" << std::endl;
+	std::cout << "Model width (padding+fat) = " << _ox+(_nx-1)*_dx << " [km]" << std::endl;
+	std::cout << " " << std::endl;
+
+	// Horizontal spatial sampling
+	std::cout << "-------------------------- Horizontal y-axis ----------------------" << std::endl;
+	std::cout << std::setprecision(2);
+	std::cout << "ny = " << _ny-2*_fat-2*_yPad << " [samples], dy = " << _dy << " [km], ox = " << _oy+(_fat+_yPad)*_dy << " [km]" << std::endl;
+	std::cout << "Model width in y-drection (area of interest) = " << _oy+(_fat+_yPad)*_dy+(_ny-2*_fat-2*_yPad-1)*_dy << " [km]" << std::endl;
+	std::cout << "Left padding = " << _yPad << " [samples], right padding = " << _yPad << " [samples]" << std::endl;
+	std::cout << "ny (padded) = " << _ny << " [samples], oy (padded) = " << _oy << " [km]" << std::endl;
+	std::cout << "Model width (padding+fat) = " << _oy+(_ny-1)*_dy << " [km]" << std::endl;
+	std::cout << " " << std::endl;
+
+	// Extended axis
+	if ( _extension=="time" ){
 		std::cout << std::setprecision(3);
-		std::cout << "nts = " << _nts << " [samples], dts = " << _dts << " [s], ots = " << _ots << " [s]" << std::endl;
-		std::cout << std::setprecision(1);
-		std::cout << "Nyquist frequency = " << 1.0/(2.0*_dts) << " [Hz]" << std::endl;
-		std::cout << "Maximum frequency from seismic source = " << _fMax << " [Hz]" << std::endl;
-		std::cout << std::setprecision(3);
-		std::cout << "Total recording time = " << (_nts-1) * _dts << " [s]" << std::endl;
-		std::cout << "Subsampling = " << _sub << std::endl;
+		std::cout << "-------------------- Extended axis #1: time-lags 1 ---------------------" << std::endl;
+		std::cout << "nTau1 = " << _hExt1 << " [samples], dTau1= " << _dExt1 << " [s], oTau1 = " << _oExt1 << " [s]" << std::endl;
+		std::cout << "Total extension length nTau1 = " << _nExt1 << " [samples], which corresponds to " << _nExt1*_dExt1 << " [s]" << std::endl;
 		std::cout << " " << std::endl;
 
-		// Coarse time sampling
-		std::cout << "------------------------ Fine time sampling -----------------------" << std::endl;
-		std::cout << "ntw = " << _ntw << " [samples], dtw = " << _dtw << " [s], otw = " << _otw << " [s]" << std::endl;
+		std::cout << "-------------------- Extended axis #2: time-lags 2 ---------------------" << std::endl;
+		std::cout << "nTau2 = " << _hExt1 << " [samples], dTau2= " << _dExt2 << " [s], oTau2 = " << _oExt2 << " [s]" << std::endl;
+		std::cout << "Total extension length nTau2 = " << _nExt2 << " [samples], which corresponds to " << _nExt2*_dExt2 << " [s]" << std::endl;
 		std::cout << " " << std::endl;
 
-		// Vertical spatial sampling
-		std::cout << "--------------------------- Vertical axis -------------------------" << std::endl;
+	}
+
+	if ( _extension=="offset" ){
 		std::cout << std::setprecision(2);
-		std::cout << "nz = " << _nz-2*_fat-_zPadMinus-_zPadPlus << " [samples], dz = " << _dz << " [km], oz = " << _oz+(_fat+_zPadMinus)*_dz << " [km]" << std::endl;
-		std::cout << "Model thickness (area of interest) = " << _oz+(_fat+_zPadMinus)*_dz+(_nz-2*_fat-_zPadMinus-_zPadPlus-1)*_dz << " [km]" << std::endl;
-		std::cout << "Top padding = " << _zPadMinus << " [samples], bottom padding = " << _zPadPlus << " [samples]" << std::endl;
-		std::cout << "nz (padded) = " << _nz << " [samples], oz (padded) = " << _oz << " [km]" << std::endl;
-		std::cout << "Model thickness (padding+fat) = " << _oz+(_nz-1)*_dz << " [km]" << std::endl;
+		std::cout << "---------- Extended x-axis: horizontal subsurface offsets -----------" << std::endl;
+		std::cout << "nxOffset = " << _hExt1 << " [samples], dxOffset= " << _dExt1 << " [km], oxOffset = " << _oExt1 << " [km]" << std::endl;
+		std::cout << "Total extension in x-direction length nxOffset = " << _nExt1 << " [samples], which corresponds to " << _nExt1*_dExt1 << " [km]" << std::endl;
 		std::cout << " " << std::endl;
 
-		// Horizontal spatial sampling
-		std::cout << "-------------------------- Horizontal x-axis ----------------------" << std::endl;
-		std::cout << std::setprecision(2);
-		std::cout << "nx = " << _nx-2*_fat-_xPadMinus-_xPadPlus << " [samples], dx = " << _dx << " [km], ox = " << _ox+(_fat+_xPadMinus)*_dx << " [km]" << std::endl;
-		std::cout << "Model width in x-direction (area of interest) = " << _ox+(_fat+_xPadMinus)*_dx+(_nx-2*_fat-_xPadMinus-_xPadPlus-1)*_dx << " [km]" << std::endl;
-		std::cout << "Left padding = " << _xPadMinus << " [samples], right padding = " << _xPadPlus << " [samples]" << std::endl;
-		std::cout << "nx (padded) = " << _nx << " [samples], ox (padded) = " << _ox << " [km]" << std::endl;
-		std::cout << "Model width (padding+fat) = " << _ox+(_nx-1)*_dx << " [km]" << std::endl;
+        std::cout << "---------- Extended y-axis: horizontal subsurface offsets -----------" << std::endl;
+		std::cout << "nyOffset = " << _hExt2 << " [samples], dyOffset= " << _dExt2 << " [km], oyOffset = " << _oExt2 << " [km]" << std::endl;
+		std::cout << "Total extension in y-direction length nyOffset = " << _nExt2 << " [samples], which corresponds to " << _nExt2*_dExt2 << " [km]" << std::endl;
 		std::cout << " " << std::endl;
+	}
 
-		// Horizontal spatial sampling
-		std::cout << "-------------------------- Horizontal y-axis ----------------------" << std::endl;
-		std::cout << std::setprecision(2);
-		std::cout << "ny = " << _ny-2*_fat-2*_yPad << " [samples], dy = " << _dy << " [km], ox = " << _oy+(_fat+_yPad)*_dy << " [km]" << std::endl;
-		std::cout << "Model width in y-drection (area of interest) = " << _oy+(_fat+_yPad)*_dy+(_ny-2*_fat-2*_yPad-1)*_dy << " [km]" << std::endl;
-		std::cout << "Left padding = " << _yPad << " [samples], right padding = " << _yPad << " [samples]" << std::endl;
-		std::cout << "ny (padded) = " << _ny << " [samples], oy (padded) = " << _oy << " [km]" << std::endl;
-		std::cout << "Model width (padding+fat) = " << _oy+(_ny-1)*_dy << " [km]" << std::endl;
-		std::cout << " " << std::endl;
+	// GPU FD parameters
+	std::cout << "---------------------- GPU kernels parameters ---------------------" << std::endl;
+	std::cout << "Block size in z-direction = " << _blockSize << " [threads/block]" << std::endl;
+	std::cout << "Block size in x-direction = " << _blockSize << " [threads/block]" << std::endl;
+    std::cout << "Block size in y-direction = " << _blockSize << " [threads/block]" << std::endl;
+	std::cout << "Halo size for Laplacian 8th order [FAT] = " << _fat << " [samples]" << std::endl;
+	std::cout << " " << std::endl;
 
-		// Extended axis
-		if ( _extension=="time" ){
-			std::cout << std::setprecision(3);
-			std::cout << "-------------------- Extended axis #1: time-lags 1 ---------------------" << std::endl;
-			std::cout << "nTau1 = " << _hExt1 << " [samples], dTau1= " << _dExt1 << " [s], oTau1 = " << _oExt1 << " [s]" << std::endl;
-			std::cout << "Total extension length nTau1 = " << _nExt1 << " [samples], which corresponds to " << _nExt1*_dExt1 << " [s]" << std::endl;
-			std::cout << " " << std::endl;
-
-			std::cout << "-------------------- Extended axis #2: time-lags 2 ---------------------" << std::endl;
-			std::cout << "nTau2 = " << _hExt1 << " [samples], dTau2= " << _dExt2 << " [s], oTau2 = " << _oExt2 << " [s]" << std::endl;
-			std::cout << "Total extension length nTau2 = " << _nExt2 << " [samples], which corresponds to " << _nExt2*_dExt2 << " [s]" << std::endl;
-			std::cout << " " << std::endl;
-
-		}
-
-		if ( _extension=="offset" ){
-			std::cout << std::setprecision(2);
-			std::cout << "---------- Extended x-axis: horizontal subsurface offsets -----------" << std::endl;
-			std::cout << "nxOffset = " << _hExt1 << " [samples], dxOffset= " << _dExt1 << " [km], oxOffset = " << _oExt1 << " [km]" << std::endl;
-			std::cout << "Total extension in x-direction length nxOffset = " << _nExt1 << " [samples], which corresponds to " << _nExt1*_dExt1 << " [km]" << std::endl;
-			std::cout << " " << std::endl;
-
-            std::cout << "---------- Extended y-axis: horizontal subsurface offsets -----------" << std::endl;
-			std::cout << "nyOffset = " << _hExt2 << " [samples], dyOffset= " << _dExt2 << " [km], oyOffset = " << _oExt2 << " [km]" << std::endl;
-			std::cout << "Total extension in y-direction length nyOffset = " << _nExt2 << " [samples], which corresponds to " << _nExt2*_dExt2 << " [km]" << std::endl;
-			std::cout << " " << std::endl;
-		}
-
-		// GPU FD parameters
-		std::cout << "---------------------- GPU kernels parameters ---------------------" << std::endl;
-		std::cout << "Block size in z-direction = " << _blockSize << " [threads/block]" << std::endl;
-		std::cout << "Block size in x-direction = " << _blockSize << " [threads/block]" << std::endl;
-        std::cout << "Block size in y-direction = " << _blockSize << " [threads/block]" << std::endl;
-		std::cout << "Halo size for Laplacian 8th order [FAT] = " << _fat << " [samples]" << std::endl;
-		std::cout << " " << std::endl;
-
-		// Stability and dispersion
-		std::cout << "---------------------- Stability and dispersion -------------------" << std::endl;
-		std::cout << std::setprecision(2);
-		std::cout << "Courant number = " << _Courant << " [-]" << std::endl;
-		std::cout << "Dispersion ratio = " << _dispersionRatio << " [points/min wavelength]" << std::endl;
-		std::cout << "Minimum velocity value = " << _minVel << " [km/s]" << std::endl;
-		std::cout << "Maximum velocity value = " << _maxVel << " [km/s]" << std::endl;
-		std::cout << std::setprecision(1);
-		std::cout << "Maximum frequency without dispersion = " << _minVel/(3.0*std::max(_dz, std::max(_dx, _dy))) << " [Hz]" << std::endl;
-		std::cout << " " << std::endl;
-		std::cout << "*******************************************************************" << std::endl;
-		std::cout << " " << std::endl;
-		std::cout << std::scientific; // Reset to scientific formatting notation
-		std::cout << std::setprecision(6); // Reset the default formatting precision
+	// Stability and dispersion
+	std::cout << "---------------------- Stability and dispersion -------------------" << std::endl;
+	std::cout << std::setprecision(2);
+	std::cout << "Courant number = " << _Courant << " [-]" << std::endl;
+	std::cout << "Dispersion ratio = " << _dispersionRatio << " [points/min wavelength]" << std::endl;
+	std::cout << "Minimum velocity value = " << _minVel << " [km/s]" << std::endl;
+	std::cout << "Maximum velocity value = " << _maxVel << " [km/s]" << std::endl;
+	std::cout << std::setprecision(1);
+	std::cout << "Maximum frequency without dispersion = " << _minVel/(3.0*std::max(_dz, std::max(_dx, _dy))) << " [Hz]" << std::endl;
+	std::cout << " " << std::endl;
+	std::cout << "*******************************************************************" << std::endl;
+	std::cout << " " << std::endl;
+	std::cout << std::scientific; // Reset to scientific formatting notation
+	std::cout << std::setprecision(6); // Reset the default formatting precision
 }
 
 bool fdParam_3D::checkFdStability_3D(double CourantMax){

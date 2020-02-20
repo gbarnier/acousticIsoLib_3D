@@ -232,9 +232,9 @@ void deviceGpu_3D::convertIrregToReg() {
 	_nDeviceReg = 0; // Initialize the number of regular devices to zero
 	_gridPointIndexUnique.clear(); // Initialize to empty vector
 
-	for (int iDevice = 0; iDevice < _nDeviceIrreg; iDevice++){ // Loop over gridPointIndex array
-		for (int iFilter = 0; iFilter < _nFilter3d; iFilter++){
-			int i1 = iDevice * _nFilter3d + iFilter;
+	for (long long iDevice = 0; iDevice < _nDeviceIrreg; iDevice++){ // Loop over gridPointIndex array
+		for (long long iFilter = 0; iFilter < _nFilter3d; iFilter++){
+			long long i1 = iDevice * _nFilter3d + iFilter;
 
 			// If the grid point is not already in the list
 			if (_indexMap.count(_gridPointIndex[i1]) == 0) {
@@ -254,11 +254,11 @@ void deviceGpu_3D::forward(const bool add, const std::shared_ptr<double2DReg> si
 	std::shared_ptr<double2D> d = signalIrreg->_mat;
 	std::shared_ptr<double2D> m = signalReg->_mat;
 
-	for (int iDevice = 0; iDevice < _nDeviceIrreg; iDevice++){ // Loop over device
-		for (int iFilter = 0; iFilter < _nFilter3d; iFilter++){ // Loop over neighboring points on regular grid
-			int i1 = iDevice * _nFilter3d + iFilter;
-			int i2 = _indexMap.find(_gridPointIndex[i1])->second;
-			for (int it = 0; it < _nt; it++){
+	for (long long iDevice = 0; iDevice < _nDeviceIrreg; iDevice++){ // Loop over device
+		for (long long iFilter = 0; iFilter < _nFilter3d; iFilter++){ // Loop over neighboring points on regular grid
+			long long i1 = iDevice * _nFilter3d + iFilter;
+			long long i2 = _indexMap.find(_gridPointIndex[i1])->second;
+			for (long long it = 0; it < _nt; it++){
 				(*d)[iDevice][it] += _weight[i1] * (*m)[i2][it];
 			}
 		}
