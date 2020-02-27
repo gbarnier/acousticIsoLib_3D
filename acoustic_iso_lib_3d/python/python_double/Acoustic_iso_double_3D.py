@@ -92,7 +92,7 @@ def buildSourceGeometry_3D(parObject,vel):
 			xCoordFloat.set(sourceGeomVectorNd[0,ishot])
 			yCoordFloat.set(sourceGeomVectorNd[1,ishot])
 			# Create a deviceGpu_3D for this source and append to sources vector
-			sourcesVector.append(deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
+			sourcesVector.append(deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
 
 		# Generate hypercube with one axis which has the length of the number of shots
 		shotAxis=Hypercube.axis(n=nShot,o=0.0,d=1.0)
@@ -163,7 +163,7 @@ def buildSourceGeometry_3D(parObject,vel):
 		for iyShot in range(nyShot):
 			for ixShot in range(nxShot):
 				for izShot in range(nzShot):
-					sourcesVector.append(deviceGpu_3D(nzSource,ozSource,dzSource,nxSource,oxSource,dxSource,nySource,oySource,dySource,vel.getCpp(),nts,dipole,zDipoleShift,xDipoleShift,yDipoleShift,"linear",hFilter1d))
+					sourcesVector.append(deviceGpu_3D(nzSource,ozSource,dzSource,nxSource,oxSource,dxSource,nySource,oySource,dySource,vel.getCpp(),nts,parObject.param,dipole,zDipoleShift,xDipoleShift,yDipoleShift,"linear",hFilter1d))
 					ozSource=ozSource+dzShot # Shift source in z-direction [samples]
 				oxSource=oxSource+dxShot # Shift source in x-direction [samples]
 			oySource=oySource+dyShot # Shift source in y-direction [samples]
@@ -261,7 +261,7 @@ def buildReceiversGeometry_3D(parObject,vel):
 			zCoordFloat.set(receiverGeomVectorNd[2,:,ishot])
 			xCoordFloat.set(receiverGeomVectorNd[0,:,ishot])
 			yCoordFloat.set(receiverGeomVectorNd[1,:,ishot])
-			receiversVector.append(deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
+			receiversVector.append(deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
 
 		# Generate hypercubes
 		receiverAxis=Hypercube.axis(n=nReceiverPerShot,o=0.0,d=1.0)
@@ -318,7 +318,7 @@ def buildReceiversGeometry_3D(parObject,vel):
 		# receiverHyperIrreg=Hypercube.hypercube(axes=[receiverAxis])
 
 		# Create vector containing 1 deviceGpu_3D object
-		receiversVector.append(deviceGpu_3D(nzReceiver,ozReceiver,dzReceiver,nxReceiver,oxReceiver,dxReceiver,nyReceiver,oyReceiver,dyReceiver,vel.getCpp(),nts,dipole,zDipoleShift,xDipoleShift,yDipoleShift,"linear",hFilter1d))
+		receiversVector.append(deviceGpu_3D(nzReceiver,ozReceiver,dzReceiver,nxReceiver,oxReceiver,dxReceiver,nyReceiver,oyReceiver,dyReceiver,vel.getCpp(),nts,parObject.param,dipole,zDipoleShift,xDipoleShift,yDipoleShift,"linear",hFilter1d))
 
 	return receiversVector,receiverHyper
 
@@ -548,7 +548,7 @@ def BornOpInitDouble_3D(args,client=None):
 	timeAxis=Hypercube.axis(n=nts,o=ots,d=dts)
 
 	# Allocate model
-	modelDouble=SepVector.getSepVector(velDouble.getHyper())
+	modelDouble=SepVector.getSepVector(velDouble.getHyper(),storage="dataDouble")
 
 	# Read velocity and convert to double
 	sourcesSignalsFile=parObject.getString("sources","noSourcesFile")
@@ -582,6 +582,17 @@ class BornShotsGpu_3D(Op.Operator):
 		# Domain = reflectivity
 		# Range = Born data
 		self.setDomainRange(domain,range)
+
+		# print("domain nDim=",domain.getHyper().getNdim())
+		# print("domain n1=",domain.getHyper().axes[0].n)
+		# print("domain n2=",domain.getHyper().axes[1].n)
+		# print("domain n3=",domain.getHyper().axes[2].n)
+		#
+		# print("range nDim=",range.getHyper().getNdim())
+		# print("range n1=",range.getHyper().axes[0].n)
+		# print("range n2=",range.getHyper().axes[1].n)
+		# print("range n3=",range.getHyper().axes[2].n)
+
 		#Checking if getCpp is present
 		if("getCpp" in dir(velocity)):
 			velocity = velocity.getCpp()
@@ -607,12 +618,24 @@ class BornShotsGpu_3D(Op.Operator):
 		return
 
 	def adjoint(self,add,model,data):
+		# QC data size
+		# print("Inside adjoint")
+		# print("model nDim=",model.getHyper().getNdim())
+		# print("model n1=",model.getHyper().axes[0].n)
+		# print("model n2=",model.getHyper().axes[1].n)
+		# print("model n3=",model.getHyper().axes[2].n)
+		# print("data nDim=",data.getHyper().getNdim())
+		# print("data n1=",data.getHyper().axes[0].n)
+		# print("data n2=",data.getHyper().axes[1].n)
+		# print("data n3=",data.getHyper().axes[2].n)
+
 		#Checking if getCpp is present
 		if("getCpp" in dir(model)):
 			model = model.getCpp()
 		if("getCpp" in dir(data)):
 			data = data.getCpp()
 		with pyAcoustic_iso_double_Born_3D.ostream_redirect():
+			# print("Just before")
 			self.pyOp.adjoint(add,model,data)
 		return
 
@@ -635,6 +658,7 @@ class BornShotsGpu_3D(Op.Operator):
 			wfld = self.pyOp.getSrcWavefield_3D(iWavefield)
 			wfld = SepVector.floatVector(fromCpp=wfld)
 		return wfld
+
 
 
 # class deviceGpu_3D_Op(Op.Operator):

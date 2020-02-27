@@ -17,9 +17,9 @@ PYBIND11_MODULE(pyAcoustic_iso_double_nl_3D, clsGeneric) {
 
   py::class_<deviceGpu_3D, std::shared_ptr<deviceGpu_3D>>(clsGeneric, "deviceGpu_3D")
 
-      .def(py::init<const std::shared_ptr<SEP::double1DReg>, const std::shared_ptr<SEP::double1DReg>, const std::shared_ptr<SEP::double1DReg>, const std::shared_ptr<double3DReg>, int &, int, double, double, double, std::string, int>(), "Initialize a deviceGPU_3D object using location, velocity, and nt")
+      .def(py::init<const std::shared_ptr<SEP::double1DReg>, const std::shared_ptr<SEP::double1DReg>, const std::shared_ptr<SEP::double1DReg>, const std::shared_ptr<double3DReg>, int &, std::shared_ptr<paramObj>, int, double, double, double, std::string, int>(), "Initialize a deviceGPU_3D object using location, velocity, and nt")
 
-      .def(py::init<const int &, const int &, const int &, const int &, const int &, const int &, const int &, const int &, const int &, const std::shared_ptr<double3DReg>, int &, int, int, int, int, std::string, int>(), "Initlialize a deviceGPU_3D object using sampling in z, x and y axes, velocity, and nt")
+      .def(py::init<const int &, const int &, const int &, const int &, const int &, const int &, const int &, const int &, const int &, const std::shared_ptr<double3DReg>, int &, std::shared_ptr<paramObj>, int, int, int, int, std::string, int>(), "Initlialize a deviceGPU_3D object using sampling in z, x and y axes, velocity, and nt")
 
   ;
 

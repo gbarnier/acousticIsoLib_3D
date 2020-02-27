@@ -27,16 +27,17 @@ class deviceGpu_3D : public Operator<SEP::double2DReg, SEP::double2DReg> {
 		int _dipole, _zDipoleShift, _xDipoleShift, _yDipoleShift;
 		int _hFilter1d, _nFilter1d, _nFilter3d, _nFilter3dDipole;
 		std::string _interpMethod;
+		std::shared_ptr<paramObj> _par;
 
 	public:
 
 		// Constructor #1: Provide positions of acquisition devices in km
 		// Acquisition devices do not need to be placed on grid points
-		deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double1DReg> yCoord, const std::shared_ptr<double3DReg> vel, int &nt, int dipole=0, double zDipoleShift=0, double xDipoleShift=0, double yDipoleShift=0, std::string interpMethod="linear", int hFilter1d=1);
+		deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double1DReg> yCoord, const std::shared_ptr<double3DReg> vel, int &nt, std::shared_ptr<paramObj> par, int dipole=0, double zDipoleShift=0, double xDipoleShift=0, double yDipoleShift=0, std::string interpMethod="linear", int hFilter1d=1);
 
 		// Constructor #2: Provide regular array of acquisition device by o, d, n
 		// Assumes acquisition devices are placed on grid points
-		deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &dzDevice, const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice, const std::shared_ptr<double3DReg> vel, int &nt, int dipole=0, int zDipoleShift=0, int xDipoleShift=0, int yDipoleShift=0, std::string interpMethod="linear", int hFilter1d=1);
+		deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &dzDevice, const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice, const std::shared_ptr<double3DReg> vel, int &nt, std::shared_ptr<paramObj> par, int dipole=0, int zDipoleShift=0, int xDipoleShift=0, int yDipoleShift=0, std::string interpMethod="linear", int hFilter1d=1);
 
 		// FWD / ADJ
 		void forward(const bool add, const std::shared_ptr<double2DReg> signalReg, std::shared_ptr<double2DReg> signalIrreg) const;

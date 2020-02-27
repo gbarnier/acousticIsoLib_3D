@@ -86,10 +86,26 @@ __global__ void imagingFwdGpu_3D(double *dev_model, double *dev_data, double *de
 	}
 }
 
+// Adjoint non-extended
+__global__ void imagingAdjGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
+
+	// Here "data" is one time-slice of the receiver wavefield (its+1)
+
+	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+		dev_model[iGlobal] += dev_data[iGlobal] * dev_sourceWavefieldDts[iGlobal];
+		iGlobal+=dev_yStride;
+	}
+}
+
 /******************************************************************************/
 /********************************* Wavefield extraction ***********************/
 /******************************************************************************/
-__global__ void interpFineToCoarseSlice(double *dev_timeSliceLeft, double *dev_timeSliceRight, double *dev_timeSliceFine, int its, int it2) {
+__global__ void interpFineToCoarseSlice_3D(double *dev_timeSliceLeft, double *dev_timeSliceRight, double *dev_timeSliceFine, int it2) {
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -102,6 +118,29 @@ __global__ void interpFineToCoarseSlice(double *dev_timeSliceLeft, double *dev_t
 		dev_timeSliceRight[iGlobal] += dev_timeSliceFine[iGlobal] * dev_timeInterpFilter[dev_hTimeInterpFilter+it2];
 		// Move forward on the y-axis
 		iGlobal+=dev_yStride;
+	}
+
+}
+
+__global__ void interpFineToCoarseSliceDebug_3D(double *dev_timeSliceLeft, double *dev_timeSliceRight, double *dev_timeSliceFine, int it2) {
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
+
+	// if(blockIdx.x == 0 && threadIdx.x == 0 && blockIdx.y == 0 && threadIdx.y == 0){
+	// 	printf("address dev_timeSliceLeft = %s\n", dev_timeSliceLeft);
+	// 	printf("address dev_timeSliceRight = %s\n", dev_timeSliceRight);
+	// 	printf("address dev_timeSliceFine = %s\n", dev_timeSliceFine);
+	// }
+
+	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+		// Spread to time-slice its
+		dev_timeSliceLeft[iGlobal] += dev_timeSliceFine[iGlobal] * dev_timeInterpFilter[it2];
+		// Spread to time-slice its+1
+		// dev_timeSliceRight[iGlobal] += dev_timeSliceFine[iGlobal] * dev_timeInterpFilter[dev_hTimeInterpFilter+it2];
+		// Move forward on the y-axis
+		// iGlobal+=dev_yStride;
 	}
 
 }

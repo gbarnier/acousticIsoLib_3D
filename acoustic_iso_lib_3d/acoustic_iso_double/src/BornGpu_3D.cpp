@@ -13,11 +13,6 @@ BornGpu_3D::BornGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<pa
 	_srcWavefield = srcWavefield; // Point to wavefield
 	unsigned long long int _wavefieldSize = _fdParam_3D->_zAxis.n * _fdParam_3D->_xAxis.n * _fdParam_3D->_yAxis.n;
 	_wavefieldSize = _wavefieldSize * _fdParam_3D->_nts*sizeof(double) / (1024*1024*1024);
-	std::cout << "Wavefield size = " << _wavefieldSize << " [GB]" << std::endl;
-	std::cout << "nts = " << _srcWavefield->getHyper()->getAxis(4).n << std::endl;
-	std::cout << "ny = " << _srcWavefield->getHyper()->getAxis(3).n << std::endl;
-	std::cout << "nx = " << _srcWavefield->getHyper()->getAxis(2).n << std::endl;
-	std::cout << "nz = " << _srcWavefield->getHyper()->getAxis(1).n << std::endl;
 
 	// Initialize GPU
 	initBornGpu_3D(_fdParam_3D->_dz, _fdParam_3D->_dx, _fdParam_3D->_dy, _fdParam_3D->_nz, _fdParam_3D->_nx, _fdParam_3D->_ny, _fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_sub, _fdParam_3D->_minPad, _fdParam_3D->_blockSize, _fdParam_3D->_alphaCos, _nGpu, _iGpuId, iGpuAlloc);
@@ -36,55 +31,17 @@ void BornGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> mode
 
 	/* Allocation */
 	std::shared_ptr<double2DReg> dataRegDts(new double2DReg(_fdParam_3D->_nts, _nReceiversReg));
-
-	std::cout << "Min model before: " << model->min() << std::endl;
-	std::cout << "Max model before: " << model->max() << std::endl;
+	dataRegDts->scale(0.0);
 
 	/* Launch Born forward */
-	BornShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
-
-	std::cout << "Min data after: " << dataRegDts->min() << std::endl;
-	std::cout << "Max data after: " << dataRegDts->max() << std::endl;
-
-	// for (int iy = 0; iy < _fdParam_3D->_ny; iy++){
-    //     for (int ix = 0; ix < _fdParam_3D->_nx; ix++){
-    //     	for (int iz = 0; iz < _fdParam_3D->_nz; iz++){
-    //             (*model->_mat)[iy][ix][iz] = 2.0;
-    //         }
-    //     }
-    // }
-
-	// std::shared_ptr<double3DReg> data_zLoop, data_yLoop;
-	// data_zLoop = model->clone();
-	// data_yLoop = model->clone();
-	//
-	// std::cout << "Min model before z-loop=" << model->min() << std::endl;
-	// std::cout << "Max model before z-loop=" << model->max() << std::endl;
-	// imagingFwd_yLoop(model->getVals(), data_zLoop->getVals(), _iGpu, _iGpuId);
-	// std::cout << "Min data_zLoop=" << data_zLoop->min() << std::endl;
-	// std::cout << "Max data_zLoop=" << data_zLoop->max() << std::endl;
-	//
-	// std::cout << "Min model before y-loop=" << model->min() << std::endl;
-	// std::cout << "Max model before y-loop=" << model->max() << std::endl;
-	// imagingFwd_zLoop(model->getVals(), data_yLoop->getVals(), _iGpu, _iGpuId);
-	// std::cout << "Min data_yLoop=" << data_yLoop->min() << std::endl;
-	// std::cout << "Max data_yLoop=" << data_yLoop->max() << std::endl;
-	//
-	// for (int iy = 0; iy < _fdParam_3D->_ny; iy++){
-    //     for (int ix = 0; ix < _fdParam_3D->_nx; ix++){
-    //     	for (int iz = 0; iz < _fdParam_3D->_nz; iz++){
-    //             (*data_yLoop->_mat)[iy][ix][iz] = (*data_yLoop->_mat)[iy][ix][iz] - (*data_zLoop->_mat)[iy][ix][iz];
-    //         }
-    //     }
-    // }
-	// std::cout << "Minval difference =" << data_yLoop->min() << std::endl;
-	// std::cout << "Maxval difference =" << data_yLoop->max() << std::endl;
+	if (_fdParam_3D->_freeSurface != 1){
+		BornShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+	} else {
+		BornShotsFwdFreeSurfaceGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+	}
 
 	/* Interpolate data to irregular grid */
 	_receivers->forward(true, dataRegDts, data);
-
-	std::cout << "Min data after 2: " << dataRegDts->min() << std::endl;
-	std::cout << "Max data after 2: " << dataRegDts->max() << std::endl;
 
 }
 void BornGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, const std::shared_ptr<double2DReg> data) const {
@@ -99,8 +56,11 @@ void BornGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, con
 	/* Interpolate data to regular grid */
 	_receivers->adjoint(false, dataRegDts, data);
 
-	/* Launch Born adjoint */
-	// BornShotsAdjGpu(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield->getVals(), _iGpu, _iGpuId);
+	if (_fdParam_3D->_freeSurface != 1){
+		BornShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+	} else {
+		BornShotsAdjFreeSurfaceGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+	}
 
 	/* Update model */
 	model->scaleAdd(modelTemp, 1.0, 1.0);

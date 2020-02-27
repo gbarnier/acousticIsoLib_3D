@@ -9,10 +9,14 @@ void allocateNonlinearGpu_3D(double *vel2Dtw2, int iGpu, int iGpuId);
 void deallocateNonlinearGpu_3D(int iGpu, int iGpuId);
 
 /*********************************** Nonlinear FWD **************************************/
-void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int freeSurface, int iGpu, int iGpuId);
+void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+
+void propShotsFwdFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
 
 /*********************************** Nonlinear ADJ **************************************/
-void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDtw, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int freeSurface, int iGpu, int iGpuId);
+void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDtw, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+
+void propShotsAdjFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDtw, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
 
 /****************************** Laplacian **********************************/
 // void laplacianFwd_3d(double *model, double *data, int iGpu, int iGpuId);

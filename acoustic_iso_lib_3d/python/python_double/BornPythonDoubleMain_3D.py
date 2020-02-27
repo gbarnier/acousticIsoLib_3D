@@ -16,11 +16,12 @@ if __name__ == '__main__':
 	BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector)
 
 	# Testing dot-product test of the operator
-	# if (parObject.getInt("dpTest",0) == 1):
-	# 	nonlinearOp.dotTest(True)
-	# 	nonlinearOp.dotTest(True)
-	# 	nonlinearOp.dotTest(True)
-	# 	quit(0)
+	if (parObject.getInt("dpTest",0) == 1):
+		# print("Main 1")
+		BornOp.dotTest(True)
+		BornOp.dotTest(True)
+		BornOp.dotTest(True)
+		quit(0)
 
 	if (parObject.getInt("saveSrcWavefield",0) == 1):
 		srcWavefieldFile=parObject.getString("srcWavefieldFile","noSrcWavefieldFile")
@@ -37,6 +38,9 @@ if __name__ == '__main__':
 		print("-------------------- Running Python Born forward 3D ---------------")
 		print("--------------------- Double precision Python code ----------------")
 		print("-------------------------------------------------------------------\n")
+
+		if (parObject.getInt("freeSurface",0) == 0):
+			print("---------- Using a free surface condition for modeling ------------")
 
 		# Check that model was provided
 		modelFile=parObject.getString("model","noModelFile")
@@ -80,35 +84,47 @@ if __name__ == '__main__':
 	else:
 
 		print("-------------------------------------------------------------------")
-		print("----------------- Running Python nonlinear adjoint ----------------")
-		print("-------------------- Double precision Python code -----------------")
+		print("-------------------- Running Python Born adjoint 3D ---------------")
+		print("--------------------- Double precision Python code ----------------")
 		print("-------------------------------------------------------------------\n")
 
+		if (parObject.getInt("freeSurface",0) == 0):
+			print("---------- Using a free surface condition for modeling ------------")
+
 		# Check that data was provided
-		# dataFile=parObject.getString("data","noDataFile")
-		# if (dataFile == "noDataFile"):
-		#     print("**** ERROR: User did not provide data file ****\n")
-		#     quit()
-		#
-		# # Read data
-		# dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
-		# dataFloatNp=dataFloat.getNdArray()
-		# dataDoubleNp=dataDouble.getNdArray()
-		# dataDoubleNp[:]=dataFloatNp
-		#
-		# # Apply adjoint
-		# BornOp.adjoint(False,modelDouble,dataDouble)
-		#
-		# # Write model
-		# modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")
-		# modelFloatNp=modelFloat.getNdArray()
-		# modelDoubleNp=modelDouble.getNdArray()
-		# modelFloatNp[:]=modelDoubleNp
-		# modelFile=parObject.getString("model","noModelFile")
-		# if (modelFile == "noModelFile"):
-		#     print("**** ERROR: User did not provide model file name ****\n")
-		#     quit()
-		# genericIO.defaultIO.writeVector(modelFile,modelFloat)
+		dataFile=parObject.getString("data","noDataFile")
+		if (dataFile == "noDataFile"):
+		    print("**** ERROR: User did not provide data file ****\n")
+		    quit()
+
+		# Read data
+		dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
+		dataFloatNp=dataFloat.getNdArray()
+		dataDoubleNp=dataDouble.getNdArray()
+		dataDoubleNp[:]=dataFloatNp
+
+		# Apply adjoint
+		BornOp.adjoint(False,modelDouble,dataDouble)
+
+		# Write model
+		modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")
+		modelFloatNp=modelFloat.getNdArray()
+		modelDoubleNp=modelDouble.getNdArray()
+		modelFloatNp[:]=modelDoubleNp
+		modelFile=parObject.getString("model","noModelFile")
+		if (modelFile == "noModelFile"):
+		    print("**** ERROR: User did not provide model file name ****\n")
+		    quit()
+		genericIO.defaultIO.writeVector(modelFile,modelFloat)
+
+		# Saving source wavefield
+		if (parObject.getInt("saveSrcWavefield",0) == 1):
+			srcWavefieldDouble = BornOp.getSrcWavefield_3D(iSrcWavefield)
+			srcWavefieldFloat=SepVector.getSepVector(srcWavefieldDouble.getHyper())
+			srcWavefieldDoubleNp=srcWavefieldDouble.getNdArray()
+			srcWavefieldFloatNp=srcWavefieldFloat.getNdArray()
+			srcWavefieldFloatNp[:]=srcWavefieldDoubleNp
+			genericIO.defaultIO.writeVector(srcWavefieldFile,srcWavefieldFloat)
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")

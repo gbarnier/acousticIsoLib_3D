@@ -28,7 +28,8 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 
 	/***** Vertical axis *****/
 	_nz = _par->getInt("nz");
-	_freeSurface = _par->getInt("freeSurface");
+	_freeSurface = _par->getInt("freeSurface", 0);
+	_splitTopBody = _par->getInt("splitTopBody", 0);
 	_zPadPlus = _par->getInt("zPadPlus");
 	_zPadMinus = _par->getInt("zPadMinus");
 	if (_freeSurface == 1){_zPad = _zPadPlus;}
@@ -36,6 +37,12 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	_dz = _par->getFloat("dz",-1.0);
 	_oz = _vel->getHyper()->getAxis(1).o;
 	_zAxis = axis(_nz, _oz, _dz);
+
+	// Make sure the user (me) didn't forget to set the freeSurface flag to 1
+	if ( (_zPadMinus == 0 &&  _freeSurface !=1) || (_zPadMinus > 0 &&  _freeSurface == 1) ){
+		std::cout << "**** ERROR [fdParam_3D]: zPadMinus and freeSurface flag are inconsistent ****" << std::endl;
+		assert(1==2);
+	}
 
 	/***** Horizontal x-axis *****/
 	_nx = _par->getInt("nx");
@@ -84,6 +91,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 		_dExt2 = _dy;
 		_extAxis2 = axis(_nExt2, _oExt2, _dExt2);
 
+	// No extension
 	} else {
         // x-axis
 		_oExt1 = 0.0;

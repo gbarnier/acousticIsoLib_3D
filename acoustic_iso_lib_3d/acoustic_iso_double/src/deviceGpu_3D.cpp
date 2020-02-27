@@ -10,7 +10,7 @@
 #include <vector>
 
 // Constructor #1 -- OOnly for irregular geometry
-deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double1DReg> yCoord, const std::shared_ptr<double3DReg> vel, int &nt, int dipole, double zDipoleShift, double xDipoleShift, double yDipoleShift, std::string interpMethod, int hFilter1d){
+deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double1DReg> yCoord, const std::shared_ptr<double3DReg> vel, int &nt, std::shared_ptr<paramObj> par, int dipole, double zDipoleShift, double xDipoleShift, double yDipoleShift, std::string interpMethod, int hFilter1d){
 
 	// Get domain dimensions
 	_vel = vel;
@@ -38,6 +38,7 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std:
 	_interpMethod = interpMethod; // Default is linear
 	_nDeviceIrreg = _zCoord->getHyper()->getAxis(1).n; // Nb of devices on irregular grid
 	_nt = nt;
+	_par = par;
 
 	// Check that for the linear interpolation case, the filter half-length is 1
 	if (interpMethod == "linear" && _hFilter1d != 1){
@@ -73,36 +74,23 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std:
 
 // Constructor #2 -- Only for regular geometry
 // This contructor only allows linear interpolation
-deviceGpu_3D::deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &dzDevice , const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice, const std::shared_ptr<double3DReg> vel, int &nt, int dipole, int zDipoleShift, int xDipoleShift, int yDipoleShift, std::string interpMethod, int hFilter1d){
+deviceGpu_3D::deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &dzDevice , const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice, const std::shared_ptr<double3DReg> vel, int &nt, std::shared_ptr<paramObj> par, int dipole, int zDipoleShift, int xDipoleShift, int yDipoleShift, std::string interpMethod, int hFilter1d){
 
 	_vel = vel;
 	_nt = nt;
+	_par = par;
 	_dipole = dipole;
 	_zDipoleShift = zDipoleShift;
 	_xDipoleShift = xDipoleShift;
 	_yDipoleShift = yDipoleShift;
 	_hFilter1d = hFilter1d; // Half-length of the filter for each dimension (for sinc, the filter in each direction has the same length)
 	_interpMethod = interpMethod;
+	// std::cout << "Before check out of bounds" << std::endl;
 	checkOutOfBounds(nzDevice, ozDevice, dzDevice, nxDevice, oxDevice, dxDevice, nyDevice, oyDevice, dyDevice, vel);
+	// std::cout << "After check out of bounds" << std::endl;
 	_nDeviceIrreg = nzDevice * nxDevice * nyDevice; // Nb of devices on irregular grid
 	int _nz = vel->getHyper()->getAxis(1).n;
     int _nx = vel->getHyper()->getAxis(2).n;
-
-	// Debug
-    // int ny = vel->getHyper()->getAxis(3).n;
-	// std::cout << "nz" << _nz << std::endl;
-	// std::cout << "nx" << _nx << std::endl;
-	// std::cout << "ny" << ny << std::endl;
-	// std::cout << "nzDevice" << nzDevice << std::endl;
-	// std::cout << "ozDevice" << ozDevice << std::endl;
-	// std::cout << "dzDevice" << dzDevice << std::endl;
-	// std::cout << "nxDevice" << nxDevice << std::endl;
-	// std::cout << "oxDevice" << oxDevice << std::endl;
-	// std::cout << "dxDevice" << dxDevice << std::endl;
-	// std::cout << "nyDevice" << nyDevice << std::endl;
-	// std::cout << "oyDevice" << oyDevice << std::endl;
-	// std::cout << "dyDevice" << dyDevice << std::endl;
-	// End debug
 
 	// Check that the user is not asking for sinc interpolation
 	if (interpMethod != "linear"){
@@ -286,12 +274,21 @@ void deviceGpu_3D::adjoint(const bool add, std::shared_ptr<double2DReg> signalRe
 void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double1DReg> yCoord, const std::shared_ptr<double3DReg> vel){
 
 	int nDevice = zCoord->getHyper()->getAxis(1).n;
-	double zMax = vel->getHyper()->getAxis(1).o + (vel->getHyper()->getAxis(1).n - 1) * vel->getHyper()->getAxis(1).d;
-	double xMax = vel->getHyper()->getAxis(2).o + (vel->getHyper()->getAxis(2).n - 1) * vel->getHyper()->getAxis(2).d;
-    double yMax = vel->getHyper()->getAxis(3).o + (vel->getHyper()->getAxis(3).n - 1) * vel->getHyper()->getAxis(3).d;
+	int fat = _par->getInt("fat");
+	int nzSmall = _vel->getHyper()->getAxis(1).n - 2 * _par->getInt("fat") - _par->getInt("zPadMinus") - _par->getInt("zPadPlus");
+	int nxSmall = _vel->getHyper()->getAxis(2).n - 2 * _par->getInt("fat") - _par->getInt("xPadMinus") - _par->getInt("xPadPlus");
+	int nySmall = _vel->getHyper()->getAxis(3).n - 2 * _par->getInt("fat") - 2 * _par->getInt("yPad");
+
+	double zMin = vel->getHyper()->getAxis(1).o + (fat + _par->getInt("zPadMinus") -1) * vel->getHyper()->getAxis(1).d;
+	double xMin = vel->getHyper()->getAxis(2).o + (fat + _par->getInt("xPadMinus") -1) * vel->getHyper()->getAxis(2).d;
+	double yMin = vel->getHyper()->getAxis(3).o + (fat + _par->getInt("yPadMinus") -1) * vel->getHyper()->getAxis(3).d;
+
+	double zMax = zMin + (nzSmall - 1) * vel->getHyper()->getAxis(1).d;
+	double xMax = xMin + (nxSmall - 1) * vel->getHyper()->getAxis(2).d;
+    double yMax = yMin + (nySmall - 1) * vel->getHyper()->getAxis(3).d;
 
 	for (int iDevice = 0; iDevice < nDevice; iDevice++){
-		if ( ((*zCoord->_mat)[iDevice] >= zMax) || ((*xCoord->_mat)[iDevice] >= xMax) || ((*yCoord->_mat)[iDevice] >= yMax) ){
+		if ( (*zCoord->_mat)[iDevice] > zMax || (*zCoord->_mat)[iDevice] < zMin || (*xCoord->_mat)[iDevice] > xMax || (*xCoord->_mat)[iDevice] < xMin || (*yCoord->_mat)[iDevice] > yMax || (*yCoord->_mat)[iDevice] < yMin ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of the acquisition devices is out of bounds ****" << std::endl;
 			assert (1==2);
 		}
@@ -300,13 +297,35 @@ void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<double1DReg> zCoord, c
 
 void deviceGpu_3D::checkOutOfBounds(const int &nzDevice, const int &ozDevice, const int &dzDevice , const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice, const std::shared_ptr<double3DReg> vel){
 
-	double zIntMax = ozDevice + (nzDevice - 1) * dzDevice;
-	double xIntMax = oxDevice + (nxDevice - 1) * dxDevice;
-	double yIntMax = oyDevice + (nyDevice - 1) * dyDevice;
-	if ( (zIntMax >= _vel->getHyper()->getAxis(1).n) || (xIntMax >= _vel->getHyper()->getAxis(2).n) || (yIntMax >= _vel->getHyper()->getAxis(3).n) ){
-		std::cout << "**** ERROR [deviceGpu_3D]: One of the device is out of bounds ****" << std::endl;
+	// std::cout << "Inside check out of bounds" << std::endl;
+
+	int fat = _par->getInt("fat");
+	int nzSmall = _vel->getHyper()->getAxis(1).n - 2 * _par->getInt("fat") - _par->getInt("zPadMinus") - _par->getInt("zPadPlus");
+	int nxSmall = _vel->getHyper()->getAxis(2).n - 2 * _par->getInt("fat") - _par->getInt("xPadMinus") - _par->getInt("xPadPlus");
+	int nySmall = _vel->getHyper()->getAxis(3).n - 2 * _par->getInt("fat") - 2 * _par->getInt("yPad");
+	int ozDeviceTrue = ozDevice - fat - _par->getInt("zPadMinus");
+	int oxDeviceTrue = oxDevice - fat - _par->getInt("xPadMinus");
+	int oyDeviceTrue = oyDevice - fat - _par->getInt("yPad");
+
+	int zIntMax = ozDeviceTrue + (nzDevice - 1) * dzDevice;
+	int xIntMax = oxDeviceTrue + (nxDevice - 1) * dxDevice;
+	int yIntMax = oyDeviceTrue + (nyDevice - 1) * dyDevice;
+
+	// std::cout << "ozDevice = " << ozDeviceTrue << std::endl;
+	// std::cout << "oxDevice = " << oxDeviceTrue << std::endl;
+	// std::cout << "oyDevice = " << oyDeviceTrue << std::endl;
+	// std::cout << "zIntMax = " << zIntMax << std::endl;
+	// std::cout << "xIntMax = " << xIntMax << std::endl;
+	// std::cout << "yIntMax = " << yIntMax << std::endl;
+	// std::cout << "nzSmall = " << nzSmall << std::endl;
+	// std::cout << "nxSmall = " << nxSmall << std::endl;
+	// std::cout << "nySmall = " << nySmall << std::endl;
+
+	if ( (zIntMax >= nzSmall) || (xIntMax >= nxSmall) || (yIntMax >= nySmall) || (ozDevice < 0) || (oxDevice < 0) || (oyDevice < 0) ){
+		std::cout << "**** ERROR [deviceGpu_3D]: One of the acquisition devices is out of bounds ****" << std::endl;
 		assert (1==2);
 	}
+
 }
 
 // Compute weights for linear interpolation

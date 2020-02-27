@@ -45,7 +45,12 @@ void nonlinearPropGpu_3D::forward(const bool add, const std::shared_ptr<double2D
 	_timeInterp_3D->forward(false, modelRegDts, modelRegDtw);
 
 	/* Propagate */
-	propShotsFwdGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _fdParam_3D->_freeSurface, _iGpu, _iGpuId);
+	if (_fdParam_3D->_freeSurface != 1){
+		propShotsFwdGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg,_iGpu, _iGpuId);
+	} else {
+		// std::cout << "FWD with free surface" << std::endl;
+		propShotsFwdFreeSurfaceGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+	}
 
 	/* Interpolate to irregular grid */
 	_receivers->forward(true, dataRegDts, data);
@@ -67,8 +72,12 @@ void nonlinearPropGpu_3D::adjoint(const bool add, std::shared_ptr<double2DReg> m
 	_receivers->adjoint(false, dataRegDts, data);
 
 	/* Propagate */
-	propShotsAdjGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _fdParam_3D->_freeSurface, _iGpu, _iGpuId);
+	if (_fdParam_3D->_freeSurface != 1){
+		propShotsAdjGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+	} else{
+		propShotsAdjFreeSurfaceGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
 
+	}
 	/* Interpolate to coarse time-sampling */
 	_timeInterp_3D->adjoint(false, modelRegDts, modelRegDtw);
 

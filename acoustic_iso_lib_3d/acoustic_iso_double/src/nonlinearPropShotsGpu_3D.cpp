@@ -23,6 +23,7 @@ void nonlinearPropShotsGpu_3D::createGpuIdList_3D(){
 
 	// Setup Gpu numbers
 	_nGpu = _par->getInt("nGpu", -1);
+
 	std::vector<int> dummyVector;
  	dummyVector.push_back(-1);
 	_gpuList = _par->getInts("iGpu", dummyVector);
@@ -48,6 +49,9 @@ void nonlinearPropShotsGpu_3D::createGpuIdList_3D(){
 			std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: Please make sure there are no duplicates in the GPU Id list ****" << std::endl; assert(1==2);
 		}
 	}
+
+	// Check that the user does not ask for more GPUs than shots to be modeled
+	// if (_nGpu > _nShot){std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; assert(1==2);}
 
 	// Allocation of arrays of arrays will be done by the gpu # _gpuList[0]
 	_iGpuAlloc = _gpuList[0];
@@ -114,45 +118,64 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 
 	}
 
+	// std::cout << "_nGpu= " << _nGpu << std::endl;
+	// std::cout << "_nShot= " << _nShot << std::endl;
+	// std::cout << "_gpuList.size() " << _gpuList.size() << std::endl;
+	// for (int i=0; i<_gpuList.size(); i++){
+	// 	std::cout << "gpuList[" << i << "] = " << _gpuList[i] << std::endl;
+	// }
+
 	// Launch nonlinear forward
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
+	// #pragma omp parallel for num_threads(2)
+	// #pragma omp parallel for
     for (int iShot=0; iShot<_nShot; iShot++){
 
-    		int iGpu = omp_get_thread_num();
-    		int iGpuId = _gpuList[iGpu];
+		int iGpu = omp_get_thread_num();
+		int iGpuId = _gpuList[iGpu];
 
-    		// Copy model slice (wavelet)
-    		if(constantSrcSignal == 1) {
-    			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[0]), sizeof(double)*hyperModelSlice->getAxis(1).n);
-    		} else {
-    			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[iShot*hyperModelSlice->getAxis(1).n]), sizeof(double)*hyperModelSlice->getAxis(1).n);
-    		}
+		// if (iShot == 1){
+		// std::cout << "iShot= " << iShot << " is run by = " << iGpu << " with iGpuId: " << iGpuId << std::endl;
+		// std::cout << "iShot= " << iShot << std::endl;
+		// std::cout << "iGpuId= " << iGpuId << std::endl;
+		// }
+			// std::cout << "iShot = " << iShot << std::endl;
 
-    		// Set acquisition geometry
-    		if (constantRecGeom == 1) {
-    			propObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _receiversVector[0], modelSliceVector[iGpu], dataSliceVector[iGpu]);
-    		} else {
-    			propObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _receiversVector[iShot], modelSliceVector[iGpu], dataSliceVector[iGpu]);
-    		}
+		// Copy model slice (wavelet)
+		if(constantSrcSignal == 1) {
+			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[0]), sizeof(double)*hyperModelSlice->getAxis(1).n);
+		} else {
+			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[iShot*hyperModelSlice->getAxis(1).n]), sizeof(double)*hyperModelSlice->getAxis(1).n);
+		}
 
-    		// Set GPU number for propagator object
-    		propObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
+		// Set acquisition geometry
+		if (constantRecGeom == 1) {
+			propObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _receiversVector[0], modelSliceVector[iGpu], dataSliceVector[iGpu]);
+		} else {
+			propObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _receiversVector[iShot], modelSliceVector[iGpu], dataSliceVector[iGpu]);
+		}
 
-			// std::cout << "Before" << std::endl;
-			// std::cout << "data" << dataSliceVector[iGpu]->max() << std::endl;
-    		// Launch modeling
-    		propObjectVector[iGpu]->forward(false, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+		// Set GPU number for propagator object
+		propObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 
-    		// Store dataSlice into data
-    		#pragma omp parallel for
-            for (int iReceiver=0; iReceiver<hyperDataSlice->getAxis(2).n; iReceiver++){
-                for (int its=0; its<hyperDataSlice->getAxis(1).n; its++){
-                    (*data->_mat)[iShot][iReceiver][its] += (*dataSliceVector[iGpu]->_mat)[iReceiver][its];
-                }
+		// std::cout << "Before" << std::endl;
+		// std::cout << "data" << dataSliceVector[iGpu]->max() << std::endl;
+		// Launch modeling
+		// std::cout << "[nonlinearShots] Before running forward for iShot= " << iShot << ", iGpu=" << iGpu << std::endl;
+		propObjectVector[iGpu]->forward(false, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+		// std::cout << "[nonlinearShots] After running forward for iShot= " << iShot << ", iGpu=" << iGpu << std::endl;
+
+		// Store dataSlice into data
+		#pragma omp parallel for
+        for (int iReceiver=0; iReceiver<hyperDataSlice->getAxis(2).n; iReceiver++){
+            for (int its=0; its<hyperDataSlice->getAxis(1).n; its++){
+                (*data->_mat)[iShot][iReceiver][its] += (*dataSliceVector[iGpu]->_mat)[iReceiver][its];
             }
-			// std::cout << "After" << std::endl;
-			// std::cout << "data" << dataSliceVector[iGpu]->max() << std::endl;
         }
+		// std::cout << "After" << std::endl;
+		// std::cout << "data" << dataSliceVector[iGpu]->max() << std::endl;
+		// std::cout << "[nonlinearShots] Done running forward for iShot= " << iShot << ", iGpu=" << iGpu << std::endl;
+    }
 
 	// Deallocate memory on device
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){

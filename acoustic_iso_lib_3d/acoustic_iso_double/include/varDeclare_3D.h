@@ -87,7 +87,7 @@ double **dev_pLeft, **dev_pRight, **dev_pTemp;
 double **pin_wavefieldSlice, **dev_pStream, **dev_pSourceWavefield;
 cudaStream_t *compStream, *transferStream, *topStream;
 
-cudaEvent_t *eventTopFreeSurface;
+cudaEvent_t eventTopFreeSurface, eventBodyFreeSurface, compStreamDone;
 
 /******************************************************************************/
 /**************************** Declaration on host *****************************/
