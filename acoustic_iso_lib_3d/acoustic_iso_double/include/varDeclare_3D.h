@@ -54,9 +54,11 @@ __constant__ int dev_nx; // nx on Device
 __constant__ int dev_ny; // ny on Device
 __constant__ long long dev_yStride; // nz * nx on Device
 __constant__ unsigned long long dev_nModel; // nz * nx * ny on Device
+__constant__ unsigned long long dev_nModelExt; // nz * nx * ny * nExt1 * nExt2 on Device
+__constant__ unsigned long long dev_nVel; // nz * nx * ny on Device
 __constant__ int dev_sub; // Subsampling in time
-__constant__ int dev_nExt; // Length of extension axis
-__constant__ int dev_hExt; // Half-length of extension axis
+__constant__ int dev_nExt1, dev_nExt2; // Length of extension axis
+__constant__ int dev_hExt1, dev_hExt2; // Half-length of extension axis
 
 __constant__ int dev_nSourcesReg; // Nb of source grid points
 __constant__ int dev_nReceiversReg; // Nb of receiver grid points
@@ -80,15 +82,18 @@ double *dev_wavefieldDts; // Source wavefield
 
 // Born
 double **dev_ssLeft, **dev_ssRight, **dev_ssTemp1; // Temporary slices for stepping for Born
-double **dev_sourcesSignals, **dev_reflectivityScale, **dev_modelBorn;
+double **dev_sourcesSignals, **dev_reflectivityScale, **dev_modelBorn, **dev_modelBornExt;
 double **dev_pLeft, **dev_pRight, **dev_pTemp;
 
 // Streams
 double **pin_wavefieldSlice, **dev_pStream, **dev_pSourceWavefield;
 cudaStream_t *compStream, *transferStream, *topStream;
 
+// Events
 cudaEvent_t eventTopFreeSurface, eventBodyFreeSurface, compStreamDone;
 
+// Debug
+double **dev_modelDebug, **dev_dataDebug;
 /******************************************************************************/
 /**************************** Declaration on host *****************************/
 /******************************************************************************/
@@ -97,6 +102,8 @@ int host_nx;
 int host_ny;
 long long host_yStride;
 unsigned long long host_nModel;
+unsigned long long host_nModelExt;
+unsigned long long host_nVel;
 double host_dz;
 double host_dx;
 double host_dy;
@@ -104,13 +111,8 @@ int host_nts;
 double host_dts;
 int host_ntw;
 int host_sub;
-int host_nExt; // Length of extended axis
-int host_hExt; // Half-length of extended axis
+int host_nExt1, host_nExt2; // Length of extended axis
+int host_hExt1, host_hExt2; // Half-length of extended axis
 double host_cSide, host_cCenter; // Coefficients for the second-order time derivative
-
-// Debugging variables
-double ** dev_modelDebug;
-double ** dev_dataDebug;
-
 
 #endif

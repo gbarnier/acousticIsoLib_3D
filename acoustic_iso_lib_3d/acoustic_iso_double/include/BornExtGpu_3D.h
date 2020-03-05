@@ -32,7 +32,7 @@ class BornExtGpu_3D : public seismicOperator_3D<SEP::double5DReg, SEP::double2DR
 		BornExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::shared_ptr<SEP::double4DReg> srcWavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
 
 		/* QC */
-		bool checkParfileConsistency_3D(const std::shared_ptr<SEP::double3DReg> model, const std::shared_ptr<SEP::double2DReg> data) const;
+		bool checkParfileConsistency_3D(const std::shared_ptr<SEP::double5DReg> model, const std::shared_ptr<SEP::double2DReg> data) const;
 
 		/* FWD - ADJ */
 		void forward(const bool add, const std::shared_ptr<double5DReg> model, std::shared_ptr<double2DReg> data) const;

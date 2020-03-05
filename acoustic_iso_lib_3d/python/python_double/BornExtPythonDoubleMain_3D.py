@@ -10,60 +10,70 @@ import sys
 if __name__ == '__main__':
 
 	# Initialize operator
-	modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,dataHyperForOutput=Acoustic_iso_double_3D.BornOpInitDouble_3D(sys.argv)
+	modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,dataHyperForOutput=Acoustic_iso_double_3D.BornExtOpInitDouble_3D(sys.argv)
+
+	# QC data size
+	# print("model nDim=",modelDouble.getHyper().getNdim())
+	# print("model n1=",modelDouble.getHyper().axes[0].n)
+	# print("model n2=",modelDouble.getHyper().axes[1].n)
+	# print("model n3=",modelDouble.getHyper().axes[2].n)
+	# print("model n4=",modelDouble.getHyper().axes[3].n)
+	# print("model n5=",modelDouble.getHyper().axes[4].n)
+	# print("data nDim=",data.getHyper().getNdim())
+	# print("data n1=",data.getHyper().axes[0].n)
+	# print("data n2=",data.getHyper().axes[1].n)
+	# print("data n3=",data.getHyper().axes[2].n)
 
 	# Construct nonlinear operator object
-	BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector)
+	BornExtOp=Acoustic_iso_double_3D.BornExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector)
 
 	# Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
 		# print("Main 1")
-		BornOp.dotTest(True)
-		BornOp.dotTest(True)
-		BornOp.dotTest(True)
+		BornExtOp.dotTest(True)
+		BornExtOp.dotTest(True)
+		BornExtOp.dotTest(True)
 		quit(0)
 
 	if (parObject.getInt("saveSrcWavefield",0) == 1):
 		srcWavefieldFile=parObject.getString("srcWavefieldFile","noSrcWavefieldFile")
 		if (srcWavefieldFile == "noSrcWavefieldFile"):
-			raise ValueError("**** ERROR [BornPythonDoubleMain_3D]: User asked to save source wavefield but did not provide a file name ****\n")
+			raise ValueError("**** ERROR [BornExtPythonDoubleMain_3D]: User asked to save source wavefield but did not provide a file name ****\n")
 
 		iSrcWavefield=parObject.getInt("iSrcWavefield",0)
-		print("**** [BornPythonDoubleMain_3D]: User has requested to save source wavefield #%d ****\n"%(iSrcWavefield))
+		print("**** [BornExtPythonDoubleMain_3D]: User has requested to save source wavefield #%d ****\n"%(iSrcWavefield))
 
 	# Forward
 	if (parObject.getInt("adj",0) == 0):
 
 		print("-------------------------------------------------------------------")
-		print("-------------------- Running Python Born forward 3D ---------------")
+		print("------------- Running Python Born extended forward 3D -------------")
 		print("--------------------- Double precision Python code ----------------")
 		print("-------------------------------------------------------------------\n")
 
-
-
-		if (parObject.getInt("freeSurface",1) == 1):
+		if (parObject.getInt("freeSurface",0) == 1):
 			print("---------- Using a free surface condition for modeling ------------")
 
 		# Check that model was provided
 		modelFile=parObject.getString("model","noModelFile")
 		if (modelFile == "noModelFile"):
-			raise ValueError("**** ERROR [BornPythonDoubleMain_3D]: User did not provide model file ****\n")
+			raise ValueError("**** ERROR [BornExtPythonDoubleMain_3D]: User did not provide model file ****\n")
 		dataFile=parObject.getString("data","noDataFile")
 		if (dataFile == "noDataFile"):
-			raise ValueError("**** ERROR [BornPythonDoubleMain_3D]: User did not provide data file name ****\n")
+			raise ValueError("**** ERROR [BornExtPythonDoubleMain_3D]: User did not provide data file name ****\n")
 
 		# Read model
-		modelFloat=genericIO.defaultIO.getVector(modelFile)
-		modelDouble=SepVector.getSepVector(modelFloat.getHyper(),storage="dataDouble")
+		modelFloat=genericIO.defaultIO.getVector(modelFile,ndims=5)
+		modelDouble=SepVector.getSepVector(modelFloat.getHyper(),storage="dataDouble",ndims=5)
 		modelDoubleNp=modelDouble.getNdArray()
 		modelFloatNp=modelFloat.getNdArray()
 		modelDoubleNp[:]=modelFloatNp
 
 		# Apply forward
-		BornOp.forward(False,modelDouble,dataDouble)
+		BornExtOp.forward(False,modelDouble,dataDouble)
 
 		# Write data
-		dataFloat=SepVector.getSepVector(dataDouble.getHyper(),storage="dataFloat")
+		dataFloat=SepVector.getSepVector(dataDouble.getHyper(),storage="dataFloat",ndims=3)
 		dataFloatNp=dataFloat.getNdArray()
 		dataDoubleNp=dataDouble.getNdArray()
 		dataFloatNp[:]=dataDoubleNp
@@ -71,7 +81,7 @@ if __name__ == '__main__':
 
 		# Saving source wavefield
 		if (parObject.getInt("saveSrcWavefield",0) == 1):
-			srcWavefieldDouble = BornOp.getSrcWavefield_3D(iSrcWavefield)
+			srcWavefieldDouble = BornExtOp.getSrcWavefield_3D(iSrcWavefield)
 			srcWavefieldFloat=SepVector.getSepVector(srcWavefieldDouble.getHyper())
 			srcWavefieldDoubleNp=srcWavefieldDouble.getNdArray()
 			srcWavefieldFloatNp=srcWavefieldFloat.getNdArray()
@@ -86,11 +96,11 @@ if __name__ == '__main__':
 	else:
 
 		print("-------------------------------------------------------------------")
-		print("-------------------- Running Python Born adjoint 3D ---------------")
+		print("------------- Running Python Born extended adjoint 3D -------------")
 		print("--------------------- Double precision Python code ----------------")
 		print("-------------------------------------------------------------------\n")
 
-		if (parObject.getInt("freeSurface",0) == 0):
+		if (parObject.getInt("freeSurface",0) == 1):
 			print("---------- Using a free surface condition for modeling ------------")
 
 		# Check that data was provided
@@ -106,7 +116,7 @@ if __name__ == '__main__':
 		dataDoubleNp[:]=dataFloatNp
 
 		# Apply adjoint
-		BornOp.adjoint(False,modelDouble,dataDouble)
+		BornExtOp.adjoint(False,modelDouble,dataDouble)
 
 		# Write model
 		modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")
@@ -121,7 +131,7 @@ if __name__ == '__main__':
 
 		# Saving source wavefield
 		if (parObject.getInt("saveSrcWavefield",0) == 1):
-			srcWavefieldDouble = BornOp.getSrcWavefield_3D(iSrcWavefield)
+			srcWavefieldDouble = BornExtOp.getSrcWavefield_3D(iSrcWavefield)
 			srcWavefieldFloat=SepVector.getSepVector(srcWavefieldDouble.getHyper())
 			srcWavefieldDoubleNp=srcWavefieldDouble.getNdArray()
 			srcWavefieldFloatNp=srcWavefieldFloat.getNdArray()

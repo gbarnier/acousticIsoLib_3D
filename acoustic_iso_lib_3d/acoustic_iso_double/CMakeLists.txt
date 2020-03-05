@@ -43,6 +43,16 @@ set(SOURCE_BORN 	${SRC_DIR}/BornShotsGpu_3D.cpp
 					${SRC_DIR}/secondTimeDerivative_3D.cpp
 )
 
+#Files for Born extended operator library
+set(SOURCE_BORN_EXT 	${SRC_DIR}/BornExtShotsGpu_3D.cpp
+		   	  			${SRC_DIR}/BornExtGpu_3D.cpp
+						${SRC_DIR}/fdParam_3D.cpp
+						${SRC_DIR}/deviceGpu_3D.cpp
+						${SRC_DIR}/BornExtShotsGpuFunctions_3D.cu
+						${SRC_DIR}/interpTimeLinTbb_3D.cpp
+						${SRC_DIR}/secondTimeDerivative_3D.cpp
+)
+
 #SEP LIBRARY DIRECTORIES
 link_directories(${Generic-cpp_BINARY_DIR}
 								 ${hypercube_BINARY_DIR}
@@ -61,6 +71,8 @@ add_library(ACOUSTIC_ISO_DOUBLE_NL_3D ${SOURCE_NL})
 target_link_libraries(ACOUSTIC_ISO_DOUBLE_NL_3D ${LIBS} OpenMP::OpenMP_CXX)
 add_library(ACOUSTIC_ISO_DOUBLE_BORN_3D ${SOURCE_BORN})
 target_link_libraries(ACOUSTIC_ISO_DOUBLE_BORN_3D ${LIBS} OpenMP::OpenMP_CXX)
+add_library(ACOUSTIC_ISO_DOUBLE_BORN_EXT_3D ${SOURCE_BORN_EXT})
+target_link_libraries(ACOUSTIC_ISO_DOUBLE_BORN_EXT_3D ${LIBS} OpenMP::OpenMP_CXX)
 
 # Compiling the project executables
 # Model padding program for GPU
@@ -70,5 +82,6 @@ target_link_libraries(padFileGpuMain_3D ${LIBS} OpenMP::OpenMP_CXX)
 #Adding libray and header files to install destination
 install(TARGETS ACOUSTIC_ISO_DOUBLE_NL_3D DESTINATION lib)
 install(TARGETS ACOUSTIC_ISO_DOUBLE_BORN_3D DESTINATION lib)
+install(TARGETS ACOUSTIC_ISO_DOUBLE_BORN_EXT_3D DESTINATION lib)
 install(TARGETS padFileGpuMain_3D DESTINATION bin)
 install(FILES ${HEADERS} DESTINATION include)

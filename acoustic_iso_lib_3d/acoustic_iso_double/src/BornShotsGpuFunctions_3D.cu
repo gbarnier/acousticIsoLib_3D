@@ -427,6 +427,12 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 	cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], dev_pStream[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
 
+	double *dummyModel;
+	dummyModel = new double[host_nModel];
+
+	double *dummyData;
+	dummyData = new double[nReceiversReg*host_nts*sizeof(double)];
+
 	// Do first fwd imaging condition for its = 0 (after that, secondary source at its = 0 is done)
 	imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBorn[iGpu], dev_pLeft[iGpu], dev_pSourceWavefield[iGpu]);
 
@@ -457,6 +463,11 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 		// Compute secondary source for first coarse time index (its+1) with compute stream
 		imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBorn[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
 
+		// std::cout << "its = " << its << std::endl;
+		cudaMemcpy(dummyModel, dev_pRight[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy pRight min = " << *std::min_element(dummyModel,dummyModel+host_nModel) << std::endl;
+		// std::cout << "Dummy pRight max = " << *std::max_element(dummyModel,dummyModel+host_nModel) << std::endl;
+
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
 			// Step forward
@@ -468,6 +479,10 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 			// Damp wavefields
 			dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
+			cudaMemcpy(dummyModel, dev_p0[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost);
+			// std::cout << "Dummy p0 min = " << *std::min_element(dummyModel,dummyModel+host_nModel) << std::endl;
+			// std::cout << "Dummy p0 max = " << *std::max_element(dummyModel,dummyModel+host_nModel) << std::endl;
+
 			// Extract data
 			recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]);
 
@@ -478,6 +493,11 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 			dev_temp1[iGpu] = NULL;
 
 		}
+
+		cudaMemcpy(dummyData, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy data min = " << *std::min_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "Dummy data max = " << *std::max_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "---------------------" << std::endl;
 
 		// Switch pointers for secondary source
 		dev_pTemp[iGpu] = dev_pLeft[iGpu];

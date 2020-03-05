@@ -108,18 +108,18 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double5DR
 		// Create Born object
 		// std::cout << "Max source wavefield 1 = " << _srcWavefieldVector[iGpu]->max() << std::endl;
 		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
-		std::shared_ptr<BornExtGpu_3D> BornExtObject(new BornExtGpu_3D(_vel, _par, _srcWavefieldVector[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
-		BornExtObjectVector.push_back(BornExtObject);
+		std::shared_ptr<BornExtGpu_3D> BornExtGpuObject(new BornExtGpu_3D(_vel, _par, _srcWavefieldVector[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
+		BornExtObjectVector.push_back(BornExtGpuObject);
 		// std::cout << "Max source wavefield 2 = " << _srcWavefieldVector[iGpu]->max() << std::endl;
 		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
 
 		// Display finite-difference parameters info
 		if ( (_info == 1) && (_gpuList[iGpu] == _deviceNumberInfo) ){
-			BornGpuObject->getFdParam_3D()->getInfo_3D();
+			BornExtGpuObject->getFdParam_3D()->getInfo_3D();
 		}
 
 		// Allocate memory on device
-		allocateBornShotsGpu_3D(BornExtObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornExtObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
+		allocateBornExtShotsGpu_3D(BornExtObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornExtObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
 
 		// Create data slice for this GPU number
 		std::shared_ptr<SEP::double2DReg> dataSlice(new SEP::double2DReg(hyperDataSlice));
@@ -180,7 +180,7 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double5DR
 
 	// Deallocate memory on device
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		deallocateExtBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+		deallocateBornExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 	}
 
 }
