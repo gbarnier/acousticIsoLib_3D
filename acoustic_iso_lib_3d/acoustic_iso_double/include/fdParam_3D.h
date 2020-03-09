@@ -45,7 +45,7 @@ class fdParam_3D{
 		double _dz, _dx, _dy, _oz, _ox, _oy, _fMax;
 		int _saveWavefield, _blockSize, _fat, _freeSurface, _splitTopBody;
 		double _alphaCos;
-		std::string _extension;
+		std::string _extension, _offsetType;
 
 };
 

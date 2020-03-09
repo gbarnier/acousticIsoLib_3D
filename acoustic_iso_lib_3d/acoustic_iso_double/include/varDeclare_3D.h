@@ -56,6 +56,7 @@ __constant__ long long dev_yStride; // nz * nx on Device
 __constant__ unsigned long long dev_nModel; // nz * nx * ny on Device
 __constant__ unsigned long long dev_nModelExt; // nz * nx * ny * nExt1 * nExt2 on Device
 __constant__ unsigned long long dev_nVel; // nz * nx * ny on Device
+__constant__ unsigned long long dev_extStride; // nExt1 * nz * nx * ny on Device
 __constant__ int dev_sub; // Subsampling in time
 __constant__ int dev_nExt1, dev_nExt2; // Length of extension axis
 __constant__ int dev_hExt1, dev_hExt2; // Half-length of extension axis
@@ -83,10 +84,11 @@ double *dev_wavefieldDts; // Source wavefield
 // Born
 double **dev_ssLeft, **dev_ssRight, **dev_ssTemp1; // Temporary slices for stepping for Born
 double **dev_sourcesSignals, **dev_reflectivityScale, **dev_modelBorn, **dev_modelBornExt;
-double **dev_pLeft, **dev_pRight, **dev_pTemp;
+double **dev_pLeft, **dev_pRight, **dev_pTemp, **dev_pTempTau;
 
 // Streams
 double **pin_wavefieldSlice, **dev_pStream, **dev_pSourceWavefield;
+double ***dev_pSourceWavefieldTau;
 cudaStream_t *compStream, *transferStream, *topStream;
 
 // Events
@@ -104,6 +106,7 @@ long long host_yStride;
 unsigned long long host_nModel;
 unsigned long long host_nModelExt;
 unsigned long long host_nVel;
+unsigned long long host_extStride;
 double host_dz;
 double host_dx;
 double host_dy;

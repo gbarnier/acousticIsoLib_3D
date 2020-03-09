@@ -110,6 +110,7 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double5DR
 		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
 		std::shared_ptr<BornExtGpu_3D> BornExtGpuObject(new BornExtGpu_3D(_vel, _par, _srcWavefieldVector[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
 		BornExtObjectVector.push_back(BornExtGpuObject);
+
 		// std::cout << "Max source wavefield 2 = " << _srcWavefieldVector[iGpu]->max() << std::endl;
 		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
 
@@ -166,6 +167,7 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double5DR
 		}
 
 		// Set GPU number for propagator object
+
 		BornExtObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 		BornExtObjectVector[iGpu]->forward(false, model, dataSliceVector[iGpu]);
 

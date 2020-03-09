@@ -66,6 +66,8 @@ def buildSourceGeometry_3D(parObject,vel):
 	# Irregular source geometry => Reading source geometry from file
 	if(sourceGeomFile != "None"):
 
+		print("Here1")
+
 		# Set the flag to irregular
 		# regSourceGeom = 0
 
@@ -77,23 +79,29 @@ def buildSourceGeometry_3D(parObject,vel):
 
 		# Create inputs for devceGpu_3D constructor
 		# We assume point sources -> zCoordFloat is a 1D array of length 1
-		zCoordFloat=SepVector.getSepVector(ns=[1])
-		xCoordFloat=SepVector.getSepVector(ns=[1])
-		yCoordFloat=SepVector.getSepVector(ns=[1])
+		zCoordDouble=SepVector.getSepVector(ns=[1],storage="dataDouble")
+		xCoordDouble=SepVector.getSepVector(ns=[1],storage="dataDouble")
+		yCoordDouble=SepVector.getSepVector(ns=[1],storage="dataDouble")
 
 		# Check for consistency between number of shots and provided coordinates
 		if (nShot != sourceGeomVectorNd.shape[1]):
 			raise ValueError("**** ERROR [buildSourceGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with geometry file (#shots=%s)! ****\n" %(nShot,sourceGeomVectorNd.shape[1]))
 
+		print("Here2")
 		# Generate vector containing deviceGpu_3D objects
 		for ishot in range(nShot):
 
 			# Setting z, x and y-positions of the source for the given experiment
-			zCoordFloat.set(sourceGeomVectorNd[2,ishot]) # n2, n1
-			xCoordFloat.set(sourceGeomVectorNd[0,ishot])
-			yCoordFloat.set(sourceGeomVectorNd[1,ishot])
+			zCoordDouble.set(sourceGeomVectorNd[2,ishot]) # n2, n1
+			xCoordDouble.set(sourceGeomVectorNd[0,ishot])
+			yCoordDouble.set(sourceGeomVectorNd[1,ishot])
+
+			print("Here3")
+
 			# Create a deviceGpu_3D for this source and append to sources vector
-			sourcesVector.append(deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
+			sourcesVector.append(deviceGpu_3D(zCoordDouble.getCpp(), xCoordDouble.getCpp(), yCoordDouble.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
+
+			print("Here4")
 
 		# Generate hypercube with one axis which has the length of the number of shots
 		shotAxis=Hypercube.axis(n=nShot,o=0.0,d=1.0)
@@ -251,9 +259,9 @@ def buildReceiversGeometry_3D(parObject,vel):
 				print("**** [buildReceiversGeometry_3D]: User has requested a constant geometry (over shots) for receivers ****\n")
 
 		# Create inputs for devceiGpu_3D constructor
-		zCoordFloat=SepVector.getSepVector(ns=[nReceiverPerShot])
-		xCoordFloat=SepVector.getSepVector(ns=[nReceiverPerShot])
-		yCoordFloat=SepVector.getSepVector(ns=[nReceiverPerShot])
+		zCoordDouble=SepVector.getSepVector(ns=[nReceiverPerShot],storage="dataDouble")
+		xCoordDouble=SepVector.getSepVector(ns=[nReceiverPerShot],storage="dataDouble")
+		yCoordDouble=SepVector.getSepVector(ns=[nReceiverPerShot],storage="dataDouble")
 
 		# If receiver geometry is constant -> use only one deviceGpu for the reveivers
 
@@ -261,10 +269,10 @@ def buildReceiversGeometry_3D(parObject,vel):
 		for ishot in range(nShot):
 
 			# Update the receiver's coordinates
-			zCoordFloat.set(receiverGeomVectorNd[2,:,ishot])
-			xCoordFloat.set(receiverGeomVectorNd[0,:,ishot])
-			yCoordFloat.set(receiverGeomVectorNd[1,:,ishot])
-			receiversVector.append(deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
+			zCoordDouble.set(receiverGeomVectorNd[2,:,ishot])
+			xCoordDouble.set(receiverGeomVectorNd[0,:,ishot])
+			yCoordDouble.set(receiverGeomVectorNd[1,:,ishot])
+			receiversVector.append(deviceGpu_3D(zCoordDouble.getCpp(), xCoordDouble.getCpp(), yCoordDouble.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
 
 		# Generate hypercubes
 		receiverAxis=Hypercube.axis(n=nReceiverPerShot,o=0.0,d=1.0)
@@ -807,12 +815,12 @@ def BornExtOpInitDouble_3D(args,client=None):
 
 	modelDouble=SepVector.getSepVector(Hypercube.hypercube(axes=[zAxis,xAxis,yAxis,ext1Axis, ext2Axis]),storage="dataDouble")
 
-	print("model nDim=",modelDouble.getHyper().getNdim())
-	print("model n1=",modelDouble.getHyper().axes[0].n)
-	print("model n2=",modelDouble.getHyper().axes[1].n)
-	print("model n3=",modelDouble.getHyper().axes[2].n)
-	print("model n4=",modelDouble.getHyper().axes[3].n)
-	print("model n5=",modelDouble.getHyper().axes[4].n)
+	# print("model nDim=",modelDouble.getHyper().getNdim())
+	# print("model n1=",modelDouble.getHyper().axes[0].n)
+	# print("model n2=",modelDouble.getHyper().axes[1].n)
+	# print("model n3=",modelDouble.getHyper().axes[2].n)
+	# print("model n4=",modelDouble.getHyper().axes[3].n)
+	# print("model n5=",modelDouble.getHyper().axes[4].n)
 
 	return modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,dataHyperForOutput
 

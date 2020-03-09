@@ -68,6 +68,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	_hExt1 = (_nExt1-1)/2;
     _hExt2 = (_nExt2-1)/2;
 	_extension = par->getString("extension", "none");
+	_offsetType = par->getString("offsetType", "none");
 
     // Time-lag extension
     if (_extension=="time"){
@@ -75,6 +76,10 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
         _oExt1 = -_dts*_hExt1;
         _dExt1 = _dts;
         _extAxis1 = axis(_nExt1, _oExt1, _dExt1);
+		if (4*_hExt1 >= _nts){
+			std::cout << "**** ERROR [fdParam_3D]: Make sure that 4*hExt1 < nts ****" << std::endl;
+			assert(1==2);
+		}
         // Axis #2
         _oExt2 = -_dts*_hExt2;
         _dExt2 = _dts;

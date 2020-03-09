@@ -9,7 +9,7 @@
 #include <math.h>
 #include <vector>
 
-// Constructor #1 -- OOnly for irregular geometry
+// Constructor #1 -- Only for irregular geometry
 deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std::shared_ptr<double1DReg> xCoord, const std::shared_ptr<double1DReg> yCoord, const std::shared_ptr<double3DReg> vel, int &nt, std::shared_ptr<paramObj> par, int dipole, double zDipoleShift, double xDipoleShift, double yDipoleShift, std::string interpMethod, int hFilter1d){
 
 	// Get domain dimensions
@@ -28,17 +28,16 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std:
 	_zCoord = zCoord;
 	_xCoord = xCoord;
     _yCoord = yCoord;
-
 	_dipole = dipole; // Default value is 0
 	_zDipoleShift = zDipoleShift; // Default value is 0
 	_xDipoleShift = xDipoleShift; // Default value is 0
 	_yDipoleShift = yDipoleShift; // Default value is 0
+	_par = par;
 	checkOutOfBounds(_zCoord, _xCoord, _yCoord, _vel); // Check that none of the acquisition devices are out of bounds
 	_hFilter1d = hFilter1d; // Half-length of the filter for each dimension. For sinc, the filter in each direction z, x, y has the same length
 	_interpMethod = interpMethod; // Default is linear
 	_nDeviceIrreg = _zCoord->getHyper()->getAxis(1).n; // Nb of devices on irregular grid
 	_nt = nt;
-	_par = par;
 
 	// Check that for the linear interpolation case, the filter half-length is 1
 	if (interpMethod == "linear" && _hFilter1d != 1){
@@ -67,6 +66,7 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<double1DReg> zCoord, const std:
 	} else {
 		std::cerr << "**** ERROR [deviceGpu_3D]: Space interpolation method not supported ****" << std::endl;
 	}
+
 	// Convert the list -> Create a new list with unique indices of the regular grid points involved in the interpolation
 	convertIrregToReg();
 
@@ -281,7 +281,7 @@ void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<double1DReg> zCoord, c
 
 	double zMin = vel->getHyper()->getAxis(1).o + (fat + _par->getInt("zPadMinus") -1) * vel->getHyper()->getAxis(1).d;
 	double xMin = vel->getHyper()->getAxis(2).o + (fat + _par->getInt("xPadMinus") -1) * vel->getHyper()->getAxis(2).d;
-	double yMin = vel->getHyper()->getAxis(3).o + (fat + _par->getInt("yPadMinus") -1) * vel->getHyper()->getAxis(3).d;
+	double yMin = vel->getHyper()->getAxis(3).o + (fat + _par->getInt("yPad") -1) * vel->getHyper()->getAxis(3).d;
 
 	double zMax = zMin + (nzSmall - 1) * vel->getHyper()->getAxis(1).d;
 	double xMax = xMin + (nxSmall - 1) * vel->getHyper()->getAxis(2).d;
@@ -349,15 +349,15 @@ void deviceGpu_3D::calcLinearWeights(){
         wy = 1.0 - wy;
 
 		// Check that none of the points used in the interpolation are out of bounds
-		if ( (yReg-_hFilter1d+1 < 0) || (yReg+_hFilter1d+1 < _ny) ){
+		if ( (yReg-_hFilter1d+1 < 0) || (yReg+_hFilter1d+1 >= _ny) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the y-axis is out of bounds ****" << std::endl;
 			assert (1==2);
 		}
-		if ( (xReg-_hFilter1d+1 < 0) || (xReg+_hFilter1d+1 < _nx) ){
+		if ( (xReg-_hFilter1d+1 < 0) || (xReg+_hFilter1d+1 >= _nx) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the x-axis is out of bounds ****" << std::endl;
 			assert (1==2);
 		}
-		if ( (zReg-_hFilter1d+1 < 0) || (zReg+_hFilter1d+1 < _nz) ){
+		if ( (zReg-_hFilter1d+1 < 0) || (zReg+_hFilter1d+1 >= _nz) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the z-axis is out of bounds ****" << std::endl;
 			assert (1==2);
 		}
@@ -412,15 +412,15 @@ void deviceGpu_3D::calcLinearWeights(){
 			wyDipole = 1.0 - wyDipole;
 
 			// Check that none of the points used in the interpolation are out of bounds
-			if ( (yRegDipole-_hFilter1d+1 < 0) || (yRegDipole+_hFilter1d+1 < _ny) ){
+			if ( (yRegDipole-_hFilter1d+1 < 0) || (yRegDipole+_hFilter1d+1 >= _ny) ){
 				std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation for the negative pole on the y-axis is out of bounds ****" << std::endl;
 				assert (1==2);
 			}
-			if ( (xRegDipole-_hFilter1d+1 < 0) || (xRegDipole+_hFilter1d+1 < _nx) ){
+			if ( (xRegDipole-_hFilter1d+1 < 0) || (xRegDipole+_hFilter1d+1 >= _nx) ){
 				std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation for the negative pole on the x-axis is out of bounds ****" << std::endl;
 				assert (1==2);
 			}
-			if ( (zRegDipole-_hFilter1d+1 < 0) || (zRegDipole+_hFilter1d+1 < _nz) ){
+			if ( (zRegDipole-_hFilter1d+1 < 0) || (zRegDipole+_hFilter1d+1 >= _nz) ){
 				std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation for the negative pole on the z-axis is out of bounds ****" << std::endl;
 				assert (1==2);
 			}
