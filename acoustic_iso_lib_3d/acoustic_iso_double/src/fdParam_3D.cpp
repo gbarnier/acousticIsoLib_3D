@@ -81,6 +81,10 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 			assert(1==2);
 		}
         // Axis #2
+		if(_nExt2 != 1){
+			std::cout << "**** ERROR [fdParam_3D]: User requested time-lag extension, nExt2 should be set to 1 ****" << std::endl;
+			assert(1==2);
+		}
         _oExt2 = -_dts*_hExt2;
         _dExt2 = _dts;
         _extAxis2 = axis(_nExt2, _oExt2, _dExt2);

@@ -30,6 +30,9 @@ if __name__ == '__main__':
 		print("-------------------- Double precision Python code -----------------")
 		print("-------------------------------------------------------------------\n")
 
+		if (parObject.getInt("freeSurface",0) == 1):
+			print("---------- Using a free surface condition for modeling ------------")
+
 		# Check that model was provided
 		modelFile=parObject.getString("model","noModelFile")
 		if (modelFile == "noModelFile"):
@@ -92,6 +95,10 @@ if __name__ == '__main__':
 		print("----------------- Running Python nonlinear adjoint ----------------")
 		print("-------------------- Double precision Python code -----------------")
 		print("-------------------------------------------------------------------\n")
+
+		print("Free surface = ",parObject.getInt("freeSurface",0))
+		if (parObject.getInt("freeSurface",0) == 1):
+			print("---------- Using a free surface condition for modeling ------------")
 
 		# Check that data was provided
 		dataFile=parObject.getString("data","noDataFile")

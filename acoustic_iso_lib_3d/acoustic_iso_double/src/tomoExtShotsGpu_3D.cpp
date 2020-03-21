@@ -1,9 +1,12 @@
 #include <vector>
 #include <omp.h>
-#include "BornShotsGpu_3D.h"
-#include "BornGpu_3D.h"
+#include "tomoExtShotsGpu_3D.h"
+#include "tomoExtGpu_3D.h"
 
-BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector){
+/* Constructor */
+tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<SEP::double5DReg> reflectivityExt) {
+
+	std::cout << "Constructor #1" << std::endl;
 
 	// Setup parameters
 	_par = par;
@@ -13,43 +16,47 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	_info = par->getInt("info", 0);
 	_deviceNumberInfo = par->getInt("deviceNumberInfo", _gpuList[0]);
 	assert(getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo)); // Get info on GPU cluster and check that there are enough available GPUs
+	_saveWavefield = _par->getInt("saveWavefield", 0);
+	_wavefieldShotNumber = _par->getInt("wavefieldShotNumber", 0);
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
-	// std::cout << "test0" << std::endl;
-	// Allocate source wavefields for all GPUs
-	// std::cout << "Allocating " << _nGpu << " wavefield(s)" << std::endl;
+	_reflectivityExt = reflectivityExt;
+
+	std::cout << "Constructor #2" << std::endl;
+
 	axis zAxis = _vel->getHyper()->getAxis(1);
 	axis xAxis = _vel->getHyper()->getAxis(2);
 	axis yAxis = _vel->getHyper()->getAxis(3);
 	axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
-	_srcWavefieldHyper = std::make_shared<hypercube>(zAxis, xAxis, yAxis, timeAxis);
+	_wavefieldHyper = std::make_shared<hypercube>(zAxis, xAxis, yAxis, timeAxis);
 	// std::shared_ptr<SEP::double4DReg> wavefieldTemp;
-	std::cout << "Allocating wavefields" << std::endl;
+	std::cout << "Constructor #3" << std::endl;
+
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
+		std::cout << "Wavefield allocation iGpu#" << iGpu << std::endl;
 		// wavefieldTemp = std::make_shared<SEP::double4DReg>(_srcWavefieldHyper);
-		std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
-		_srcWavefieldVector.push_back(wavefieldTemp);
-		_srcWavefieldVector[iGpu]->scale(0.0);
-		// std::cout << "[BornShotGpu]: address for source wavefield inside loop [" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
+		std::shared_ptr<double4DReg> wavefieldTemp1(new double4DReg(_wavefieldHyper));
+		std::shared_ptr<double4DReg> wavefieldTemp2(new double4DReg(_wavefieldHyper));
+		_wavefieldVector1.push_back(wavefieldTemp1);
+		_wavefieldVector2.push_back(wavefieldTemp2);
+		_wavefieldVector1[iGpu]->scale(0.0);
+		_wavefieldVector2[iGpu]->scale(0.0);
 	}
-	std::cout << "Done allocating wavefields" << std::endl;
+
+	std::cout << "End constructor" << std::endl;
 }
 
-void BornShotsGpu_3D::createGpuIdList_3D(){
+void tomoExtShotsGpu_3D::createGpuIdList_3D(){
 
 	// Setup Gpu numbers
 	_nGpu = _par->getInt("nGpu", -1);
-
-	// Check that the user does not ask for more GPUs than shots to be modeled
-	// if (_nGpu > _nShot){std::cout << "**** ERROR [BornShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; assert(1==2);}
-
 	std::vector<int> dummyVector;
  	dummyVector.push_back(-1);
 	_gpuList = _par->getInts("iGpu", dummyVector);
 
 	// If the user does not provide nGpu > 0 or a valid list -> break
-	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [BornShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; assert(1==2);}
+	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR: Please provide a list of GPUs to be used ****" << std::endl; assert(1==2);}
 
 	// If user does not provide a valid list but provides nGpu -> use id: 0,...,nGpu-1
 	if (_nGpu>0 && _gpuList[0]<0){
@@ -66,7 +73,7 @@ void BornShotsGpu_3D::createGpuIdList_3D(){
 		std::vector<int>::iterator it = std::unique(_gpuList.begin(), _gpuList.end());
 		bool isUnique = (it==_gpuList.end());
 		if (isUnique==0) {
-			std::cout << "**** ERROR [BornShotsGpu_3D]: Please make sure there are no duplicates in the list ****" << std::endl; assert(1==2);
+			std::cout << "**** ERROR: Please make sure there are no duplicates in the list ****" << std::endl; assert(1==2);
 		}
 	}
 
@@ -74,17 +81,16 @@ void BornShotsGpu_3D::createGpuIdList_3D(){
 	_iGpuAlloc = _gpuList[0];
 }
 
-void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> model, std::shared_ptr<double3DReg> data) const {
+/* Forward */
+void tomoExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> model, std::shared_ptr<double3DReg> data) const {
 
-	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	std::cout << "[BornShotGpu]: Forward source wavefield [" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-	// }
-	// std::cout << "test2" << std::endl;
 	if (!add) data->scale(0.0);
 
 	// Variable declaration
 	int omp_get_thread_num();
 	int constantSrcSignal, constantRecGeom;
+
+	std::cout << "Fwd shots #1" << std::endl;
 
 	// Check whether we use the same source signals for all shots
 	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
@@ -98,40 +104,35 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 		constantRecGeom=1;}
 	else {constantRecGeom=0;}
 
+	std::cout << "Fwd shots #2" << std::endl;
+
 	// Create vectors for each GPU
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
 	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
-	std::vector<std::shared_ptr<BornGpu_3D>> BornObjectVector;
+	std::vector<std::shared_ptr<tomoExtGpu_3D>> tomoExtGpuObjectVector;
 
 	// Loop over GPUs
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
-		// Create Born object
-		// std::cout << "Max source wavefield 1 = " << _srcWavefieldVector[iGpu]->max() << std::endl;
-		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
-		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _srcWavefieldVector[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
-		BornObjectVector.push_back(BornGpuObject);
-		// std::cout << "Max source wavefield 2 = " << _srcWavefieldVector[iGpu]->max() << std::endl;
-		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
+		// Create extended tomo object
+		std::shared_ptr<tomoExtGpu_3D> tomoExtGpuObject(new tomoExtGpu_3D(_vel, _par, _reflectivityExt, _wavefieldVector1[iGpu], _wavefieldVector2[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
+		tomoExtGpuObjectVector.push_back(tomoExtGpuObject);
 
 		// Display finite-difference parameters info
 		if ( (_info == 1) && (_gpuList[iGpu] == _deviceNumberInfo) ){
-			BornGpuObject->getFdParam_3D()->getInfo_3D();
+			tomoExtGpuObject->getFdParam_3D()->getInfo_3D();
 		}
 
 		// Allocate memory on device
-		allocateBornShotsGpu_3D(BornObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
+		allocateTomoExtShotsGpu_3D(tomoExtGpuObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, tomoExtGpuObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
 
 		// Create data slice for this GPU number
 		std::shared_ptr<SEP::double2DReg> dataSlice(new SEP::double2DReg(hyperDataSlice));
 		dataSliceVector.push_back(dataSlice);
 
-
 	}
 
-	// exit(0);
-
-	// Launch Born forward
+	// Launch Tomo forward
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
@@ -144,40 +145,30 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 
 		// Set acquisition geometry
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], model, dataSliceVector[iGpu]);
+			tomoExtGpuObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], model, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
 			sourcesSignalsTemp = std::make_shared<double2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
-
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], model, dataSliceVector[iGpu]);
+			tomoExtGpuObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], model, dataSliceVector[iGpu]);
 		}
-
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], model, dataSliceVector[iGpu]);
+			tomoExtGpuObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], model, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
 			sourcesSignalsTemp = std::make_shared<double2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
-			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], model, dataSliceVector[iGpu]);
+			tomoExtGpuObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], model, dataSliceVector[iGpu]);
 		}
 
 		// Set GPU number for propagator object
-		BornObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
-
-		// BornObjectVector[iGpu]->resetWavefield();
+		tomoExtGpuObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 
 		// Launch modeling
-		// std::cout << "Running dot product test for iGpu= " << iGpu << std::endl;
-		// BornObjectVector[iGpu]->setDomainRange(model, dataSliceVector[iGpu]);
-		// BornObjectVector[iGpu]->dotTest(true);
-		// std::cout << "Done running dot product test for iGpu= " << iGpu << std::endl;
-		// exit(0);
-		BornObjectVector[iGpu]->forward(false, model, dataSliceVector[iGpu]);
+		tomoExtGpuObjectVector[iGpu]->forward(false, model, dataSliceVector[iGpu]);
 
 		// Store dataSlice into data
 		#pragma omp parallel for
@@ -190,70 +181,58 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 
 	// Deallocate memory on device
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+		deallocateTomoExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 	}
-
 }
 
-void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, const std::shared_ptr<double3DReg> data) const {
+/* Adjoint */
+void tomoExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, const std::shared_ptr<double3DReg> data) const {
 
 	if (!add) model->scale(0.0);
-
-	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	std::cout << "[BornShotGpu]: source wavefield address at step #1 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-	// }
 
 	// Variable declaration
 	int omp_get_thread_num();
 	int constantSrcSignal, constantRecGeom;
 
 	// Check whether we use the same source signals for all shots
-	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
-			// std::cout << "Constant source signal over shots" << std::endl;
-			constantSrcSignal = 1; }
+	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {constantSrcSignal = 1;}
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
-	if (_receiversVector.size() == 1) {
-		// std::cout << "Constant receiver geometry over shots" << std::endl;
-		constantRecGeom=1;}
+	if (_receiversVector.size() == 1) {constantRecGeom=1;}
 	else {constantRecGeom=0;}
 
 	// Create vectors for each GPU
 	std::shared_ptr<SEP::hypercube> hyperModelSlice(new hypercube(model->getHyper()->getAxis(1), model->getHyper()->getAxis(2), model->getHyper()->getAxis(3)));
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
-	std::vector<std::shared_ptr<double3DReg>> modelSliceVector;
 	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
-	std::vector<std::shared_ptr<BornGpu_3D>> BornObjectVector;
+	std::vector<std::shared_ptr<double3DReg>> modelSliceVector;
+	std::vector<std::shared_ptr<tomoExtGpu_3D>> tomoExtGpuObjectVector;
 
 	// Loop over GPUs
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
-		// Create Born object
-		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _srcWavefieldVector[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
-		BornObjectVector.push_back(BornGpuObject);
+		// Create extended Born object
+		std::shared_ptr<tomoExtGpu_3D> tomoExtGpuObject(new tomoExtGpu_3D(_vel, _par, _reflectivityExt, _wavefieldVector1[iGpu], _wavefieldVector2[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
+		tomoExtGpuObjectVector.push_back(tomoExtGpuObject);
 
 		// Display finite-difference parameters info
 		if ( (_info == 1) && (_gpuList[iGpu] == _deviceNumberInfo) ){
-			BornGpuObject->getFdParam_3D()->getInfo_3D();
+			tomoExtGpuObject->getFdParam_3D()->getInfo_3D();
 		}
 
 		// Allocate memory on device for that object
-		allocateBornShotsGpu_3D(BornObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
+		allocateTomoExtShotsGpu_3D(tomoExtGpuObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, tomoExtGpuObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
 
 		// Model slice
 		std::shared_ptr<SEP::double3DReg> modelSlice(new SEP::double3DReg(hyperModelSlice));
-		modelSlice->scale(0.0); // Check that
+		modelSlice->scale(0.0);
 		modelSliceVector.push_back(modelSlice);
 
 		// Create data slice for this GPU number
 		std::shared_ptr<SEP::double2DReg> dataSlice(new SEP::double2DReg(hyperDataSlice));
 		dataSliceVector.push_back(dataSlice);
 	}
-
-	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	std::cout << "[BornShotGpu]: source wavefield address at step #2 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-	// }
 
 	// Launch Born forward
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
@@ -271,21 +250,21 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 
 		// Set acquisition geometry
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], model, dataSliceVector[iGpu]);
+			tomoExtGpuObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], model, dataSliceVector[iGpu]);
 		}
 
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
-
 			// Create a 2D-temporary array where you store the wavelet for this shot
 			sourcesSignalsTemp = std::make_shared<double2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], model, dataSliceVector[iGpu]);
+			tomoExtGpuObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], model, dataSliceVector[iGpu]);
+
 		}
 
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], model, dataSliceVector[iGpu]);
+			tomoExtGpuObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], model, dataSliceVector[iGpu]);
 		}
 
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {
@@ -295,37 +274,22 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], model, dataSliceVector[iGpu]);
+			tomoExtGpuObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], model, dataSliceVector[iGpu]);
 		}
 
-		// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// 	std::cout << "[BornShotGpu]: source wavefield address at step #3 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-		// }
-
 		// Set GPU number for propagator object
-		BornObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
-		// BornObjectVector[iGpu]->resetWavefield();
+		tomoExtGpuObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
+
 		// Launch modeling
-		BornObjectVector[iGpu]->resetWavefield();
-		// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// 	std::cout << "[BornShotGpu]: source wavefield address at step #4 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-		// }
-		// std::cout << "[BornShotGpu]: max model before = " << modelSliceVector[iGpu]-> max() << std::endl;
-		// std::cout << "[BornShotGpu]: min model before = " << modelSliceVector[iGpu]-> min() << std::endl;
-		BornObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
-		// std::cout << "[BornShotGpu]: max model after = " << modelSliceVector[iGpu]-> max() << std::endl;
-		// std::cout << "[BornShotGpu]: min model after = " << modelSliceVector[iGpu]-> min() << std::endl;
-		//
-		// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// 	std::cout << "[BornShotGpu]: source wavefield address at step #5 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-		// }
+		tomoExtGpuObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+
 	}
 
 	// Stack models computed by each GPU
-    for (int iGpu=0; iGpu<_nGpu; iGpu++){
-        #pragma omp parallel for
+	for (int iGpu=0; iGpu<_nGpu; iGpu++){
+		#pragma omp parallel for collapse(3)
         for (int iy=0; iy<model->getHyper()->getAxis(3).n; iy++){
-            for (int ix=0; ix<model->getHyper()->getAxis(2).n; ix++){
+		    for (int ix=0; ix<model->getHyper()->getAxis(2).n; ix++){
                 for (int iz=0; iz<model->getHyper()->getAxis(1).n; iz++){
                     (*model->_mat)[iy][ix][iz] += (*modelSliceVector[iGpu]->_mat)[iy][ix][iz];
                 }
@@ -335,7 +299,6 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 
 	// Deallocate memory on device
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+		deallocateTomoExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 	}
-
 }

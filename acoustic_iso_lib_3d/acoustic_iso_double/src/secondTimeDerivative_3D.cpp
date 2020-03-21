@@ -31,7 +31,7 @@ void secondTimeDerivative_3D::adjoint(const bool add, std::shared_ptr<double2DRe
 
 	if (!add) model->scale(0.0);
 
-	#pragma omp parallel for 
+	#pragma omp parallel for
 	for (int iDevice = 0; iDevice < data->getHyper()->getAxis(2).n; iDevice++) {
 		(*model->_mat)[iDevice][0] += _dt2 * ( (*data->_mat)[iDevice][1] - 2.0 * (*data->_mat)[iDevice][0] );
 		for (int it = 1; it < _nt-1; it++) {

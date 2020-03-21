@@ -83,8 +83,10 @@ double *dev_wavefieldDts; // Source wavefield
 
 // Born
 double **dev_ssLeft, **dev_ssRight, **dev_ssTemp1; // Temporary slices for stepping for Born
-double **dev_sourcesSignals, **dev_reflectivityScale, **dev_modelBorn, **dev_modelBornExt;
+double **dev_sourcesSignals, **dev_reflectivityScale, **dev_extReflectivity;
+double **dev_modelBorn, **dev_modelBornExt, **dev_modelTomo;
 double **dev_pLeft, **dev_pRight, **dev_pTemp, **dev_pTempTau;
+double **dev_pDt0, **dev_pDt1, **dev_pDt2, **dev_pDtTemp, **dev_pWavefieldSliceDt2;
 
 // Streams
 double **pin_wavefieldSlice, **dev_pStream, **dev_pSourceWavefield;
@@ -96,6 +98,7 @@ cudaEvent_t eventTopFreeSurface, eventBodyFreeSurface, compStreamDone;
 
 // Debug
 double **dev_modelDebug, **dev_dataDebug;
+
 /******************************************************************************/
 /**************************** Declaration on host *****************************/
 /******************************************************************************/
@@ -117,5 +120,6 @@ int host_sub;
 int host_nExt1, host_nExt2; // Length of extended axis
 int host_hExt1, host_hExt2; // Half-length of extended axis
 double host_cSide, host_cCenter; // Coefficients for the second-order time derivative
+int host_leg1, host_leg2;
 
 #endif

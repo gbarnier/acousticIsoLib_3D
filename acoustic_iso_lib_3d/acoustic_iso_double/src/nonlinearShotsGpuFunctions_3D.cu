@@ -602,33 +602,3 @@ void propShotsAdjFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long
     cuda_call(cudaFree(dev_receiversPositionReg[iGpu]));
 
 }
-
-
-
-
-
-
-
-
-		// Create two arrays (one on device, other one host)
-		// int *host_array, *dev_array;
-		// host_array = new int[12];
-		// cuda_call(cudaMalloc((void**) &dev_array, 12*sizeof(int)));
-		// for (int j=0; j<12; j++){
-		// 	host_array[j]=j;
-		// }
-		// cuda_call(cudaMemcpy(dev_array, host_array, 12*sizeof(int), cudaMemcpyHostToDevice));
-		//
-		// // My thaang
-		// for (int j=0; j<2; j++){
-		//
-		// 	kA1<<<1, 1, 0, compStream[iGpu]>>>(j, dev_array);
-		//
-		// 	for (int i=2; i<12; i++){
-		// 		kA2<<<1, 1, 0, topStream[iGpu]>>>(i, j, dev_array);
-		// 	}
-		// 	cudaEventRecord(test, NULL);
-		// 	cudaStreamWaitEvent(compStream[iGpu], test, 0);
-		// 	kA3<<<1, 1, 0, compStream[iGpu]>>>(j, dev_array);
-		// 	std::cout << "Done j = " << j << std::endl;
-		// }

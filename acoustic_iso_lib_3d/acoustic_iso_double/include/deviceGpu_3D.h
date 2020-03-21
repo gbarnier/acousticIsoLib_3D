@@ -24,6 +24,8 @@ class deviceGpu_3D : public Operator<SEP::double2DReg, SEP::double2DReg> {
 		double _oz, _dz, _ox, _dx, _oy, _dy;
 		int *_gridPointIndex;
 		int _nDeviceIrreg, _nDeviceReg, _nt, _nz, _nx, _ny;
+		int _nzSmall, _nxSmall, _nySmall;
+		int _fat, _zPadMinus, _zPadPlus, _xPadMinus, _xPadPlus, _yPad;
 		int _dipole, _zDipoleShift, _xDipoleShift, _yDipoleShift;
 		int _hFilter1d, _nFilter1d, _nFilter3d, _nFilter3dDipole;
 		std::string _interpMethod;

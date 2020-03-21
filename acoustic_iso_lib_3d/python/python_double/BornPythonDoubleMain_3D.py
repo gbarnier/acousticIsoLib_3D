@@ -39,9 +39,7 @@ if __name__ == '__main__':
 		print("--------------------- Double precision Python code ----------------")
 		print("-------------------------------------------------------------------\n")
 
-
-
-		if (parObject.getInt("freeSurface",1) == 1):
+		if (parObject.getInt("freeSurface",0) == 1):
 			print("---------- Using a free surface condition for modeling ------------")
 
 		# Check that model was provided
@@ -90,7 +88,7 @@ if __name__ == '__main__':
 		print("--------------------- Double precision Python code ----------------")
 		print("-------------------------------------------------------------------\n")
 
-		if (parObject.getInt("freeSurface",0) == 0):
+		if (parObject.getInt("freeSurface",0) == 1):
 			print("---------- Using a free surface condition for modeling ------------")
 
 		# Check that data was provided

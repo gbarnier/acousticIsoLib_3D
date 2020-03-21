@@ -68,13 +68,13 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 
 	// Check whether we use the same source signals for all shots
 	if (model->getHyper()->getAxis(2).n == 1) {
-			std::cout << "Constant source signal over shots" << std::endl;
+			// std::cout << "Constant source signal over shots" << std::endl;
 			constantSrcSignal = 1; }
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
 	if (_receiversVector.size() == 1) {
-		std::cout << "Constant receiver geometry over shots" << std::endl;
+		// std::cout << "Constant receiver geometry over shots" << std::endl;
 		constantRecGeom=1;}
 	else {constantRecGeom=0;}
 

@@ -233,7 +233,7 @@ __global__ void imagingTauAdjGpu_3D(double *dev_model, double *dev_data, double 
 	long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
 
 	for (int iy=FAT; iy<dev_ny-FAT; iy++){
-		dev_model[iGlobal+iExt*dev_nVel] += dev_data[iGlobal] * dev_sourceWavefieldDts[iGlobal];		
+		dev_model[iGlobal+iExt*dev_nVel] += dev_data[iGlobal] * dev_sourceWavefieldDts[iGlobal];
 		iGlobal+=dev_yStride;
 	}
 }
@@ -280,6 +280,22 @@ __global__ void interpFineToCoarseSliceDebug_3D(double *dev_timeSliceLeft, doubl
 		// iGlobal+=dev_yStride;
 	}
 
+}
+
+/******************************************************************************/
+/****************************** Time derivative *******************************/
+/******************************************************************************/
+__global__ void srcWfldSecondTimeDerivative_3D(double *dev_wavefieldSlice, double *dev_slice0, double *dev_slice1, double *dev_slice2) {
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+		// dev_wavefieldSlice[iGlobal] = dev_cSide * ( dev_slice0[iGlobal] + dev_slice2[iGlobal] ) + dev_cCenter * dev_slice1[iGlobal];
+		dev_wavefieldSlice[iGlobal] = dev_cSide * ( dev_slice0[iGlobal] ) + dev_cCenter * dev_slice1[iGlobal];
+		iGlobal+=dev_yStride;
+	}
 }
 
 /******************************************************************************/

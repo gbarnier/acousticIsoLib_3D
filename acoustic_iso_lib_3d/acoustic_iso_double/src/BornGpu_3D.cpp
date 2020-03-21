@@ -33,22 +33,16 @@ void BornGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> mode
 	std::shared_ptr<double2DReg> dataRegDts(new double2DReg(_fdParam_3D->_nts, _nReceiversReg));
 	dataRegDts->scale(0.0);
 
-	std::cout << "Before min model = " << model->min() << std::endl;
-	std::cout << "Before max model = " << model->max() << std::endl;
-	std::cout << "Before min data = " << dataRegDts->min() << std::endl;
-	std::cout << "Before max data = " << dataRegDts->max() << std::endl;
-
 	/* Launch Born forward */
 	if (_fdParam_3D->_freeSurface != 1){
+		std::cout << "Max src wavefield before = " << _srcWavefield->max() << std::endl;
+		std::cout << "Min src wavefield before = " << _srcWavefield->min() << std::endl;
 		BornShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+		std::cout << "Max src wavefield after = " << _srcWavefield->max() << std::endl;
+		std::cout << "Min src wavefield after = " << _srcWavefield->min() << std::endl;
 	} else {
 		BornShotsFwdFreeSurfaceGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 	}
-
-	std::cout << "After min model = " << model->min() << std::endl;
-	std::cout << "After max model = " << model->max() << std::endl;
-	std::cout << "After min data = " << dataRegDts->min() << std::endl;
-	std::cout << "After max data = " << dataRegDts->max() << std::endl;
 
 	/* Interpolate data to irregular grid */
 	_receivers->forward(true, dataRegDts, data);
@@ -66,21 +60,11 @@ void BornGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, con
 	/* Interpolate data to regular grid */
 	_receivers->adjoint(false, dataRegDts, data);
 
-	std::cout << "Before min model = " << model->min() << std::endl;
-	std::cout << "Before max model = " << model->max() << std::endl;
-	std::cout << "Before min data = " << dataRegDts->min() << std::endl;
-	std::cout << "Before max data = " << dataRegDts->max() << std::endl;
-
 	if (_fdParam_3D->_freeSurface != 1){
 		BornShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 	} else {
 		BornShotsAdjFreeSurfaceGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 	}
-
-	std::cout << "After min model = " << modelTemp->min() << std::endl;
-	std::cout << "After max model = " << modelTemp->max() << std::endl;
-	std::cout << "After min data = " << dataRegDts->min() << std::endl;
-	std::cout << "After max data = " << dataRegDts->max() << std::endl;
 
 	/* Update model */
 	model->scaleAdd(modelTemp, 1.0, 1.0);

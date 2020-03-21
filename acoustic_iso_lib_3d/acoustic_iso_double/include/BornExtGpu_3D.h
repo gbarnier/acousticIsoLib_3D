@@ -42,7 +42,7 @@ class BornExtGpu_3D : public seismicOperator_3D<SEP::double5DReg, SEP::double2DR
 		std::shared_ptr<double4DReg> getSrcWavefield_3D() { return _srcWavefield; }
 
 		/* Mutator */
-		void resetWavefield(){_srcWavefield->scale(0.0);}
+		// void resetWavefield(){_srcWavefield->scale(0.0);}
 
 		/* Destructor */
 		~BornExtGpu_3D(){};

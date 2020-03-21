@@ -16,9 +16,7 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
-	// std::cout << "test0" << std::endl;
-	// Allocate source wavefields for all GPUs
-	// std::cout << "Allocating " << _nGpu << " wavefield(s)" << std::endl;
+
 	axis zAxis = _vel->getHyper()->getAxis(1);
 	axis xAxis = _vel->getHyper()->getAxis(2);
 	axis yAxis = _vel->getHyper()->getAxis(3);
@@ -30,9 +28,8 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 		std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
 		_srcWavefieldVector.push_back(wavefieldTemp);
 		_srcWavefieldVector[iGpu]->scale(0.0);
-		// std::cout << "[BornExtShotsGpu_3D]: address for source wavefield inside loop [" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-	}
 
+	}
 }
 
 void BornExtShotsGpu_3D::createGpuIdList_3D(){
@@ -75,10 +72,6 @@ void BornExtShotsGpu_3D::createGpuIdList_3D(){
 
 void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> model, std::shared_ptr<double3DReg> data) const {
 
-	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	std::cout << "[BornShotGpu]: Forward source wavefield [" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-	// }
-	// std::cout << "test2" << std::endl;
 	if (!add) data->scale(0.0);
 
 	// Variable declaration
@@ -106,13 +99,8 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double5DR
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
 		// Create Born object
-		// std::cout << "Max source wavefield 1 = " << _srcWavefieldVector[iGpu]->max() << std::endl;
-		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
 		std::shared_ptr<BornExtGpu_3D> BornExtGpuObject(new BornExtGpu_3D(_vel, _par, _srcWavefieldVector[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
 		BornExtObjectVector.push_back(BornExtGpuObject);
-
-		// std::cout << "Max source wavefield 2 = " << _srcWavefieldVector[iGpu]->max() << std::endl;
-		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
 
 		// Display finite-difference parameters info
 		if ( (_info == 1) && (_gpuList[iGpu] == _deviceNumberInfo) ){
@@ -167,7 +155,6 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double5DR
 		}
 
 		// Set GPU number for propagator object
-
 		BornExtObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 		BornExtObjectVector[iGpu]->forward(false, model, dataSliceVector[iGpu]);
 
@@ -190,10 +177,6 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double5DR
 void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> model, const std::shared_ptr<double3DReg> data) const {
 
 	if (!add) model->scale(0.0);
-
-	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	std::cout << "[BornShotGpu]: source wavefield address at step #1 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-	// }
 
 	// Variable declaration
 	int omp_get_thread_num();
@@ -286,20 +269,12 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> mo
 			BornExtObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], model, dataSliceVector[iGpu]);
 		}
 
-		// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// 	std::cout << "[BornShotGpu]: source wavefield address at step #3 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-		// }
 
 		// Set GPU number for propagator object
 		BornExtObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 		// BornObjectVector[iGpu]->resetWavefield();
 		// Launch modeling
-		BornExtObjectVector[iGpu]->resetWavefield();
-		// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// 	std::cout << "[BornShotGpu]: source wavefield address at step #4 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-		// }
-		// std::cout << "[BornShotGpu]: max model before = " << modelSliceVector[iGpu]-> max() << std::endl;
-		// std::cout << "[BornShotGpu]: min model before = " << modelSliceVector[iGpu]-> min() << std::endl;
+		// BornExtObjectVector[iGpu]->resetWavefield();
 		BornExtObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
 		// std::cout << "[BornShotGpu]: max model after = " << modelSliceVector[iGpu]-> max() << std::endl;
 		// std::cout << "[BornShotGpu]: min model after = " << modelSliceVector[iGpu]-> min() << std::endl;
@@ -311,7 +286,7 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> mo
 
 	// Stack models computed by each GPU
     for (int iGpu=0; iGpu<_nGpu; iGpu++){
-        #pragma omp parallel for
+        #pragma omp parallel for collapse(5)
 		for (int iExt2=0; iExt2<model->getHyper()->getAxis(5).n; iExt2++){
 			for (int iExt1=0; iExt1<model->getHyper()->getAxis(4).n; iExt1++){
         		for (int iy=0; iy<model->getHyper()->getAxis(3).n; iy++){
