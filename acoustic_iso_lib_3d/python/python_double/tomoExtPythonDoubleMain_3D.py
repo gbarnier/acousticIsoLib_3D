@@ -27,10 +27,18 @@ if __name__ == '__main__':
 	if (parObject.getInt("saveWavefield1",0) == 1):
 		wavefield1File=parObject.getString("wavefield1File","noWavefield1File")
 		if (wavefield1File == "noWavefield1File"):
-			raise ValueError("**** ERROR [tomoExtPythonDoubleMain_3D]: User asked to save source wavefield but did not provide a file name ****\n")
+			raise ValueError("**** ERROR [tomoExtPythonDoubleMain_3D]: User asked to save wavefield #1 but did not provide a file name ****\n")
 
 		iWavefield=parObject.getInt("iWavefield",0)
 		print("**** [tomoExtPythonDoubleMain_3D]: User has requested to save source wavefield #%d ****\n"%(iWavefield))
+
+	if (parObject.getInt("saveWavefield2",0) == 1):
+		wavefield2File=parObject.getString("wavefield2File","noWavefield2File")
+		if (wavefield2File == "noWavefield2File"):
+			raise ValueError("**** ERROR [tomoExtPythonDoubleMain_3D]: User asked to save wavefield #2 but did not provide a file name ****\n")
+
+	iWavefield=parObject.getInt("iWavefield",0)
+	print("**** [tomoExtPythonDoubleMain_3D]: User has requested to save source wavefield #%d ****\n"%(iWavefield))
 
 	# Forward
 	if (parObject.getInt("adj",0) == 0):
@@ -77,37 +85,77 @@ if __name__ == '__main__':
 			wavefield1FloatNp[:]=wavefield1DoubleNp
 			genericIO.defaultIO.writeVector(wavefield1File,wavefield1Float)
 
+		# Saving wavefield 2
+		if (parObject.getInt("saveWavefield2",0) == 1):
+			wavefield2Double = tomoExtOp.getWavefield1_3D(iWavefield)
+			wavefield2Float=SepVector.getSepVector(wavefield2Double.getHyper())
+			wavefield2DoubleNp=wavefield2Double.getNdArray()
+			wavefield2FloatNp=wavefield2Float.getNdArray()
+			wavefield2FloatNp[:]=wavefield2DoubleNp
+			genericIO.defaultIO.writeVector(wavefield2File,wavefield2Float)
+
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
 		print("-------------------------------------------------------------------\n")
-	#
-	# # Adjoint
-	# else:
-	#
-	# 	print("-------------------------------------------------------------------")
-	# 	print("---------------- Running Python tomo extended adjoint -------------")
-	# 	print("-------------------- Single precision Python code -----------------")
-	# 	print("-------------------------------------------------------------------\n")
-	#
-	# 	# Check that data was provided
-	# 	dataFile=parObject.getString("data","noDataFile")
-	# 	if (dataFile == "noDataFile"):
-	# 		print("**** ERROR: User did not provide data file ****\n")
-	# 		quit()
-	# 	modelFile=parObject.getString("model","noModelFile")
-	# 	if (modelFile == "noModelFile"):
-	# 		print("**** ERROR: User did not provide model file name ****\n")
-	# 		quit()
-	#
-	# 	# Read data
-	# 	dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
-	#
-	# 	# Apply adjoint
-	# 	tomoExtOp.adjoint(False,modelFloatLocal,dataFloat)
-	#
-	# 	# Write model
-	# 	modelFloatLocal.writeVec(modelFile)
-	#
-	# print("-------------------------------------------------------------------")
-	# print("--------------------------- All done ------------------------------")
-	# print("-------------------------------------------------------------------\n")
+
+	# Adjoint
+	else:
+
+		print("-------------------------------------------------------------------")
+		print("---------------- Running Python tomo extended adjoint -------------")
+		print("-------------------- Single precision Python code -----------------")
+		print("-------------------------------------------------------------------\n")
+
+		if (parObject.getInt("freeSurface",0) == 1):
+			print("---------- Using a free surface condition for modeling ------------")
+
+		# Check that model was provided
+		modelFile=parObject.getString("model","noModelFile")
+		if (modelFile == "noModelFile"):
+			raise ValueError("**** ERROR [tomoExtPythonDoubleMain_3D]: User did not provide model file ****\n")
+		dataFile=parObject.getString("data","noDataFile")
+		if (dataFile == "noDataFile"):
+			raise ValueError("**** ERROR [tomoExtPythonDoubleMain_3D]: User did not provide data file name ****\n")
+
+		# Read data
+		dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
+		dataFloatNp=dataFloat.getNdArray()
+		dataDoubleNp=dataDouble.getNdArray()
+		dataDoubleNp[:]=dataFloatNp
+
+		# Apply adjoint
+		tomoExtOp.adjoint(False,modelDouble,dataDouble)
+
+		# Write model
+		modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")
+		modelFloatNp=modelFloat.getNdArray()
+		modelDoubleNp=modelDouble.getNdArray()
+		modelFloatNp[:]=modelDoubleNp
+		modelFile=parObject.getString("model","noModelFile")
+		if (modelFile == "noModelFile"):
+		    print("**** ERROR: User did not provide model file name ****\n")
+		    quit()
+		genericIO.defaultIO.writeVector(modelFile,modelFloat)
+
+		# Saving wavefield 1
+		if (parObject.getInt("saveWavefield1",0) == 1):
+			wavefield1Double = tomoExtOp.getWavefield1_3D(iWavefield)
+			wavefield1Float=SepVector.getSepVector(wavefield1Double.getHyper())
+			wavefield1DoubleNp=wavefield1Double.getNdArray()
+			wavefield1FloatNp=wavefield1Float.getNdArray()
+			wavefield1FloatNp[:]=wavefield1DoubleNp
+			genericIO.defaultIO.writeVector(wavefield1File,wavefield1Float)
+
+		# Saving wavefield 2
+		if (parObject.getInt("saveWavefield2",0) == 1):
+			wavefield2Double = tomoExtOp.getWavefield1_3D(iWavefield)
+			wavefield2Float=SepVector.getSepVector(wavefield2Double.getHyper())
+			wavefield2DoubleNp=wavefield2Double.getNdArray()
+			wavefield2FloatNp=wavefield2Float.getNdArray()
+			wavefield2FloatNp[:]=wavefield2DoubleNp
+			genericIO.defaultIO.writeVector(wavefield2File,wavefield2Float)
+
+
+		print("-------------------------------------------------------------------")
+		print("--------------------------- All done ------------------------------")
+		print("-------------------------------------------------------------------\n")

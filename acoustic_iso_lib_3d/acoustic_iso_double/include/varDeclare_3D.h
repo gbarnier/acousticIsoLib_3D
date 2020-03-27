@@ -79,6 +79,7 @@ double **dev_vel2Dtw2; // Precomputed scaling v^2 * dtw^2
 // Nonlinear modeling
 double **dev_modelRegDtw; // Model for nonlinear propagation (wavelet)
 double **dev_dataRegDts; // Data on device at coarse time-sampling (converted to regular grid)
+double **dev_dataRegDtsQc;
 double *dev_wavefieldDts; // Source wavefield
 
 // Born
@@ -89,9 +90,10 @@ double **dev_pLeft, **dev_pRight, **dev_pTemp, **dev_pTempTau;
 double **dev_pDt0, **dev_pDt1, **dev_pDt2, **dev_pDtTemp, **dev_pWavefieldSliceDt2;
 
 // Streams
-double **pin_wavefieldSlice, **dev_pStream, **dev_pSourceWavefield;
+double **pin_wavefieldSlice, **pin_wavefieldSlice1, **pin_wavefieldSlice2, **dev_pStream, **dev_pSourceWavefield, **dev_pRecWavefield;
 double ***dev_pSourceWavefieldTau;
 cudaStream_t *compStream, *transferStream, *topStream;
+cudaStream_t *transferStreamH2D, *transferStreamD2H;
 
 // Events
 cudaEvent_t eventTopFreeSurface, eventBodyFreeSurface, compStreamDone;

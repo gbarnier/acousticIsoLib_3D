@@ -347,9 +347,9 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 
 		// QC
 		cuda_call(cudaMemcpy(dummySliceRight, dev_pLeft[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
-		std::cout << "its = " << its << std::endl;
-		std::cout << "Min value pLeft = " << *std::min_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
-		std::cout << "Max value pLeft = " << *std::max_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
+		// std::cout << "its = " << its << std::endl;
+		// std::cout << "Min value pLeft = " << *std::min_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
+		// std::cout << "Max value pLeft = " << *std::max_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
 
 		// cudaMemcpy(dummySliceLeft, dev_pLeft[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost);
 		// std::cout << "Min pLeft at its = " << its << ", = " << *std::min_element(dummySliceLeft,dummySliceLeft+host_nModel) << std::endl;
@@ -496,7 +496,7 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 		imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBorn[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
 
 		// std::cout << "its = " << its << std::endl;
-		cudaMemcpy(dummyModel, dev_pRight[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost);
+		// cudaMemcpy(dummyModel, dev_pRight[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost);
 		// std::cout << "Dummy pRight min = " << *std::min_element(dummyModel,dummyModel+host_nModel) << std::endl;
 		// std::cout << "Dummy pRight max = " << *std::max_element(dummyModel,dummyModel+host_nModel) << std::endl;
 
@@ -511,7 +511,7 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 			// Damp wavefields
 			dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
-			cudaMemcpy(dummyModel, dev_p0[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost);
+			// cudaMemcpy(dummyModel, dev_p0[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost);
 			// std::cout << "Dummy p0 min = " << *std::min_element(dummyModel,dummyModel+host_nModel) << std::endl;
 			// std::cout << "Dummy p0 max = " << *std::max_element(dummyModel,dummyModel+host_nModel) << std::endl;
 
@@ -526,7 +526,7 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 
 		}
 
-		cudaMemcpy(dummyData, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost);
+		// cudaMemcpy(dummyData, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost);
 		// std::cout << "Dummy data min = " << *std::min_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
 		// std::cout << "Dummy data max = " << *std::max_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
 		// std::cout << "---------------------" << std::endl;
@@ -1068,7 +1068,7 @@ void BornShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 		cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 		// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
 
-		if (its>0) {
+		if (its > 0) {
 			// Standard library
 			std::memcpy(srcWavefieldDts+(its-1)*host_nModel, pin_wavefieldSlice[iGpu], host_nModel*sizeof(double));
 

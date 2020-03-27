@@ -1,12 +1,12 @@
 #include "tomoExtGpu_3D.h"
 
-tomoExtGpu_3D::tomoExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::shared_ptr<SEP::double5DReg> reflectivityExt, std::shared_ptr<SEP::double4DReg> wavefield1, std::shared_ptr<SEP::double4DReg> wavefield2, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
+tomoExtGpu_3D::tomoExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::shared_ptr<SEP::double5DReg> extReflectivity, std::shared_ptr<SEP::double4DReg> wavefield1, std::shared_ptr<SEP::double4DReg> wavefield2, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
 
 	// Finite-difference parameters
 	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par);
 	_timeInterp_3D = std::make_shared<interpTimeLinTbb_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_ots, _fdParam_3D->_sub);
 	_secTimeDer = std::make_shared<secondTimeDerivative_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts);
-	_reflectivityExt = reflectivityExt;
+	_extReflectivity = extReflectivity;
 	_leg1 = par->getInt("leg1", 1);
 	_leg2 = par->getInt("leg2", 1);
 	_iGpu = iGpu;
@@ -27,7 +27,7 @@ bool tomoExtGpu_3D::checkParfileConsistency_3D(const std::shared_ptr<SEP::double
 	if (_fdParam_3D->checkParfileConsistencyTime_3D(_sourcesSignals, 1, "Seismic source file") != true) {return false;}; // Check wavelet time axis
 	if (_fdParam_3D->checkParfileConsistencyTime_3D(data, 1, "Data file") != true) {return false;} // Check data time axis
 	if (_fdParam_3D->checkParfileConsistencySpace_3D(model, "Model file") != true) {return false;}; // Check model space axes
-	if (_fdParam_3D->checkParfileConsistencySpace_3D(_reflectivityExt, "Reflectivity file") != true) {return false;}; // Check extended reflectivity axes
+	if (_fdParam_3D->checkParfileConsistencySpace_3D(_extReflectivity, "Extended reflectivity file") != true) {return false;}; // Check extended reflectivity axes
 	return true;
 }
 
@@ -39,33 +39,41 @@ void tomoExtGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> m
 	/* Tomo extended forward */
 	if (_fdParam_3D->_freeSurface != 1){
 		// if (_fdParam_3D->_extension == "time") {
-        //     tomoTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _reflectivityExt->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
+        //     tomoTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
 		// }
 		if (_fdParam_3D->_extension == "offset") {
-			if (_fdParam_3D->_offsetType == "hx"){
-				std::cout << "Max wavefield1 before = " << _wavefield1->max() << std::endl;
-				std::cout << "Min wavefield1 before = " << _wavefield1->min() << std::endl;
-				// std::cout << "Max model before = " << model->max() << std::endl;
-				// std::cout << "Min model before = " << model->min() << std::endl;
-				// std::cout << "Max source before = " << _sourcesSignalsRegDtwDt2->max() << std::endl;
-				// std::cout << "Min source before = " << _sourcesSignalsRegDtwDt2->min() << std::endl;
-				// std::cout << "Max _reflectivityExt before = " << _reflectivityExt->max() << std::endl;
-				// std::cout << "Min _reflectivityExt before = " << _reflectivityExt->min() << std::endl;
-				// std::cout << "wavefield1 nz = " << _wavefield1->getHyper()->getAxis(1).n << std::endl;
-				// std::cout << "wavefield1 nx = " << _wavefield1->getHyper()->getAxis(2).n << std::endl;
-				// std::cout << "wavefield1 ny = " << _wavefield1->getHyper()->getAxis(3).n << std::endl;
-	            tomoHxShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _reflectivityExt->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _wavefield1->getVals(), _wavefield2->getVals(), _iGpu, _iGpuId);
-				std::cout << "Max wavefield1 after = " << _wavefield1->max() << std::endl;
-				std::cout << "Min wavefield1 after = " << _wavefield1->min() << std::endl;
-				// std::cout << "Max model after = " << model->max() << std::endl;
-				// std::cout << "Min model after = " << model->min() << std::endl;
-				// std::cout << "Max source after = " << _sourcesSignalsRegDtwDt2->max() << std::endl;
-				// std::cout << "Min source after = " << _sourcesSignalsRegDtwDt2->min() << std::endl;
-				// std::cout << "Max _reflectivityExt after = " << _reflectivityExt->max() << std::endl;
-				// std::cout << "Min _reflectivityExt after = " << _reflectivityExt->min() << std::endl;
+			// std::cout << "Max wavefield1 before = " << _wavefield1->max() << std::endl;
+			// std::cout << "Min wavefield1 before = " << _wavefield1->min() << std::endl;
+			// std::cout << "Max model before = " << model->max() << std::endl;
+			// std::cout << "Min model before = " << model->min() << std::endl;
+			// std::cout << "Max source before = " << _sourcesSignalsRegDtwDt2->max() << std::endl;
+			// std::cout << "Min source before = " << _sourcesSignalsRegDtwDt2->min() << std::endl;
+			// std::cout << "Max _extReflectivity before = " << _extReflectivity->max() << std::endl;
+			// std::cout << "Min _extReflectivity before = " << _extReflectivity->min() << std::endl;
+			// std::cout << "wavefield1 nz = " << _wavefield1->getHyper()->getAxis(1).n << std::endl;
+			// std::cout << "wavefield1 nx = " << _wavefield1->getHyper()->getAxis(2).n << std::endl;
+			// std::cout << "wavefield1 ny = " << _wavefield1->getHyper()->getAxis(3).n << std::endl;
+            tomoHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _wavefield1->getVals(), _wavefield2->getVals(), _iGpu, _iGpuId);
+
+			double sum;
+			sum=0;
+			std::cout << "Max val data in Fwd" << dataRegDts->max() << std::endl;
+			std::cout << "Min val data in Fwd" << dataRegDts->min() << std::endl;
+			for (int iRec=0; iRec<_nReceiversReg; iRec++){
+				for (int its=0; its<_fdParam_3D->_nts; its++){
+					sum += (*dataRegDts->_mat)[iRec][its]*(*dataRegDts->_mat)[iRec][its];
+				}
 			}
-		// 	if (_fdParam_3D->_offsetType == "hxhy"){
-	    //         tomoHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _reflectivityExt->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
+			std::cout << "Sum in fwd = " << sum << std::endl;
+
+			// std::cout << "Max wavefield1 after = " << _wavefield1->max() << std::endl;
+			// std::cout << "Min wavefield1 after = " << _wavefield1->min() << std::endl;
+			// std::cout << "Max model after = " << model->max() << std::endl;
+			// std::cout << "Min model after = " << model->min() << std::endl;
+			// std::cout << "Max source after = " << _sourcesSignalsRegDtwDt2->max() << std::endl;
+			// std::cout << "Min source after = " << _sourcesSignalsRegDtwDt2->min() << std::endl;
+			// std::cout << "Max _reflectivityExt after = " << _reflectivityExt->max() << std::endl;
+			// std::cout << "Min _reflectivityExt after = " << _reflectivityExt->min() << std::endl;
 		}
 		// }
 	} else {
@@ -90,25 +98,24 @@ void tomoExtGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, 
 
 	if (!add) model->scale(0.0);
 	std::shared_ptr<double2DReg> dataRegDts(new double2DReg(_fdParam_3D->_nts, _nReceiversReg));
+	std::shared_ptr<double2DReg> dataRegDtsQc(new double2DReg(_fdParam_3D->_nts, _nReceiversReg));
 	std::shared_ptr<double3DReg> modelTemp = model->clone(); // We need to create a temporary model for "add"
 	modelTemp->scale(0.0);
+	dataRegDtsQc->scale(0.0);
 
 	/* Interpolate data to regular grid */
 	_receivers->adjoint(false, dataRegDts, data);
 
 	/* Tomo extended adjoint */
 	if (_fdParam_3D->_freeSurface != 1){
+
 		// if (_fdParam_3D->_extension == "time") {
         //     tomoTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _reflectivityExt->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
 		// }
-		// if (_fdParam_3D->_extension == "offset") {
-		// 	if (_fdParam_3D->_offsetType == "hx"){
-	    //         tomoHxShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _reflectivityExt->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
-		// 	}
-		// 	if (_fdParam_3D->_offsetType == "hxhy"){
-	    //         tomoHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _reflectivityExt->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
-		// 	}
-		// }
+		if (_fdParam_3D->_extension == "offset") {
+
+			tomoHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _wavefield1->getVals(), _wavefield2->getVals(), _iGpu, _iGpuId, dataRegDtsQc->getVals());
+		}
 	}
 	else {
 		// if (_fdParam_3D->_extension == "time") {
@@ -123,6 +130,17 @@ void tomoExtGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, 
 		// 	}
 		// }
 	}
+
+	double sum;
+	sum=0;
+	std::cout << "Max val data in Adj" << dataRegDtsQc->max() << std::endl;
+	std::cout << "Min val data in Adj" << dataRegDtsQc->min() << std::endl;
+	for (int iRec=0; iRec<_nReceiversReg; iRec++){
+		for (int its=0; its<_fdParam_3D->_nts; its++){
+			sum += (*dataRegDtsQc->_mat)[iRec][its]*(*dataRegDtsQc->_mat)[iRec][its];
+		}
+	}
+	std::cout << "Sum in adj = " << sum << std::endl;
 
 	/* Update model */
 	model->scaleAdd(modelTemp, 1.0, 1.0);

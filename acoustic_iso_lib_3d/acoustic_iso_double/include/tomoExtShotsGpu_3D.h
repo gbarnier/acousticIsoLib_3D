@@ -29,7 +29,7 @@ class tomoExtShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 		std::shared_ptr<paramObj> _par;
 		std::vector<std::shared_ptr<deviceGpu_3D>> _sourcesVector, _receiversVector;
 		std::vector<std::shared_ptr<SEP::double4DReg>> _wavefieldVector1, _wavefieldVector2;
-		std::shared_ptr<SEP::double5DReg> _reflectivityExt;
+		std::shared_ptr<SEP::double5DReg> _extReflectivity;
 		std::vector<int> _gpuList;
 		std::shared_ptr <hypercube> _wavefieldHyper;
 
@@ -67,7 +67,7 @@ class tomoExtShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 
 		/* Mutators */
 		void setVel_3D(std::shared_ptr<SEP::double3DReg> vel){ _vel = vel; }
-		void setReflectivityExt(std::shared_ptr<SEP::double5DReg> reflectivityExt){ _reflectivityExt = reflectivityExt; }
+		void setExtReflectivity(std::shared_ptr<SEP::double5DReg> extReflectivity){ _extReflectivity = extReflectivity; }
 
 };
 

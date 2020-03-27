@@ -25,15 +25,15 @@ class tomoExtGpu_3D : public seismicOperator_3D<SEP::double3DReg, SEP::double2DR
 
 		int _leg1, _leg2;
 		std::shared_ptr<double4DReg> _wavefield1, _wavefield2;
-		std::shared_ptr<double5DReg> _reflectivityExt;
+		std::shared_ptr<double5DReg> _extReflectivity;
 
 	public:
 
 		/* Overloaded constructors */
-		tomoExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::shared_ptr<double5DReg> reflectivityExt, std::shared_ptr<SEP::double4DReg> wavefield1, std::shared_ptr<SEP::double4DReg> wavefield2, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
+		tomoExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::shared_ptr<double5DReg> extReflectivity, std::shared_ptr<SEP::double4DReg> wavefield1, std::shared_ptr<SEP::double4DReg> wavefield2, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
 
 		/* Mutators */
-		void setReflectivityExt(std::shared_ptr<double5DReg> reflectivityExt){ _reflectivityExt=reflectivityExt;}
+		void setExtReflectivity(std::shared_ptr<double5DReg> extReflectivity){ _extReflectivity=extReflectivity;}
 
 		/* Quality control */
 		bool checkParfileConsistency_3D(const std::shared_ptr<SEP::double3DReg> model, const std::shared_ptr<SEP::double2DReg> data) const;
@@ -48,7 +48,8 @@ class tomoExtGpu_3D : public seismicOperator_3D<SEP::double3DReg, SEP::double2DR
 		/* Accessors */
 		std::shared_ptr<double4DReg> getWavefield1_3D() { return _wavefield1; }
 		std::shared_ptr<double4DReg> getWavefield2_3D() { return _wavefield2; }
-		std::shared_ptr<double5DReg> getReflectivityExt() { return _reflectivityExt; }
+		std::shared_ptr<double5DReg> getExtReflectivity() { return _extReflectivity; }
+
 
 };
 
