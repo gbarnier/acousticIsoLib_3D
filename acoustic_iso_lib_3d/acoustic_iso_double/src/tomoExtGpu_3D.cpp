@@ -42,38 +42,13 @@ void tomoExtGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> m
         //     tomoTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
 		// }
 		if (_fdParam_3D->_extension == "offset") {
-			// std::cout << "Max wavefield1 before = " << _wavefield1->max() << std::endl;
-			// std::cout << "Min wavefield1 before = " << _wavefield1->min() << std::endl;
-			// std::cout << "Max model before = " << model->max() << std::endl;
-			// std::cout << "Min model before = " << model->min() << std::endl;
-			// std::cout << "Max source before = " << _sourcesSignalsRegDtwDt2->max() << std::endl;
-			// std::cout << "Min source before = " << _sourcesSignalsRegDtwDt2->min() << std::endl;
-			// std::cout << "Max _extReflectivity before = " << _extReflectivity->max() << std::endl;
-			// std::cout << "Min _extReflectivity before = " << _extReflectivity->min() << std::endl;
-			// std::cout << "wavefield1 nz = " << _wavefield1->getHyper()->getAxis(1).n << std::endl;
-			// std::cout << "wavefield1 nx = " << _wavefield1->getHyper()->getAxis(2).n << std::endl;
-			// std::cout << "wavefield1 ny = " << _wavefield1->getHyper()->getAxis(3).n << std::endl;
             tomoHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _wavefield1->getVals(), _wavefield2->getVals(), _iGpu, _iGpuId);
 
-			double sum;
-			sum=0;
-			std::cout << "Max val data in Fwd" << dataRegDts->max() << std::endl;
-			std::cout << "Min val data in Fwd" << dataRegDts->min() << std::endl;
-			for (int iRec=0; iRec<_nReceiversReg; iRec++){
-				for (int its=0; its<_fdParam_3D->_nts; its++){
-					sum += (*dataRegDts->_mat)[iRec][its]*(*dataRegDts->_mat)[iRec][its];
-				}
-			}
-			std::cout << "Sum in fwd = " << sum << std::endl;
-
-			// std::cout << "Max wavefield1 after = " << _wavefield1->max() << std::endl;
-			// std::cout << "Min wavefield1 after = " << _wavefield1->min() << std::endl;
-			// std::cout << "Max model after = " << model->max() << std::endl;
-			// std::cout << "Min model after = " << model->min() << std::endl;
-			// std::cout << "Max source after = " << _sourcesSignalsRegDtwDt2->max() << std::endl;
-			// std::cout << "Min source after = " << _sourcesSignalsRegDtwDt2->min() << std::endl;
-			// std::cout << "Max _reflectivityExt after = " << _reflectivityExt->max() << std::endl;
-			// std::cout << "Min _reflectivityExt after = " << _reflectivityExt->min() << std::endl;
+			// for (int iRec=0; iRec<_nReceiversReg; iRec++){
+			// 	for (int its=0; its<_fdParam_3D->_nts; its++){
+			// 		sum += (*dataRegDts->_mat)[iRec][its]*(*dataRegDts->_mat)[iRec][its];
+			// 	}
+			// }
 		}
 		// }
 	} else {
@@ -113,7 +88,6 @@ void tomoExtGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, 
         //     tomoTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _reflectivityExt->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
 		// }
 		if (_fdParam_3D->_extension == "offset") {
-
 			tomoHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _wavefield1->getVals(), _wavefield2->getVals(), _iGpu, _iGpuId, dataRegDtsQc->getVals());
 		}
 	}
@@ -131,16 +105,16 @@ void tomoExtGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, 
 		// }
 	}
 
-	double sum;
-	sum=0;
-	std::cout << "Max val data in Adj" << dataRegDtsQc->max() << std::endl;
-	std::cout << "Min val data in Adj" << dataRegDtsQc->min() << std::endl;
-	for (int iRec=0; iRec<_nReceiversReg; iRec++){
-		for (int its=0; its<_fdParam_3D->_nts; its++){
-			sum += (*dataRegDtsQc->_mat)[iRec][its]*(*dataRegDtsQc->_mat)[iRec][its];
-		}
-	}
-	std::cout << "Sum in adj = " << sum << std::endl;
+	// double sum;
+	// sum=0;
+	// std::cout << "Max val data in Adj" << dataRegDtsQc->max() << std::endl;
+	// std::cout << "Min val data in Adj" << dataRegDtsQc->min() << std::endl;
+	// for (int iRec=0; iRec<_nReceiversReg; iRec++){
+	// 	for (int its=0; its<_fdParam_3D->_nts; its++){
+	// 		sum += (*dataRegDtsQc->_mat)[iRec][its]*(*dataRegDtsQc->_mat)[iRec][its];
+	// 	}
+	// }
+	// std::cout << "Sum in adj = " << sum << std::endl;
 
 	/* Update model */
 	model->scaleAdd(modelTemp, 1.0, 1.0);

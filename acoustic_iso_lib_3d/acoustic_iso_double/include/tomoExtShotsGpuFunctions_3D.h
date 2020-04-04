@@ -13,13 +13,22 @@ void deallocateTomoExtShotsGpu_3D(int iGpu, int iGpuId);
 /******************************************************************************/
 
 /******************************* No free surface ******************************/
+// Subsurface offset
 void tomoHxHyShotsFwdGpu_3D(double *model, double *dataRegDts, double *extReflectivity, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefield1, double *wavefield2, int iGpu, int iGpuId);
+
+// Time-lags
+void tomoTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *extReflectivity, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefield1, double *wavefield2, int iGpu, int iGpuId);
 
 /******************************************************************************/
 /************************* Tomo extended adjoint ******************************/
 /******************************************************************************/
 
 /******************************* No free surface ******************************/
+// Subsurface offset
 void tomoHxHyShotsAdjGpu_3D(double *model, double *dataRegDts, double *extReflectivity, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefield1, double *wavefield2, int iGpu, int iGpuId, double *dev_dataRegDtsQcIn);
+
+// Time-lags
+void tomoTauShotsAdjGpu_3D(double *model, double *dataRegDts, double *extReflectivity, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, double *wavefield1, double *wavefield2, int iGpu, int iGpuId, double *dev_dataRegDtsQcIn);
+
 
 #endif

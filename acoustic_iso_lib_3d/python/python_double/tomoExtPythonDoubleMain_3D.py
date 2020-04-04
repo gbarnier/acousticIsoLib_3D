@@ -24,7 +24,7 @@ if __name__ == '__main__':
 		tomoExtOp.dotTest(True)
 		quit(0)
 
-	if (parObject.getInt("saveWavefield1",0) == 1):
+	if (parObject.getInt("saveWavefield1",0) == 1):		
 		wavefield1File=parObject.getString("wavefield1File","noWavefield1File")
 		if (wavefield1File == "noWavefield1File"):
 			raise ValueError("**** ERROR [tomoExtPythonDoubleMain_3D]: User asked to save wavefield #1 but did not provide a file name ****\n")
@@ -36,9 +36,6 @@ if __name__ == '__main__':
 		wavefield2File=parObject.getString("wavefield2File","noWavefield2File")
 		if (wavefield2File == "noWavefield2File"):
 			raise ValueError("**** ERROR [tomoExtPythonDoubleMain_3D]: User asked to save wavefield #2 but did not provide a file name ****\n")
-
-	iWavefield=parObject.getInt("iWavefield",0)
-	print("**** [tomoExtPythonDoubleMain_3D]: User has requested to save source wavefield #%d ****\n"%(iWavefield))
 
 	# Forward
 	if (parObject.getInt("adj",0) == 0):

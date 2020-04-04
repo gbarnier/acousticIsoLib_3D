@@ -28,6 +28,7 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 	_wavefieldHyper = std::make_shared<hypercube>(zAxis, xAxis, yAxis, timeAxis);
 	// std::shared_ptr<SEP::double4DReg> wavefieldTemp;
 
+	std::cout << "Before wavefield allocation" << std::endl;
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 		std::cout << "Wavefield allocation iGpu#" << iGpu << std::endl;
 		// wavefieldTemp = std::make_shared<SEP::double4DReg>(_srcWavefieldHyper);
@@ -38,6 +39,8 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 		_wavefieldVector1[iGpu]->scale(0.0);
 		_wavefieldVector2[iGpu]->scale(0.0);
 	}
+	std::cout << "After wavefield allocation" << std::endl;
+
 }
 
 void tomoExtShotsGpu_3D::createGpuIdList_3D(){

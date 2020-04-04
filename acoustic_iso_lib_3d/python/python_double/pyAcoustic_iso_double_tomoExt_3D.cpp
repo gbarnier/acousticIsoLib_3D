@@ -24,9 +24,9 @@ PYBIND11_MODULE(pyAcoustic_iso_double_tomoExt_3D, clsGeneric) {
 
       .def("setVel_3D",(void (tomoExtShotsGpu_3D::*)(std::shared_ptr<double3DReg>)) &tomoExtShotsGpu_3D::setVel_3D,"Function to set background velocity")
 
-      .def("getWavefield1_3D",(std::shared_ptr<double4DReg> (tomoExtShotsGpu_3D::*)(int iWavefield)) &tomoExtShotsGpu_3D::getWavefield1_3D,"Function to get wfld #2")
+      .def("getWavefield1_3D",(std::shared_ptr<double4DReg> (tomoExtShotsGpu_3D::*)(int iWavefield)) &tomoExtShotsGpu_3D::getWavefield1_3D,"Function to get wfld #1")
 
-      .def("getWavefield2_3D",(std::shared_ptr<double4DReg> (tomoExtShotsGpu_3D::*)(int iWavefield)) &tomoExtShotsGpu_3D::getWavefield2_3D,"Function to get wfld #1")
+      .def("getWavefield2_3D",(std::shared_ptr<double4DReg> (tomoExtShotsGpu_3D::*)(int iWavefield)) &tomoExtShotsGpu_3D::getWavefield2_3D,"Function to get wfld #2")
 
       .def("dotTest",(bool (tomoExtShotsGpu_3D::*)(const bool, const double)) &tomoExtShotsGpu_3D::dotTest,"Dot-Product Test")
 ;

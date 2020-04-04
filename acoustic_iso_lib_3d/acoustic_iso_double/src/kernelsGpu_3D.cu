@@ -210,6 +210,24 @@ __global__ void imagingHxHyAdjGpu_3D(double *dev_model, double *dev_data, double
 	}
 }
 
+// Adjoint hx and hy for the adjoint scattered wavefield in leg 2 of tomo
+__global__ void imagingHxHyTomoAdjGpu_3D(double *dev_model, double *dev_data, double *dev_extReflectivity, int ihx, long long iExt1, int ihy, long long iExt2) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the x-z slice for iy = FAT
+
+	if ( ixGlobal-FAT >= abs(ihx) && ixGlobal <= dev_nx-FAT-1-abs(ihx) ){
+		for (int iy=FAT; iy<dev_ny-FAT; iy++){
+			if ( iy-FAT >= abs(ihy) && iy <= dev_ny-FAT-1-abs(ihy) ){
+				dev_model[iGlobal-ihy*dev_yStride-ihx*dev_nz] += dev_extReflectivity[iExt2*dev_extStride+iExt1*dev_nVel+iGlobal] * dev_data[iGlobal+ihy*dev_yStride+ihx*dev_nz];
+			}
+			iGlobal+=dev_yStride;
+		}
+	}
+}
+
 // Forward time-lags
 __global__ void imagingTauFwdGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int iExt) {
 
@@ -237,7 +255,6 @@ __global__ void imagingTauAdjGpu_3D(double *dev_model, double *dev_data, double 
 		iGlobal+=dev_yStride;
 	}
 }
-
 
 /******************************************************************************/
 /********************************* Wavefield extraction ***********************/
@@ -292,8 +309,7 @@ __global__ void srcWfldSecondTimeDerivative_3D(double *dev_wavefieldSlice, doubl
     long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
 
 	for (int iy=FAT; iy<dev_ny-FAT; iy++){
-		// dev_wavefieldSlice[iGlobal] = dev_cSide * ( dev_slice0[iGlobal] + dev_slice2[iGlobal] ) + dev_cCenter * dev_slice1[iGlobal];
-		dev_wavefieldSlice[iGlobal] = dev_cSide * ( dev_slice0[iGlobal] ) + dev_cCenter * dev_slice1[iGlobal];
+		dev_wavefieldSlice[iGlobal] = dev_cSide * ( dev_slice0[iGlobal] + dev_slice2[iGlobal] ) + dev_cCenter * dev_slice1[iGlobal];
 		iGlobal+=dev_yStride;
 	}
 }
