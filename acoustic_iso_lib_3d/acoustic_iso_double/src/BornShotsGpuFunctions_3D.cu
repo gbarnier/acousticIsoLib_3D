@@ -468,6 +468,12 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 	// Do first fwd imaging condition for its = 0 (after that, secondary source at its = 0 is done)
 	imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBorn[iGpu], dev_pLeft[iGpu], dev_pSourceWavefield[iGpu]);
 
+	// QC
+	cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefield[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
+	std::cout << "its = 0" << std::endl;
+	std::cout << "Min value pLeft = " << *std::min_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
+	std::cout << "Max value pLeft = " << *std::max_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
+
 	// Copy new slice from RAM -> pinned for time its = 1 -> transfer to pStream
 	std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+host_nModel, host_nModel*sizeof(double));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nModel*sizeof(double), cudaMemcpyHostToDevice, transferStream[iGpu]));
@@ -494,6 +500,11 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 
 		// Compute secondary source for first coarse time index (its+1) with compute stream
 		imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBorn[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
+
+		cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefield[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
+		std::cout << "its = " << its << std::endl;
+		std::cout << "Min value pRight = " << *std::min_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
+		std::cout << "Max value pTight = " << *std::max_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
 
 		// std::cout << "its = " << its << std::endl;
 		// cudaMemcpy(dummyModel, dev_pRight[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost);

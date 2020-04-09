@@ -1091,3 +1091,179 @@ void computeTomoSrcWfldDt2_3D(double *dev_sourcesIn, double *wavefield1, long lo
 	std::memcpy(wavefield1+(host_nts-1)*host_nVel, pin_wavefieldSlice1[iGpu], host_nVel*sizeof(double));
 
 }
+
+
+// Source -> model -> reflectivity -> data
+void computeTomoLeg2HxHyFwd_3D(double *dev_modelTomoIn, double *wavefield1, double *wavefield2, double *dev_dataRegDtsIn, double *dev_extReflectivityIn, long long *dev_receiversPositionRegIn, dim3 dimGridIn, dim3 dimBlockIn, int nBlockDataIn, int iGpu, cudaStream_t compStreamIn, cudaStream_t transferStreamH2DIn, cudaStream_t transferStreamD2HIn){
+
+	/**************************************************************************/
+	/*************************** First part of leg #2 *************************/
+	/******************** Source -> model -> scattered wavefield **************/
+	/**************************************************************************/
+
+	// Reset the time slices to zero
+	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel*sizeof(double)));
+  	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nVel*sizeof(double)));
+	cuda_call(cudaMemset(dev_pLeft[iGpu], 0, host_nVel*sizeof(double)));
+	cuda_call(cudaMemset(dev_pRight[iGpu], 0, host_nVel*sizeof(double)));
+	cuda_call(cudaMemset(dev_pDt0[iGpu], 0, host_nVel*sizeof(double)));
+	cuda_call(cudaMemset(dev_pDt1[iGpu], 0, host_nVel*sizeof(double)));
+	cuda_call(cudaMemset(dev_pDt2[iGpu], 0, host_nVel*sizeof(double)));
+  	cuda_call(cudaMemset(dev_pStream[iGpu], 0, host_nVel*sizeof(double)));
+	cudaMemset(pin_wavefieldSlice1[iGpu], 0, host_nVel*sizeof(double));
+	cudaMemset(pin_wavefieldSlice2[iGpu], 0, host_nVel*sizeof(double));
+
+	// Copy source wavefield time-slice its = 0: RAM -> pinned -> dev_pSourceWavefield
+	std::memcpy(pin_wavefieldSlice1[iGpu], wavefield1, host_nVel*sizeof(double));
+	cuda_call(cudaMemcpy(dev_pSourceWavefield[iGpu], pin_wavefieldSlice1[iGpu], host_nVel*sizeof(double), cudaMemcpyHostToDevice));
+
+	// Do first fwd imaging condition for its = 0 (after that, secondary source at its = 0 is done)
+	imagingFwdGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_modelTomoIn, dev_pLeft[iGpu], dev_pSourceWavefield[iGpu]);
+
+	// Start propagating scattered first scattered wavefield
+	for (int its = 0; its < host_nts-1; its++){
+
+		// Copy wavefield value at its+1 from pStream -> pSourceWavefield
+		std::memcpy(pin_wavefieldSlice1[iGpu], wavefield1+(its+1)*host_nVel, host_nVel*sizeof(double));
+		cuda_call(cudaMemcpy(dev_pStream[iGpu], pin_wavefieldSlice1[iGpu], host_nVel*sizeof(double), cudaMemcpyHostToDevice));
+		cuda_call(cudaMemcpy(dev_pSourceWavefield[iGpu], dev_pStream[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice));
+
+		// Compute secondary source for first coarse time index (its+1) with compute stream
+		imagingFwdGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_modelTomoIn, dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
+
+		// Start subloop
+		for (int it2 = 1; it2 < host_sub+1; it2++){
+
+			// Step forward
+			stepFwdGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]);
+
+			// Inject secondary source sample itw-1
+			injectSecondarySource_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2-1);
+
+			// Damp wavefields
+			dampCosineEdge_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_p0[iGpu], dev_p1[iGpu]);
+
+			// Spread energy to dev_pDt1 and dev_pDt2
+			interpFineToCoarseSlice_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_pDt1[iGpu], dev_pDt2[iGpu], dev_p0[iGpu], it2);
+
+			// Extract data
+			// recordLinearInterpData_3D<<<nBlockDataIn, BLOCK_SIZE_DATA, 0, compStreamIn>>>(dev_p0[iGpu], dev_dataRegDtsIn, its, it2, dev_receiversPositionRegIn);
+
+			// Switch pointers
+			dev_temp1[iGpu] = dev_p0[iGpu];
+			dev_p0[iGpu] = dev_p1[iGpu];
+			dev_p1[iGpu] = dev_temp1[iGpu];
+			dev_temp1[iGpu] = NULL;
+
+		}
+
+		// Asynchronous copy of dev_pDt1 => dev_pDt0 (scattered wavefield at its)
+		cuda_call(cudaMemcpy(dev_pDt0[iGpu], dev_pDt1[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice));
+		cuda_call(cudaMemcpy(pin_wavefieldSlice2[iGpu], dev_pDt0[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToHost));
+		std::memcpy(wavefield2+its*host_nVel, pin_wavefieldSlice2[iGpu], host_nVel*sizeof(double));
+
+		// Switch pointers for secondary source
+		dev_pTemp[iGpu] = dev_pLeft[iGpu];
+		dev_pLeft[iGpu] = dev_pRight[iGpu];
+		dev_pRight[iGpu] = dev_pTemp[iGpu];
+		dev_pTemp[iGpu] = NULL;
+		cuda_call(cudaMemset(dev_pRight[iGpu], 0, host_nVel*sizeof(double)));
+
+		// Switch pointers for the scattered wavefield
+		dev_pDtTemp[iGpu] = dev_pDt1[iGpu];
+		dev_pDt1[iGpu] = dev_pDt2[iGpu];
+		dev_pDt2[iGpu] = dev_pDtTemp[iGpu];
+		dev_pDtTemp[iGpu] = NULL;
+  		cuda_call(cudaMemset(dev_pDt2[iGpu], 0, host_nVel*sizeof(double)));
+
+	}
+
+	// Load pLeft to pStream (value of wavefield at nts-1)
+	cuda_call(cudaMemcpy(dev_pDt0[iGpu], dev_pDt1[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice));
+	cuda_call(cudaMemcpy(pin_wavefieldSlice2[iGpu], dev_pDt0[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToHost));
+	std::memcpy(wavefield2+(host_nts-1)*host_nVel,pin_wavefieldSlice2[iGpu], host_nVel*sizeof(double));
+
+	/**************************************************************************/
+	/*************************** Second part of leg #2 ************************/
+	/**************************************************************************/
+
+	// Reset the time slices to zero
+	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel*sizeof(double)));
+	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nVel*sizeof(double)));
+	cuda_call(cudaMemset(dev_pLeft[iGpu], 0, host_nVel*sizeof(double)));
+	cuda_call(cudaMemset(dev_pRight[iGpu], 0, host_nVel*sizeof(double)));
+
+	// Copy wavefield2 time-slice its = 0: RAM -> pinned -> dev_pSourceWavefield
+	std::memcpy(pin_wavefieldSlice1[iGpu], wavefield2, host_nVel*sizeof(double));
+	cuda_call(cudaMemcpy(dev_pSourceWavefield[iGpu], pin_wavefieldSlice1[iGpu], host_nVel*sizeof(double), cudaMemcpyHostToDevice));
+
+	// Do first fwd imaging condition for its = 0 (after that, secondary source at its = 0 is done)
+	for (int ihy = -host_hExt2; ihy <= host_hExt2; ihy++){
+		long long iExt2 = ihy + host_hExt2;
+		for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+			long long iExt1 = ihx + host_hExt1;
+			imagingHxHyFwdGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_extReflectivityIn, dev_pLeft[iGpu], dev_pSourceWavefield[iGpu], ihx, iExt1, ihy, iExt2);
+		}
+	}
+
+	// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
+	scaleSecondarySourceFd_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_pLeft[iGpu], dev_vel2Dtw2[iGpu]);
+
+	// imagingFwdGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_extReflectivityIn, dev_pLeft[iGpu], dev_pSourceWavefield[iGpu]);
+	// scaleSecondarySourceFd_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_pLeft[iGpu], dev_vel2Dtw2[iGpu]);
+
+
+	// Start propagating scattered wavefield
+	for (int its = 0; its < host_nts-1; its++){
+
+		// Copy wavefield value at its+1 from pStream -> pSourceWavefield
+		std::memcpy(pin_wavefieldSlice1[iGpu], wavefield2+(its+1)*host_nVel, host_nVel*sizeof(double));
+		cuda_call(cudaMemcpy(dev_pStream[iGpu], pin_wavefieldSlice1[iGpu], host_nVel*sizeof(double), cudaMemcpyHostToDevice));
+		cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], dev_pStream[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice, compStreamIn));
+
+		// imagingFwdGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_extReflectivityIn, dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
+		// scaleSecondarySourceFd_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+
+		for (int ihy = -host_hExt2; ihy <= host_hExt2; ihy++){
+			long long iExt2 = ihy + host_hExt2;
+			for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+				long long iExt1 = ihx + host_hExt1;
+				imagingHxHyFwdGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_extReflectivityIn, dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, iExt1, ihy, iExt2);
+			}
+		}
+
+		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
+		scaleSecondarySourceFd_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+
+
+		for (int it2 = 1; it2 < host_sub+1; it2++){
+
+			// Step forward
+			stepFwdGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_p0[iGpu], dev_p1[iGpu], dev_p0[iGpu], dev_vel2Dtw2[iGpu]);
+
+			// Inject secondary source sample itw-1
+			injectSecondarySource_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2-1);
+
+			// Damp wavefields
+			dampCosineEdge_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_p0[iGpu], dev_p1[iGpu]);
+
+			// Extract data
+			recordLinearInterpData_3D<<<nBlockDataIn, BLOCK_SIZE_DATA, 0, compStreamIn>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionRegIn);
+
+			// Switch pointers
+			dev_temp1[iGpu] = dev_p0[iGpu];
+			dev_p0[iGpu] = dev_p1[iGpu];
+			dev_p1[iGpu] = dev_temp1[iGpu];
+			dev_temp1[iGpu] = NULL;
+
+		}
+
+		// Switch pointers for secondary source
+		dev_pTemp[iGpu] = dev_pLeft[iGpu];
+		dev_pLeft[iGpu] = dev_pRight[iGpu];
+		dev_pRight[iGpu] = dev_pTemp[iGpu];
+		dev_pTemp[iGpu] = NULL;
+		cuda_call(cudaMemset(dev_pRight[iGpu], 0, host_nVel*sizeof(double)));
+
+	}
+}

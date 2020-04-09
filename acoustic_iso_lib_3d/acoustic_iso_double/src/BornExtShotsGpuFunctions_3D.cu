@@ -421,6 +421,10 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 	/********************** Scattered wavefield computation *******************/
 	/**************************************************************************/
 
+	double *dummySliceLeft, *dummySliceRight;
+	dummySliceLeft = new double[host_nVel];
+	dummySliceRight = new double[host_nVel];
+
 	// Reset the time slices to zero
 	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel*sizeof(double)));
   	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nVel*sizeof(double)));
@@ -454,10 +458,11 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
 	for (int iExt=0; iExt<host_nExt1; iExt++){
 		long long extStride = iExt * host_nVel;
-		scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
+		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -483,12 +488,15 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 		imagingTauFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pLeft[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 	}
 
-	// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
-	scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_vel2Dtw2[iGpu]);
-
 	// Wait until the transfer to pStream has been done
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
-	cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][its+2*host_hExt1+1], dev_pStream[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice, compStream[iGpu]));
+
+	// Transfer slice 2*host_hExt1+1 only if hExt1 > 0
+	if (host_hExt1 > 0){
+		cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][its+2*host_hExt1+1], dev_pStream[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice, compStream[iGpu]));
+	} else {
+		cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][0], dev_pStream[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice, compStream[iGpu]));
+	}
 
 	/****************************** Main loops ********************************/
 
@@ -505,7 +513,7 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 
 		// First part of the propagation
 		if (its < 2*host_hExt1-1) {
-
+			std::cout << "First part" << std::endl;
 			// Transfer slice from RAM to pinned
 			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2*host_hExt1+2)*host_nVel, host_nVel*sizeof(double));
 			cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2*host_hExt1+2)*host_nVel, host_nVel*sizeof(double), cudaMemcpyHostToHost, transferStream[iGpu]));
@@ -544,7 +552,7 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 
 		// Last part of the propagation
 		else {
-
+			std::cout << "Last part" << std::endl;
 			// Imaging condition for its+1
 			for (int iExt=iExtMin; iExt<iExtMax; iExt++){
 
@@ -553,8 +561,11 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 			}
 		}
 
-		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
-		scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+		// QC
+		cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefieldTau[iGpu][0], host_nVel*sizeof(double), cudaMemcpyDeviceToHost));
+		std::cout << "its = " << its << std::endl;
+		std::cout << "Min value pRight = " << *std::min_element(dummySliceRight,dummySliceRight+host_nVel) << std::endl;
+		std::cout << "Max value pRight = " << *std::max_element(dummySliceRight,dummySliceRight+host_nVel) << std::endl;
 
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
@@ -1381,10 +1392,11 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double 
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
 	for (int iExt=0; iExt<host_nExt1; iExt++){
 		long long extStride = iExt * host_nVel;
-		scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
+		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -1410,13 +1422,16 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double 
 		imagingTauFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pLeft[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 	}
 
-	// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
-	scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_vel2Dtw2[iGpu]);
-
 	// Wait until the transfer to pStream has been done
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
-	cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][its+2*host_hExt1+1], dev_pStream[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 
+	// Transfer slice 2*host_hExt1+1 only if hExt1 > 0
+	// Otherwise, transfer slice its = 1 -> pSourceWavefieldTau
+	if (host_hExt1 > 0){
+		cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][its+2*host_hExt1+1], dev_pStream[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice, compStream[iGpu]));
+	} else {
+		cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][0], dev_pStream[iGpu], host_nVel*sizeof(double), cudaMemcpyDeviceToDevice, compStream[iGpu]));
+	}
 	/****************************** Main loops ********************************/
 
 	// Start propagating scattered wavefield
@@ -1479,9 +1494,6 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double 
 				imagingTauFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 			}
 		}
-
-		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
-		scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
 
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
@@ -2314,7 +2326,7 @@ void BornTauShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 		}
 
 		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
-		scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+		// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
 
 		// Lower bound for imaging condition at its+1
 		iExtMin = (its+2-host_nts)/2;
@@ -2397,7 +2409,7 @@ void BornTauShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 	}
 
 	// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme for its = 0
-	scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+	// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
 
 	// Lower bound for imaging condition at its = 0
 	int its = 0;
@@ -2417,9 +2429,11 @@ void BornTauShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 		imagingTauAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 	}
 
-	for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-		long long extStride = iExt1 * host_nVel;
-		scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
+	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+	for (int iExt=0; iExt<host_nExt1; iExt++){
+		long long extStride = iExt * host_nVel;
+		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
 	}
 
 	cuda_call(cudaDeviceSynchronize());
@@ -3195,7 +3209,7 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double 
 		}
 
 		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
-		scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+		// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
 
 		// Lower bound for imaging condition at its+1
 		iExtMin = (its+2-host_nts)/2;
@@ -3277,9 +3291,6 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double 
 
 	}
 
-	// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme for its = 0
-	scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
-
 	// Lower bound for imaging condition at its = 0
 	int its = 0;
 	iExtMin = (its+1-host_nts)/2;
@@ -3298,9 +3309,11 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double 
 		imagingTauAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 	}
 
-	for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-		long long extStride = iExt1 * host_nVel;
-		scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
+	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+	for (int iExt=0; iExt<host_nExt1; iExt++){
+		long long extStride = iExt * host_nVel;
+		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
 	}
 
 	cuda_call(cudaDeviceSynchronize());

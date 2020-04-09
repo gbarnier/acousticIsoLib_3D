@@ -61,8 +61,12 @@ void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> m
 			if (_fdParam_3D->_offsetType == "hx"){
 				BornHxShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 			}
-			if (_fdParam_3D->_offsetType == "hxhy"){
+			else if (_fdParam_3D->_offsetType == "hxhy"){
 				BornHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+			}
+			else {
+				std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of subsurface offset extension ****" << std::endl;
+				assert(1==2);
 			}
 		}
 	} else {
@@ -73,8 +77,12 @@ void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> m
 			if (_fdParam_3D->_offsetType == "hx"){
 				BornHxFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 			}
-			if (_fdParam_3D->_offsetType == "hxhy"){
+			else if (_fdParam_3D->_offsetType == "hxhy"){
 				BornHxHyFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+			}
+			else {
+				std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of subsurface offset extension ****" << std::endl;
+				assert(1==2);
 			}
 		}
 	}
@@ -108,8 +116,12 @@ void BornExtGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> model, 
 			if (_fdParam_3D->_offsetType == "hx"){
 				BornHxShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 			}
-			if (_fdParam_3D->_offsetType == "hxhy"){
+			else if (_fdParam_3D->_offsetType == "hxhy"){
 				BornHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+			}
+			else {
+				std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of subsurface offset extension ****" << std::endl;
+				assert(1==2);
 			}
 		}
 
@@ -125,8 +137,12 @@ void BornExtGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> model, 
 			if (_fdParam_3D->_offsetType == "hx"){
 				BornHxFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 			}
-			if (_fdParam_3D->_offsetType == "hxhy"){
+			else if (_fdParam_3D->_offsetType == "hxhy"){
 				BornHxHyFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+			}
+			else {
+				std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of subsurface offset extension ****" << std::endl;
+				assert(1==2);
 			}
 		}
 	}

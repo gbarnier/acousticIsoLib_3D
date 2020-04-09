@@ -38,9 +38,9 @@ void tomoExtGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> m
 
 	/* Tomo extended forward */
 	if (_fdParam_3D->_freeSurface != 1){
-		// if (_fdParam_3D->_extension == "time") {
-        //     tomoTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
-		// }
+		if (_fdParam_3D->_extension == "time") {
+            tomoTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _wavefield1->getVals(), _wavefield2->getVals(), _iGpu, _iGpuId);
+		}
 		if (_fdParam_3D->_extension == "offset") {
             tomoHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _wavefield1->getVals(), _wavefield2->getVals(), _iGpu, _iGpuId);
 
@@ -84,9 +84,9 @@ void tomoExtGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, 
 	/* Tomo extended adjoint */
 	if (_fdParam_3D->_freeSurface != 1){
 
-		// if (_fdParam_3D->_extension == "time") {
-        //     tomoTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _reflectivityExt->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _secWavefield1->getVals(), _secWavefield2->getVals(), _iGpu, _iGpuId, _saveWavefield);
-		// }
+		if (_fdParam_3D->_extension == "time") {
+			tomoTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _wavefield1->getVals(), _wavefield2->getVals(), _iGpu, _iGpuId, dataRegDtsQc->getVals());
+		}
 		if (_fdParam_3D->_extension == "offset") {
 			tomoHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _wavefield1->getVals(), _wavefield2->getVals(), _iGpu, _iGpuId, dataRegDtsQc->getVals());
 		}

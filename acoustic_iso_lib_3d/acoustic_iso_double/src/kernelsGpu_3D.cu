@@ -93,6 +93,18 @@ __global__ void scaleReflectivityLin_3D(double *dev_modelExtIn, double *dev_refl
 	}
 }
 
+__global__ void scaleReflectivityTau_3D(double *dev_modelExtIn, double *dev_reflectivityScaleIn, double *dev_vel2Dtw2In, long long extStrideIn){
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+		dev_modelExtIn[iGlobal+extStrideIn] *= dev_reflectivityScaleIn[iGlobal] * dev_vel2Dtw2In[iGlobal];
+		iGlobal+=dev_yStride;
+	}
+}
+
 __global__ void scaleReflectivityLinHxHy_3D(double *dev_modelExtIn, double *dev_reflectivityScaleIn, long long extStride1In, long long extStride2In){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -252,6 +264,20 @@ __global__ void imagingTauAdjGpu_3D(double *dev_model, double *dev_data, double 
 
 	for (int iy=FAT; iy<dev_ny-FAT; iy++){
 		dev_model[iGlobal+iExt*dev_nVel] += dev_data[iGlobal] * dev_sourceWavefieldDts[iGlobal];
+		iGlobal+=dev_yStride;
+	}
+}
+
+// Adjoint tau for the adjoint scattered wavefield in leg 2 of tomo
+__global__ void imagingTauTomoAdjGpu_3D(double *dev_model, double *dev_data, double *dev_extReflectivity, long long iExt1) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+		dev_model[iGlobal] += dev_data[iGlobal] * dev_extReflectivity[iGlobal+iExt1*dev_nVel];
 		iGlobal+=dev_yStride;
 	}
 }
