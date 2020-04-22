@@ -35,11 +35,11 @@ void BornGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> mode
 
 	/* Launch Born forward */
 	if (_fdParam_3D->_freeSurface != 1){
-		std::cout << "Max src wavefield before = " << _srcWavefield->max() << std::endl;
-		std::cout << "Min src wavefield before = " << _srcWavefield->min() << std::endl;
+		// std::cout << "Max src wavefield before = " << _srcWavefield->max() << std::endl;
+		// std::cout << "Min src wavefield before = " << _srcWavefield->min() << std::endl;
 		BornShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
-		std::cout << "Max src wavefield after = " << _srcWavefield->max() << std::endl;
-		std::cout << "Min src wavefield after = " << _srcWavefield->min() << std::endl;
+		// std::cout << "Max src wavefield after = " << _srcWavefield->max() << std::endl;
+		// std::cout << "Min src wavefield after = " << _srcWavefield->min() << std::endl;
 	} else {
 		BornShotsFwdFreeSurfaceGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 	}
@@ -63,7 +63,7 @@ void BornGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, con
 	if (_fdParam_3D->_freeSurface != 1){
 		BornShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 	} else {
-		BornShotsAdjFreeSurfaceGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+		BornShotsAdjFreeSurfaceGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
 	}
 
 	/* Update model */

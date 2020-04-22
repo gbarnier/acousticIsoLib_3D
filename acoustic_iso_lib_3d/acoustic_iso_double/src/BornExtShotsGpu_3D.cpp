@@ -23,12 +23,13 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 	axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
 	_srcWavefieldHyper = std::make_shared<hypercube>(zAxis, xAxis, yAxis, timeAxis);
 	// std::shared_ptr<SEP::double4DReg> wavefieldTemp;
+	std::cout << "Allocating wavefields" << std::endl;
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 		// wavefieldTemp = std::make_shared<SEP::double4DReg>(_srcWavefieldHyper);
 		std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
 		_srcWavefieldVector.push_back(wavefieldTemp);
 		_srcWavefieldVector[iGpu]->scale(0.0);
-
+		std::cout << "Done allocating wavefield #" << iGpu << std::endl;
 	}
 }
 

@@ -123,5 +123,6 @@ int host_nExt1, host_nExt2; // Length of extended axis
 int host_hExt1, host_hExt2; // Half-length of extended axis
 double host_cSide, host_cCenter; // Coefficients for the second-order time derivative
 int host_leg1, host_leg2;
+std::string host_extension;
 
 #endif

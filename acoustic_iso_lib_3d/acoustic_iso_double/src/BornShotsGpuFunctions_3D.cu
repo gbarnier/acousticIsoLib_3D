@@ -258,7 +258,8 @@ void deallocateBornShotsGpu_3D(int iGpu, int iGpuId){
     cuda_call(cudaFree(dev_pLeft[iGpu]));
     cuda_call(cudaFree(dev_pRight[iGpu]));
     cuda_call(cudaFree(dev_modelBorn[iGpu]));
-	cuda_call(cudaFreeHost(pin_wavefieldSlice[iGpu]));
+	cuda_call(cudaFree(dev_pStream[iGpu]));
+	cuda_call(cudaFree(dev_pSourceWavefield[iGpu]));
 }
 
 /******************************************************************************/
@@ -470,9 +471,9 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 
 	// QC
 	cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefield[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
-	std::cout << "its = 0" << std::endl;
-	std::cout << "Min value pLeft = " << *std::min_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
-	std::cout << "Max value pLeft = " << *std::max_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
+	// std::cout << "its = 0" << std::endl;
+	// std::cout << "Min value pLeft = " << *std::min_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
+	// std::cout << "Max value pLeft = " << *std::max_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
 
 	// Copy new slice from RAM -> pinned for time its = 1 -> transfer to pStream
 	std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+host_nModel, host_nModel*sizeof(double));
@@ -501,10 +502,10 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 		// Compute secondary source for first coarse time index (its+1) with compute stream
 		imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBorn[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
 
-		cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefield[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
-		std::cout << "its = " << its << std::endl;
-		std::cout << "Min value pRight = " << *std::min_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
-		std::cout << "Max value pTight = " << *std::max_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
+		// cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefield[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
+		// std::cout << "its = " << its << std::endl;
+		// std::cout << "Min value pRight = " << *std::min_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
+		// std::cout << "Max value pTight = " << *std::max_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
 
 		// std::cout << "its = " << its << std::endl;
 		// cudaMemcpy(dummyModel, dev_pRight[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost);

@@ -190,10 +190,13 @@ __global__ void imagingHxHyFwdGpu_3D(double *dev_model, double *dev_data, double
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
 	long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the x-z slice for iy = FAT
 
+
+
 	if ( ixGlobal-FAT >= abs(ihx) && ixGlobal <= dev_nx-FAT-1-abs(ihx) ){
 		for (int iy=FAT; iy<dev_ny-FAT; iy++){
 			if ( iy-FAT >= abs(ihy) && iy <= dev_ny-FAT-1-abs(ihy) ){
 				dev_data[iGlobal+ihy*dev_yStride+ihx*dev_nz] += dev_model[iExt2*dev_extStride+iExt1*dev_nVel+iGlobal] * dev_sourceWavefieldDts[iGlobal-ihy*dev_yStride-ihx*dev_nz];
+				// dev_data[iGlobal+ihy*dev_yStride+ihx*dev_nz] += dev_model[iExt2*dev_extStride+iExt1*dev_nVel+iGlobal]* dev_sourceWavefieldDts[iGlobal];
 			}
 			iGlobal+=dev_yStride;
 		}

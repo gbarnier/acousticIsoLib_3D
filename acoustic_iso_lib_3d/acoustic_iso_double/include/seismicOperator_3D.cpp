@@ -10,6 +10,12 @@ void seismicOperator_3D <V1, V2>::setSources_3D(std::shared_ptr<deviceGpu_3D> so
 template <class V1, class V2>
 void seismicOperator_3D <V1, V2>::setSources_3D(std::shared_ptr<deviceGpu_3D> sourcesDevices, std::shared_ptr<double2DReg> sourcesSignals){
 
+
+	// Check that nts is the same for sourceDevice and sourcesSignal
+	if (sourcesDevices->getNt() != sourcesSignals->getHyper()->getAxis(1).n){
+		std::cerr << "**** ERROR [seismicOperator_3D]: Number of time samples for seismic source inconsistent with tag nts in parfile ****" << std::endl;
+	}
+
 	// Set source devices
 	_sources = sourcesDevices;
 	_nSourcesReg = _sources->getNDeviceReg();

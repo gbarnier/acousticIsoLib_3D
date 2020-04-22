@@ -21,6 +21,9 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 	_sourcesSignals = sourcesSignals;
 	_extReflectivity = extReflectivity;
 
+	// Check parfile consistency for extended reflectivity
+
+
 	axis zAxis = _vel->getHyper()->getAxis(1);
 	axis xAxis = _vel->getHyper()->getAxis(2);
 	axis yAxis = _vel->getHyper()->getAxis(3);
@@ -138,7 +141,14 @@ void tomoExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DR
 		// Set acquisition geometry
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
 			tomoExtGpuObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], model, dataSliceVector[iGpu]);
+			// std::cout << "iShot = " << iShot << std::endl;
+			// std::cout << "nDeviceReg = " << _sourcesVector[iShot]->getNDeviceReg() << std::endl;
+			// std::cout << "sizePosUnique = " << _sourcesVector[iShot]->getSizePosUnique() << std::endl;
+			// for (int i=0; i < _sourcesVector[iShot]->getNDeviceReg(); i++){
+			// 	std::cout << "Position [" << i << "] = " << _sourcesVector[iShot]->getRegPosUnique()[i] << std::endl;
+			// }
 		}
+
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
 			sourcesSignalsTemp = std::make_shared<double2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);

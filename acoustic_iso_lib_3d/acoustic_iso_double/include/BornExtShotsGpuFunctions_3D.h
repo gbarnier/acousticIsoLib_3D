@@ -4,7 +4,7 @@
 
 /* Parameter settings */
 bool getGpuInfo_3D(std::vector<int> gpuList, int info, int deviceNumberInfo);
-void initBornExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int nts, double dts, int sub, int minPad, int blockSize, double alphaCos, int nExt1, int nExt2, int nGpu, int iGpuId, int iGpuAlloc);
+void initBornExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int nts, double dts, int sub, int minPad, int blockSize, double alphaCos, std::string extension, int nExt1, int nExt2, int nGpu, int iGpuId, int iGpuAlloc);
 void allocateBornExtShotsGpu_3D(double *vel2Dtw2, double *reflectivityScale, int iGpu, int iGpuId);
 void deallocateBornExtShotsGpu_3D(int iGpu, int iGpuId);
 

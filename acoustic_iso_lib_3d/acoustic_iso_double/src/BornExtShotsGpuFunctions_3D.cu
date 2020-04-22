@@ -88,7 +88,7 @@ bool getGpuInfo_3D(std::vector<int> gpuList, int info, int deviceNumberInfo){
 	return true;
 }
 
-void initBornExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int nts, double dts, int sub, int minPad, int blockSize, double alphaCos, int nExt1, int nExt2, int nGpu, int iGpuId, int iGpuAlloc){
+void initBornExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int nts, double dts, int sub, int minPad, int blockSize, double alphaCos, std::string extension, int nExt1, int nExt2, int nGpu, int iGpuId, int iGpuAlloc){
 
 	// Set GPU
 	cudaSetDevice(iGpuId);
@@ -101,6 +101,7 @@ void initBornExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, 
 	host_nts = nts;
 	host_sub = sub;
 	host_ntw = (nts - 1) * sub + 1;
+	host_extension = extension;
     host_nExt1 = nExt1;
     host_nExt2 = nExt2;
 	host_hExt1 = (nExt1-1)/2;
@@ -153,12 +154,14 @@ void initBornExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, 
 		dev_pSourceWavefield = new double*[nGpu];
 
 		// Time-lags
-		dev_pSourceWavefieldTau = new double**[nGpu];
-		for (int iGpu=0; iGpu<nGpu; iGpu++){
-			dev_pSourceWavefieldTau[iGpu] = new double*[4*host_hExt1+1];
+		if (host_extension == "time"){
+			// std::cout << "Declaration of time-slices" << std::endl;
+			dev_pSourceWavefieldTau = new double**[nGpu];
+			for (int iGpu=0; iGpu<nGpu; iGpu++){
+				dev_pSourceWavefieldTau[iGpu] = new double*[4*host_hExt1+1];
+			}
+			dev_pTempTau = new double*[nGpu];
 		}
-		dev_pTempTau = new double*[nGpu];
-
 	}
 	/**************************** COMPUTE LAPLACIAN COEFFICIENTS ************************/
 	double host_coeff[COEFF_SIZE] = get_coeffs((double)dz,(double)dx,(double)dy); // Stored on host
@@ -268,9 +271,12 @@ void allocateBornExtShotsGpu_3D(double *vel2Dtw2, double *reflectivityScale, int
 	cuda_call(cudaMalloc((void**) &dev_pSourceWavefield[iGpu], host_nVel*sizeof(double)));
 
 	// Allocate the arrays that will contain the source wavefield slices for time-lags
-	// for (int iExt1=0; iExt1<host_hExt1; iExt1++){
-	// 	cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt1], host_nVel*sizeof(double)));
-	// }
+	if (host_extension == "time"){
+		// std::cout << "Allocation of time-slices for gpu #" << iGpuId << std::endl;
+		for (int iExt=0; iExt<4*host_hExt1+1; iExt++){
+			cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(double)));
+		}
+	}
 }
 
 void deallocateBornExtShotsGpu_3D(int iGpu, int iGpuId){
@@ -283,6 +289,14 @@ void deallocateBornExtShotsGpu_3D(int iGpu, int iGpuId){
     cuda_call(cudaFree(dev_pRight[iGpu]));
     cuda_call(cudaFree(dev_modelBornExt[iGpu]));
 	cuda_call(cudaFreeHost(pin_wavefieldSlice[iGpu]));
+	cuda_call(cudaFree(dev_pStream[iGpu]));
+	cuda_call(cudaFree(dev_pSourceWavefield[iGpu]));
+	// Deallocate the arrays that will contain the source wavefield slices for time-lags
+	if (host_extension == "time"){
+		for (int iExt=0; iExt<4*host_hExt1+1; iExt++){
+			cuda_call(cudaFree(dev_pSourceWavefieldTau[iGpu][iExt]));
+		}
+	}
 }
 
 /******************************************************************************/
@@ -437,7 +451,7 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 	for (int iExt=0; iExt<4*host_hExt1+1; iExt++){
 
 		// Allocate source wavefield slice
-		cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(double)));
+		// cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(double)));
 		cuda_call(cudaMemset(dev_pSourceWavefieldTau[iGpu][iExt], 0, host_nVel*sizeof(double))); // Useless
 
 		// Load the source time-slices from its = 0,...,2*hExt1 (included)
@@ -513,7 +527,7 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 
 		// First part of the propagation
 		if (its < 2*host_hExt1-1) {
-			std::cout << "First part" << std::endl;
+			// std::cout << "First part" << std::endl;
 			// Transfer slice from RAM to pinned
 			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2*host_hExt1+2)*host_nVel, host_nVel*sizeof(double));
 			cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2*host_hExt1+2)*host_nVel, host_nVel*sizeof(double), cudaMemcpyHostToHost, transferStream[iGpu]));
@@ -552,7 +566,7 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 
 		// Last part of the propagation
 		else {
-			std::cout << "Last part" << std::endl;
+			// std::cout << "Last part" << std::endl;
 			// Imaging condition for its+1
 			for (int iExt=iExtMin; iExt<iExtMax; iExt++){
 
@@ -563,9 +577,9 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 
 		// QC
 		cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefieldTau[iGpu][0], host_nVel*sizeof(double), cudaMemcpyDeviceToHost));
-		std::cout << "its = " << its << std::endl;
-		std::cout << "Min value pRight = " << *std::min_element(dummySliceRight,dummySliceRight+host_nVel) << std::endl;
-		std::cout << "Max value pRight = " << *std::max_element(dummySliceRight,dummySliceRight+host_nVel) << std::endl;
+		// std::cout << "its = " << its << std::endl;
+		// std::cout << "Min value pRight = " << *std::min_element(dummySliceRight,dummySliceRight+host_nVel) << std::endl;
+		// std::cout << "Max value pRight = " << *std::max_element(dummySliceRight,dummySliceRight+host_nVel) << std::endl;
 
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
@@ -1371,7 +1385,7 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double 
 	for (int iExt=0; iExt<4*host_hExt1+1; iExt++){
 
 		// Allocate source wavefield slice
-		cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(double)));
+		// cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(double)));
 		cuda_call(cudaMemset(dev_pSourceWavefieldTau[iGpu][iExt], 0, host_nVel*sizeof(double))); // Useless
 
 		// Load the source time-slices from its = 0,...,2*hExt1 (included)
@@ -2246,7 +2260,7 @@ void BornTauShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 	for (int iExt=4*host_hExt1; iExt>-1; iExt--){
 
 		// Allocate source wavefield slice
-		cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(double)));
+		// cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(double)));
 		cuda_call(cudaMemset(dev_pSourceWavefieldTau[iGpu][iExt], 0, host_nVel*sizeof(double))); // Useless
 
 		// Load the source time-slices from its = 2*hExt1,...,4*hExt1 (included)
@@ -3129,7 +3143,7 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double 
 	for (int iExt=4*host_hExt1; iExt>-1; iExt--){
 
 		// Allocate source wavefield slice
-		cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(double)));
+		// cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(double)));
 		cuda_call(cudaMemset(dev_pSourceWavefieldTau[iGpu][iExt], 0, host_nVel*sizeof(double))); // Useless
 
 		// Load the source time-slices from its = 2*hExt1,...,4*hExt1 (included)

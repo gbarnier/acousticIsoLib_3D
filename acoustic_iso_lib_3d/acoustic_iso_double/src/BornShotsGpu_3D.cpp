@@ -298,27 +298,13 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], model, dataSliceVector[iGpu]);
 		}
 
-		// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// 	std::cout << "[BornShotGpu]: source wavefield address at step #3 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-		// }
-
 		// Set GPU number for propagator object
 		BornObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
-		// BornObjectVector[iGpu]->resetWavefield();
+
 		// Launch modeling
-		BornObjectVector[iGpu]->resetWavefield();
-		// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// 	std::cout << "[BornShotGpu]: source wavefield address at step #4 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-		// }
-		// std::cout << "[BornShotGpu]: max model before = " << modelSliceVector[iGpu]-> max() << std::endl;
-		// std::cout << "[BornShotGpu]: min model before = " << modelSliceVector[iGpu]-> min() << std::endl;
+		// BornObjectVector[iGpu]->resetWavefield();
 		BornObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
-		// std::cout << "[BornShotGpu]: max model after = " << modelSliceVector[iGpu]-> max() << std::endl;
-		// std::cout << "[BornShotGpu]: min model after = " << modelSliceVector[iGpu]-> min() << std::endl;
-		//
-		// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// 	std::cout << "[BornShotGpu]: source wavefield address at step #5 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-		// }
+
 	}
 
 	// Stack models computed by each GPU
