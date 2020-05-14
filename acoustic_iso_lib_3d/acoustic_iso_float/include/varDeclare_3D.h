@@ -43,10 +43,10 @@
 __device__ int min4(int v1,int v2,int v3,int v4){return min2(min2(v1,v2),min2(v3,v4));}
 
 // Constant memory
-__constant__ double dev_coeff[COEFF_SIZE];
+__constant__ float dev_coeff[COEFF_SIZE];
 __constant__ int dev_nTimeInterpFilter; // Time interpolation filter length
 __constant__ int dev_hTimeInterpFilter; // Time interpolation filter half-length
-__constant__ double dev_timeInterpFilter[2*(SUB_MAX+1)]; // Time interpolation filter stored in constant memory
+__constant__ float dev_timeInterpFilter[2*(SUB_MAX+1)]; // Time interpolation filter stored in constant memory
 
 __constant__ int dev_nts; // Number of time steps at the coarse time sampling on Device
 __constant__ int dev_ntw; // Number of time steps at the fine time sampling on Device
@@ -65,35 +65,35 @@ __constant__ int dev_hExt1, dev_hExt2; // Half-length of extension axis
 __constant__ int dev_nSourcesReg; // Nb of source grid points
 __constant__ int dev_nReceiversReg; // Nb of receiver grid points
 
-__constant__ double dev_alphaCos; // Decay coefficient
+__constant__ float dev_alphaCos; // Decay coefficient
 __constant__ int dev_minPad; // Minimum padding length
-__constant__ double dev_cosDampingCoeff[PAD_MAX]; // Padding array
-__constant__ double dev_cSide;
-__constant__ double dev_cCenter;
+__constant__ float dev_cosDampingCoeff[PAD_MAX]; // Padding array
+__constant__ float dev_cSide;
+__constant__ float dev_cCenter;
 
 // Global memory
 long long **dev_sourcesPositionReg; // Array containing the positions of the sources on the regular grid
 long long **dev_receiversPositionReg; // Array containing the positions of the receivers on the regular grid
-double **dev_p0, **dev_p1, **dev_p2, **dev_temp1, **dev_p1_temp; // Temporary slices for stepping
-double **dev_vel2Dtw2; // Precomputed scaling v^2 * dtw^2
+float **dev_p0, **dev_p1, **dev_p2, **dev_temp1, **dev_p1_temp; // Temporary slices for stepping
+float **dev_vel2Dtw2; // Precomputed scaling v^2 * dtw^2
 
 // Nonlinear modeling
-double **dev_modelRegDtw; // Model for nonlinear propagation (wavelet)
-double **dev_dataRegDts; // Data on device at coarse time-sampling (converted to regular grid)
-double **dev_dataRegDtsQc;
-double *dev_wavefieldDts; // Source wavefield
+float **dev_modelRegDtw; // Model for nonlinear propagation (wavelet)
+float **dev_dataRegDts; // Data on device at coarse time-sampling (converted to regular grid)
+float **dev_dataRegDtsQc;
+float *dev_wavefieldDts; // Source wavefield
 
 // Born
-double **dev_ssLeft, **dev_ssRight, **dev_ssTemp1; // Temporary slices for stepping for Born
-double **dev_sourcesSignals, **dev_reflectivityScale, **dev_extReflectivity;
-double **dev_modelBorn, **dev_modelBornExt, **dev_modelTomo;
-double **dev_pLeft, **dev_pRight, **dev_pTemp, **dev_pTempTau;
-double **dev_pDt0, **dev_pDt1, **dev_pDt2, **dev_pDtTemp, **dev_pWavefieldSliceDt2;
-double **dev_dampingSlice;
+float **dev_ssLeft, **dev_ssRight, **dev_ssTemp1; // Temporary slices for stepping for Born
+float **dev_sourcesSignals, **dev_reflectivityScale, **dev_extReflectivity;
+float **dev_modelBorn, **dev_modelBornExt, **dev_modelTomo;
+float **dev_pLeft, **dev_pRight, **dev_pTemp, **dev_pTempTau;
+float **dev_pDt0, **dev_pDt1, **dev_pDt2, **dev_pDtTemp, **dev_pWavefieldSliceDt2;
+float **dev_dampingSlice;
 
 // Streams
-double **pin_wavefieldSlice, **pin_wavefieldSlice1, **pin_wavefieldSlice2, **dev_pStream, **dev_pSourceWavefield, **dev_pRecWavefield;
-double ***dev_pSourceWavefieldTau;
+float **pin_wavefieldSlice, **pin_wavefieldSlice1, **pin_wavefieldSlice2, **dev_pStream, **dev_pSourceWavefield, **dev_pRecWavefield;
+float ***dev_pSourceWavefieldTau;
 cudaStream_t *compStream, *transferStream, *topStream;
 cudaStream_t *transferStreamH2D, *transferStreamD2H;
 
@@ -101,7 +101,7 @@ cudaStream_t *transferStreamH2D, *transferStreamD2H;
 cudaEvent_t eventTopFreeSurface, eventBodyFreeSurface, compStreamDone;
 
 // Debug
-double **dev_modelDebug, **dev_dataDebug;
+float **dev_modelDebug, **dev_dataDebug;
 
 /******************************************************************************/
 /**************************** Declaration on host *****************************/
@@ -114,16 +114,16 @@ unsigned long long host_nModel;
 unsigned long long host_nModelExt;
 unsigned long long host_nVel;
 unsigned long long host_extStride;
-double host_dz;
-double host_dx;
-double host_dy;
+float host_dz;
+float host_dx;
+float host_dy;
 int host_nts;
-double host_dts;
+float host_dts;
 int host_ntw;
 int host_sub;
 int host_nExt1, host_nExt2; // Length of extended axis
 int host_hExt1, host_hExt2; // Half-length of extended axis
-double host_cSide, host_cCenter; // Coefficients for the second-order time derivative
+float host_cSide, host_cCenter; // Coefficients for the second-order time derivative
 int host_leg1, host_leg2;
 std::string host_extension;
 int host_minPad;

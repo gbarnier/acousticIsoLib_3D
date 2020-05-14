@@ -482,6 +482,12 @@ class nonlinearPropShotsGpu_3D(Op.Operator):
 			result=self.pyOp.dotTest(verb,maxError)
 		return result
 
+	def getDampVolumeShots_3D(self):
+		with pyAcoustic_iso_double_nl_3D.ostream_redirect():
+			dampVolume = self.pyOp.getDampVolumeShots_3D()
+			dampVolume = SepVector.floatVector(fromCpp=dampVolume)
+		return dampVolume
+
 ################################################################################
 ################################### Born #######################################
 ################################################################################

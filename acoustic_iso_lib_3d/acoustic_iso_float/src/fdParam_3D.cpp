@@ -1,8 +1,8 @@
 #include <string>
-#include <double1DReg.h>
-#include <double2DReg.h>
-#include <double3DReg.h>
-#include <double5DReg.h>
+#include <float1DReg.h>
+#include <float2DReg.h>
+#include <float3DReg.h>
+#include <float5DReg.h>
 #include "fdParam_3D.h"
 #include <algorithm>
 #include <math.h>
@@ -10,7 +10,7 @@
 #include <iostream>
 using namespace SEP;
 
-fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared_ptr<paramObj> par) {
+fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_ptr<paramObj> par) {
 
 	_vel = vel;
 	_par = par;
@@ -24,7 +24,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 
 	/***** Fine time-sampling *****/
 	_ntw = (_nts - 1) * _sub + 1;
-	_dtw = _dts / double(_sub);
+	_dtw = _dts / float(_sub);
 	_otw = _ots;
 	_timeAxisFine = axis(_ntw, _otw, _dtw);
 
@@ -124,13 +124,13 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	_errorTolerance = par->getFloat("errorTolerance", 0.000001);
 
 	/*********** Damping volume ***********/
-	_dampVolume = std::make_shared<double3DReg>(_zAxis, _xAxis, _yAxis);
+	_dampVolume = std::make_shared<float3DReg>(_zAxis, _xAxis, _yAxis);
 	_dampVolume->scale(0.0);
 
 	// Damping array
-	_dampArray = std::make_shared<double1DReg>(_minPad);
+	_dampArray = std::make_shared<float1DReg>(_minPad);
 	for (int iArray=_fat; iArray<_fat+_minPad; iArray++){
-		double arg = M_PI / (1.0 * _minPad) * 1.0 * (_minPad-iArray+_fat);
+		float arg = M_PI / (1.0 * _minPad) * 1.0 * (_minPad-iArray+_fat);
 		arg = _alphaCos + (1.0-_alphaCos) * cos(arg);
 		(*_dampArray->_mat)[iArray-_fat] = arg;
 	}
@@ -162,7 +162,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	// Set Front/Back
 	for (int iy = _fat; iy < _minPad+_fat; iy++){
 		// Compute damping factor
-		double dampingValue = (*_dampArray->_mat)[iy-_fat];
+		float dampingValue = (*_dampArray->_mat)[iy-_fat];
 		int iyBack = _ny-iy-1;
 		for (int ix = _fat; ix < _nx-_fat; ix++){
 			for (int iz = _fat; iz < _nz-_fat; iz++){
@@ -177,7 +177,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	// Set Left/Right
 	// for (int iy = _fat+_minPad; iy < _ny-_fat-_minPad; iy++){
 	// 	for (int ix = _fat; ix < _minPad+_fat; ix++){
-	// 		double dampingValue = (*_dampArray->_mat)[ix-_fat];
+	// 		float dampingValue = (*_dampArray->_mat)[ix-_fat];
 	// 		int ixRight = _nx-ix-1;
 	// 		for (int iz = _fat; iz < _nz-_fat; iz++){
 	// 			(*_dampVolume->_mat)[iy][ix][iz] = dampingValue;
@@ -188,7 +188,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 
 	for (int iy = _fat; iy < _ny-_fat; iy++){
 		for (int ix = _fat; ix < _minPad+_fat; ix++){
-			double dampingValue = (*_dampArray->_mat)[ix-_fat];
+			float dampingValue = (*_dampArray->_mat)[ix-_fat];
 			int ixRight = _nx-ix-1;
 			for (int iz = _fat; iz < _nz-_fat; iz++){
 				(*_dampVolume->_mat)[iy][ix][iz] *= dampingValue;
@@ -204,7 +204,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	// for (int iy = _fat+_minPad; iy < _ny-_fat-_minPad; iy++){
 	// 	for (int ix = _fat+_minPad; ix < _nx-_fat-_minPad; ix++){
 	// 		for (int iz = _fat; iz < _fat+_minPad; iz++){
-	// 			double dampingValue = (*_dampArray->_mat)[iz-_fat];
+	// 			float dampingValue = (*_dampArray->_mat)[iz-_fat];
 	// 			int izBottom = _nz-iz-1;
 	// 			(*_dampVolume->_mat)[iy][ix][iz] = dampingValue;
 	// 			(*_dampVolume->_mat)[iy][ix][izBottom] = dampingValue;
@@ -215,7 +215,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	for (int iy = _fat; iy < _ny-_fat; iy++){
 		for (int ix = _fat; ix < _nx-_fat; ix++){
 			for (int iz = _fat; iz < _fat+_minPad; iz++){
-				double dampingValue = (*_dampArray->_mat)[iz-_fat];
+				float dampingValue = (*_dampArray->_mat)[iz-_fat];
 				int izBottom = _nz-iz-1;
 				(*_dampVolume->_mat)[iy][ix][iz] *= dampingValue;
 				(*_dampVolume->_mat)[iy][ix][izBottom] *= dampingValue;
@@ -231,7 +231,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	axis nxSmallAxis(_nx-2*_fat, 0.0, _dx);
 	axis nySmallAxis(_ny-2*_fat, 0.0, _dy);
 	std::shared_ptr<SEP::hypercube> smallVelHyper(new hypercube(nzSmallAxis, nxSmallAxis, nySmallAxis));
-	_smallVel = std::make_shared<double3DReg>(smallVelHyper);
+	_smallVel = std::make_shared<float3DReg>(smallVelHyper);
 
 	#pragma omp parallel for collapse(3)
 	for (int iy = 0; iy < _ny-2*_fat; iy++){
@@ -250,7 +250,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 
 	/***** Scaling for propagation *****/
 	// v^2 * dtw^2
-	_vel2Dtw2 = new double[_nz * _nx * _ny * sizeof(double)];
+	_vel2Dtw2 = new float[_nz * _nx * _ny * sizeof(float)];
 	#pragma omp parallel for collapse(3)
     for (int iy = 0; iy < _ny; iy++){
         for (int ix = 0; ix < _nx; ix++){
@@ -263,7 +263,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 
 	/*********** Maybe put an "if" statement for nonlinear propagation *********/
 	// Compute reflectivity scaling
-	_reflectivityScale = new double[_nz * _nx * _ny * sizeof(double)];
+	_reflectivityScale = new float[_nz * _nx * _ny * sizeof(float)];
 	#pragma omp parallel for collapse(3)
     for (int iy = 0; iy < _ny; iy++){
         for (int ix = 0; ix < _nx; ix++){
@@ -383,7 +383,7 @@ void fdParam_3D::getInfo_3D(){
 	std::cout << std::setprecision(6); // Reset the default formatting precision
 }
 
-bool fdParam_3D::checkFdStability_3D(double CourantMax){
+bool fdParam_3D::checkFdStability_3D(float CourantMax){
 	_maxVel = _smallVel->max();
 	_minDzDxDy = std::min(_dz, std::min(_dx, _dy));
 	_Courant = _maxVel * _dtw / _minDzDxDy;
@@ -397,7 +397,7 @@ bool fdParam_3D::checkFdStability_3D(double CourantMax){
 	return true;
 }
 
-bool fdParam_3D::checkFdDispersion_3D(double dispersionRatioMin){
+bool fdParam_3D::checkFdDispersion_3D(float dispersionRatioMin){
 
 	_minVel = _smallVel->min();
 	_maxDzDxDy = std::max(_dz, std::max(_dx, _dy));
@@ -432,7 +432,7 @@ bool fdParam_3D::checkModelSize_3D(){
 	return true;
 }
 
-bool fdParam_3D::checkParfileConsistencyTime_3D(const std::shared_ptr<double2DReg> seismicTraces, int timeAxisIndex, std::string fileToCheck) const {
+bool fdParam_3D::checkParfileConsistencyTime_3D(const std::shared_ptr<float2DReg> seismicTraces, int timeAxisIndex, std::string fileToCheck) const {
 	if (_nts != seismicTraces->getHyper()->getAxis(timeAxisIndex).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: nts not consistent with parfile ****" << std::endl; return false;}
 	if ( std::abs(_dts - seismicTraces->getHyper()->getAxis(timeAxisIndex).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dts not consistent with parfile ****" << std::endl; return false;}
 	if ( std::abs(_ots - seismicTraces->getHyper()->getAxis(timeAxisIndex).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ots not consistent with parfile ****" << std::endl; return false;}
@@ -440,7 +440,7 @@ bool fdParam_3D::checkParfileConsistencyTime_3D(const std::shared_ptr<double2DRe
 }
 
 // check consistency of velocity model
-bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<double3DReg> model, std::string fileToCheck) const {
+bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<float3DReg> model, std::string fileToCheck) const {
 
 	// Vertical axis
 	if (_nz != model->getHyper()->getAxis(1).n) {std::cout << "**** ["<< fileToCheck << "] ERROR [fdParam_3D]: nz not consistent with parfile ****" << std::endl; return false;}
@@ -461,7 +461,7 @@ bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<double3DR
 }
 
 // check consistency of extended image
-bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<double5DReg> modelExt, std::string fileToCheck) const {
+bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<float5DReg> modelExt, std::string fileToCheck) const {
 
 	// Vertical z-axis
 	if (_nz != modelExt->getHyper()->getAxis(1).n) {std::cout << "**** ["<< fileToCheck << "] ERROR [fdParam_3D]: nz not consistent with parfile ****" << std::endl; return false;}

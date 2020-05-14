@@ -84,6 +84,16 @@ if __name__ == '__main__':
 		# else:
 		# 	genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
+		# Saving damping volumes
+		if (parObject.getInt("saveDampCpu", 1) == 1):
+			dampCpuDouble = nonlinearOp.getDampVolumeShots_3D()
+			dampCpuFloat=SepVector.getSepVector(dampCpuDouble.getHyper())
+			dampCpuDoubleNp=dampCpuDouble.getNdArray()
+			dampCpuFloatNp=dampCpuFloat.getNdArray()
+			dampCpuFloatNp[:]=dampCpuDoubleNp
+			dampCpuFile=parObject.getString("dampCpuFile")
+			genericIO.defaultIO.writeVector(dampCpuFile,dampCpuFloat)
+
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
 		print("-------------------------------------------------------------------\n")

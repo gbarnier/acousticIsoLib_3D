@@ -11,6 +11,8 @@ void deallocateNonlinearGpu_3D(int iGpu, int iGpuId);
 /*********************************** Nonlinear FWD **************************************/
 void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
 
+void propShotsFwdGpu_3D_dampTest(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId, double *dampVolume);
+
 void propShotsFwdFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
 
 /*********************************** Nonlinear ADJ **************************************/

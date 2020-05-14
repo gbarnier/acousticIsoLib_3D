@@ -5,7 +5,7 @@
 /*********************************** Testing **********************************/
 /******************************************************************************/
 // Damping front and back
-__global__ void dampFrontBack_3D(double *dev_p1, double *dev_p2) {
+__global__ void dampFrontBack_3D(float *dev_p1, float *dev_p2) {
 
 	// Coordinate on x-axis
 	long long ixGlobal = FAT + blockIdx.x * BLOCK_SIZE_X + threadIdx.x;
@@ -16,7 +16,7 @@ __global__ void dampFrontBack_3D(double *dev_p1, double *dev_p2) {
 
 	if (iyGlobalFront < dev_minPad+FAT){
 
-		double damp = dev_cosDampingCoeff[iyGlobalFront-FAT];
+		float damp = dev_cosDampingCoeff[iyGlobalFront-FAT];
 
 		// Front
 		for (long long izGlobal=FAT; izGlobal<dev_nz-FAT; izGlobal++){
@@ -48,7 +48,7 @@ __global__ void dampFrontBack_3D(double *dev_p1, double *dev_p2) {
 }
 
 // Damping left / right
-__global__ void dampLeftRight_3D(double *dev_p1, double *dev_p2) {
+__global__ void dampLeftRight_3D(float *dev_p1, float *dev_p2) {
 
 	// Coordinate on y-axis
 	long long iyGlobal = FAT + blockIdx.x * BLOCK_SIZE_Y + threadIdx.x;
@@ -59,7 +59,7 @@ __global__ void dampLeftRight_3D(double *dev_p1, double *dev_p2) {
 
 	if (ixGlobalLeft < dev_minPad+FAT){
 
-		double damp = dev_cosDampingCoeff[ixGlobalLeft-FAT];
+		float damp = dev_cosDampingCoeff[ixGlobalLeft-FAT];
 
 		for (long long izGlobal=FAT; izGlobal<dev_nz-FAT; izGlobal++){
 
@@ -76,7 +76,7 @@ __global__ void dampLeftRight_3D(double *dev_p1, double *dev_p2) {
 }
 
 // Damping top / bottom
-__global__ void dampTopBottom_3D(double *dev_p1, double *dev_p2) {
+__global__ void dampTopBottom_3D(float *dev_p1, float *dev_p2) {
 
 	// Coordinate on x-axis
 	long long ixGlobal = FAT + blockIdx.x * BLOCK_SIZE_X + threadIdx.x;
@@ -87,7 +87,7 @@ __global__ void dampTopBottom_3D(double *dev_p1, double *dev_p2) {
 	for (long long izGlobalTop=FAT; izGlobalTop < dev_minPad+FAT; izGlobalTop++){
 
 			// Damping coefficient
-			double damp = dev_cosDampingCoeff[izGlobalTop-FAT];
+			float damp = dev_cosDampingCoeff[izGlobalTop-FAT];
 
 			long long izGlobalBottom = dev_nz - izGlobalTop - 1;
 			long long iGlobalTop = iyGlobal * dev_yStride + dev_nz * ixGlobal + izGlobalTop;
@@ -105,13 +105,13 @@ __global__ void dampTopBottom_3D(double *dev_p1, double *dev_p2) {
 /*********************************** Injection ********************************/
 /******************************************************************************/
 /* Inject source: no need for a "if" statement because the number of threads = nb devices */
-__global__ void injectSourceLinear_3D(double *dev_signalIn, double *dev_timeSlice, long long itw, long long *dev_sourcesPositionReg){
+__global__ void injectSourceLinear_3D(float *dev_signalIn, float *dev_timeSlice, long long itw, long long *dev_sourcesPositionReg){
 	long long iThread = blockIdx.x * blockDim.x + threadIdx.x;
 	dev_timeSlice[dev_sourcesPositionReg[iThread]] += dev_signalIn[iThread * dev_ntw + itw]; // Time is the fast axis
 }
 
 /* Interpolate and inject data */
-__global__ void interpLinearInjectData_3D(double *dev_signalIn, double *dev_timeSlice, long long its, long long it2, long long *dev_receiversPositionReg) {
+__global__ void interpLinearInjectData_3D(float *dev_signalIn, float *dev_timeSlice, long long its, long long it2, long long *dev_receiversPositionReg) {
 	long long iThread = blockIdx.x * blockDim.x + threadIdx.x;
 	if (iThread < dev_nReceiversReg) {
 		dev_timeSlice[dev_receiversPositionReg[iThread]] += dev_signalIn[dev_nts*iThread+its] * dev_timeInterpFilter[it2+1] + dev_signalIn[dev_nts*iThread+its+1] * dev_timeInterpFilter[dev_hTimeInterpFilter+it2+1];
@@ -119,7 +119,7 @@ __global__ void interpLinearInjectData_3D(double *dev_signalIn, double *dev_time
 }
 
 /* Inject the secondary source for Born */
-__global__ void injectSecondarySource_3D(double *dev_ssLeft, double *dev_ssRight, double *dev_p0, int indexFilter) {
+__global__ void injectSecondarySource_3D(float *dev_ssLeft, float *dev_ssRight, float *dev_p0, int indexFilter) {
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -135,7 +135,7 @@ __global__ void injectSecondarySource_3D(double *dev_ssLeft, double *dev_ssRight
 /*********************************** Extraction *******************************/
 /******************************************************************************/
 /* Extract and interpolate data */
-__global__ void recordLinearInterpData_3D(double *dev_newTimeSlice, double *dev_signalOut, long long its, long long it2, long long *dev_receiversPositionReg) {
+__global__ void recordLinearInterpData_3D(float *dev_newTimeSlice, float *dev_signalOut, long long its, long long it2, long long *dev_receiversPositionReg) {
 
 	long long iThread = blockIdx.x * blockDim.x + threadIdx.x;
 	if (iThread < dev_nReceiversReg) {
@@ -145,7 +145,7 @@ __global__ void recordLinearInterpData_3D(double *dev_newTimeSlice, double *dev_
 }
 
 /* Extract source for "nonlinear adjoint" */
-__global__ void recordSource_3D(double *dev_wavefield, double *dev_signalOut, long long itw, long long *dev_sourcesPositionReg) {
+__global__ void recordSource_3D(float *dev_wavefield, float *dev_signalOut, long long itw, long long *dev_sourcesPositionReg) {
 	long long iThread = blockIdx.x * blockDim.x + threadIdx.x;
 	dev_signalOut[dev_ntw*iThread + itw] += dev_wavefield[dev_sourcesPositionReg[iThread]];
 }
@@ -155,7 +155,7 @@ __global__ void recordSource_3D(double *dev_wavefield, double *dev_signalOut, lo
 /******************************************************************************/
 // Scale reflecticity by for non-extended Born
 // Apply both scalings to reflectivity: (1) 2.0*1/v^3 (2) v^2*dtw^2
-__global__ void scaleReflectivity_3D(double *dev_model, double *dev_reflectivityScaleIn, double *dev_vel2Dtw2In) {
+__global__ void scaleReflectivity_3D(float *dev_model, float *dev_reflectivityScaleIn, float *dev_vel2Dtw2In) {
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -169,7 +169,7 @@ __global__ void scaleReflectivity_3D(double *dev_model, double *dev_reflectivity
 	}
 }
 
-__global__ void scaleSecondarySourceFd_3D(double *dev_timeSlice, double *dev_vel2Dtw2In){
+__global__ void scaleSecondarySourceFd_3D(float *dev_timeSlice, float *dev_vel2Dtw2In){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -181,7 +181,7 @@ __global__ void scaleSecondarySourceFd_3D(double *dev_timeSlice, double *dev_vel
 	}
 }
 
-__global__ void scaleReflectivityLin_3D(double *dev_modelExtIn, double *dev_reflectivityScaleIn, long long extStrideIn){
+__global__ void scaleReflectivityLin_3D(float *dev_modelExtIn, float *dev_reflectivityScaleIn, long long extStrideIn){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -193,7 +193,7 @@ __global__ void scaleReflectivityLin_3D(double *dev_modelExtIn, double *dev_refl
 	}
 }
 
-__global__ void scaleReflectivityTau_3D(double *dev_modelExtIn, double *dev_reflectivityScaleIn, double *dev_vel2Dtw2In, long long extStrideIn){
+__global__ void scaleReflectivityTau_3D(float *dev_modelExtIn, float *dev_reflectivityScaleIn, float *dev_vel2Dtw2In, long long extStrideIn){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -205,7 +205,7 @@ __global__ void scaleReflectivityTau_3D(double *dev_modelExtIn, double *dev_refl
 	}
 }
 
-__global__ void scaleReflectivityLinHxHy_3D(double *dev_modelExtIn, double *dev_reflectivityScaleIn, long long extStride1In, long long extStride2In){
+__global__ void scaleReflectivityLinHxHy_3D(float *dev_modelExtIn, float *dev_reflectivityScaleIn, long long extStride1In, long long extStride2In){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -221,7 +221,7 @@ __global__ void scaleReflectivityLinHxHy_3D(double *dev_modelExtIn, double *dev_
 /**************************** Imaging condition *******************************/
 /******************************************************************************/
 // Forward non-extended
-__global__ void imagingFwdGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts) {
+__global__ void imagingFwdGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -235,7 +235,7 @@ __global__ void imagingFwdGpu_3D(double *dev_model, double *dev_data, double *de
 }
 
 // Adjoint non-extended
-__global__ void imagingAdjGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts) {
+__global__ void imagingAdjGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -251,7 +251,7 @@ __global__ void imagingAdjGpu_3D(double *dev_model, double *dev_data, double *de
 }
 
 // Forward hx
-__global__ void imagingHxFwdGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int ihx, long long extStrideIn) {
+__global__ void imagingHxFwdGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int ihx, long long extStrideIn) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -267,7 +267,7 @@ __global__ void imagingHxFwdGpu_3D(double *dev_model, double *dev_data, double *
 }
 
 // Adjoint hx
-__global__ void imagingHxAdjGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int ihx, long long extStrideIn) {
+__global__ void imagingHxAdjGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int ihx, long long extStrideIn) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -283,7 +283,7 @@ __global__ void imagingHxAdjGpu_3D(double *dev_model, double *dev_data, double *
 }
 
 // Forward hx and hy
-__global__ void imagingHxHyFwdGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int ihx, int iExt1, int ihy, int iExt2) {
+__global__ void imagingHxHyFwdGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int ihx, int iExt1, int ihy, int iExt2) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -304,7 +304,7 @@ __global__ void imagingHxHyFwdGpu_3D(double *dev_model, double *dev_data, double
 }
 
 // Adjoint hx and hy
-__global__ void imagingHxHyAdjGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int ihx, long long iExt1, int ihy, long long iExt2) {
+__global__ void imagingHxHyAdjGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int ihx, long long iExt1, int ihy, long long iExt2) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -326,7 +326,7 @@ __global__ void imagingHxHyAdjGpu_3D(double *dev_model, double *dev_data, double
 }
 
 // Adjoint hx and hy for the adjoint scattered wavefield in leg 2 of tomo
-__global__ void imagingHxHyTomoAdjGpu_3D(double *dev_model, double *dev_data, double *dev_extReflectivity, int ihx, long long iExt1, int ihy, long long iExt2) {
+__global__ void imagingHxHyTomoAdjGpu_3D(float *dev_model, float *dev_data, float *dev_extReflectivity, int ihx, long long iExt1, int ihy, long long iExt2) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -344,7 +344,7 @@ __global__ void imagingHxHyTomoAdjGpu_3D(double *dev_model, double *dev_data, do
 }
 
 // Forward time-lags
-__global__ void imagingTauFwdGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int iExt) {
+__global__ void imagingTauFwdGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int iExt) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -358,7 +358,7 @@ __global__ void imagingTauFwdGpu_3D(double *dev_model, double *dev_data, double 
 }
 
 // Adjoint time-lags
-__global__ void imagingTauAdjGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int iExt) {
+__global__ void imagingTauAdjGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int iExt) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -372,7 +372,7 @@ __global__ void imagingTauAdjGpu_3D(double *dev_model, double *dev_data, double 
 }
 
 // Adjoint tau for the adjoint scattered wavefield in leg 2 of tomo
-__global__ void imagingTauTomoAdjGpu_3D(double *dev_model, double *dev_data, double *dev_extReflectivity, long long iExt1) {
+__global__ void imagingTauTomoAdjGpu_3D(float *dev_model, float *dev_data, float *dev_extReflectivity, long long iExt1) {
 
 	// Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -388,7 +388,7 @@ __global__ void imagingTauTomoAdjGpu_3D(double *dev_model, double *dev_data, dou
 /******************************************************************************/
 /********************************* Wavefield extraction ***********************/
 /******************************************************************************/
-__global__ void interpFineToCoarseSlice_3D(double *dev_timeSliceLeft, double *dev_timeSliceRight, double *dev_timeSliceFine, int it2) {
+__global__ void interpFineToCoarseSlice_3D(float *dev_timeSliceLeft, float *dev_timeSliceRight, float *dev_timeSliceFine, int it2) {
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -405,7 +405,7 @@ __global__ void interpFineToCoarseSlice_3D(double *dev_timeSliceLeft, double *de
 
 }
 
-__global__ void interpFineToCoarseSliceDebug_3D(double *dev_timeSliceLeft, double *dev_timeSliceRight, double *dev_timeSliceFine, int it2) {
+__global__ void interpFineToCoarseSliceDebug_3D(float *dev_timeSliceLeft, float *dev_timeSliceRight, float *dev_timeSliceFine, int it2) {
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -431,7 +431,7 @@ __global__ void interpFineToCoarseSliceDebug_3D(double *dev_timeSliceLeft, doubl
 /******************************************************************************/
 /****************************** Time derivative *******************************/
 /******************************************************************************/
-__global__ void srcWfldSecondTimeDerivative_3D(double *dev_wavefieldSlice, double *dev_slice0, double *dev_slice1, double *dev_slice2) {
+__global__ void srcWfldSecondTimeDerivative_3D(float *dev_wavefieldSlice, float *dev_slice0, float *dev_slice1, float *dev_slice2) {
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
@@ -447,7 +447,7 @@ __global__ void srcWfldSecondTimeDerivative_3D(double *dev_wavefieldSlice, doubl
 /******************************** Damping *************************************/
 /******************************************************************************/
 // Damping without free surface
-__global__ void dampCosineEdge_3D(double *dev_p1, double *dev_p2) {
+__global__ void dampCosineEdge_3D(float *dev_p1, float *dev_p2) {
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate on the z-axis
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate on the x-axis
@@ -466,7 +466,7 @@ __global__ void dampCosineEdge_3D(double *dev_p1, double *dev_p2) {
 			long long iGlobal = iyGlobal * yStride + dev_nz * ixGlobal + izGlobal;
 
 			// Compute damping coefficient
-			double damp = dev_cosDampingCoeff[distToEdge];
+			float damp = dev_cosDampingCoeff[distToEdge];
 
 			// Apply damping
 			dev_p1[iGlobal] *= damp;
@@ -475,7 +475,7 @@ __global__ void dampCosineEdge_3D(double *dev_p1, double *dev_p2) {
 	}
 }
 
-__global__ void dampCosineEdge_3D_8(double *dev_p1, double *dev_p2) {
+__global__ void dampCosineEdge_3D_8(float *dev_p1, float *dev_p2) {
 
 	long long izGlobal = FAT + blockIdx.x * 8 + threadIdx.x; // Global z-coordinate on the z-axis
 	long long ixGlobal = FAT + blockIdx.y * 8 + threadIdx.y; // Global x-coordinate on the x-axis
@@ -494,7 +494,7 @@ __global__ void dampCosineEdge_3D_8(double *dev_p1, double *dev_p2) {
 			long long iGlobal = iyGlobal * yStride + dev_nz * ixGlobal + izGlobal;
 
 			// Compute damping coefficient
-			double damp = dev_cosDampingCoeff[distToEdge];
+			float damp = dev_cosDampingCoeff[distToEdge];
 
 			// Apply damping
 			dev_p1[iGlobal] *= damp;
@@ -503,7 +503,7 @@ __global__ void dampCosineEdge_3D_8(double *dev_p1, double *dev_p2) {
 	}
 }
 
-__global__ void dampCosineEdge_3D_32(double *dev_p1, double *dev_p2) {
+__global__ void dampCosineEdge_3D_32(float *dev_p1, float *dev_p2) {
 
 	long long izGlobal = FAT + blockIdx.x * 32 + threadIdx.x; // Global z-coordinate on the z-axis
 	long long ixGlobal = FAT + blockIdx.y * 32 + threadIdx.y; // Global x-coordinate on the x-axis
@@ -524,7 +524,7 @@ __global__ void dampCosineEdge_3D_32(double *dev_p1, double *dev_p2) {
 		        long long iGlobal = iyGlobal * yStride + dev_nz * ixGlobal + izGlobal;
 
 	    		// Compute damping coefficient
-	    		double damp = dev_cosDampingCoeff[distToEdge];
+	    		float damp = dev_cosDampingCoeff[distToEdge];
 
 	    		// Apply damping
 	    		dev_p1[iGlobal] *= damp;
@@ -535,7 +535,7 @@ __global__ void dampCosineEdge_3D_32(double *dev_p1, double *dev_p2) {
 }
 
 // Damping for free surface - top part
-__global__ void dampCosineEdgeFreeSurface_3D(double *dev_p1, double *dev_p2) {
+__global__ void dampCosineEdgeFreeSurface_3D(float *dev_p1, float *dev_p2) {
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate on the z-axis
 	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate on the x-axis
@@ -554,7 +554,7 @@ __global__ void dampCosineEdgeFreeSurface_3D(double *dev_p1, double *dev_p2) {
 	        long long iGlobal = iyGlobal * yStride + dev_nz * ixGlobal + izGlobal;
 
     		// Compute damping coefficient
-    		double damp = dev_cosDampingCoeff[distToEdge];
+    		float damp = dev_cosDampingCoeff[distToEdge];
 
     		// Apply damping
     		dev_p1[iGlobal] *= damp;
@@ -567,10 +567,10 @@ __global__ void dampCosineEdgeFreeSurface_3D(double *dev_p1, double *dev_p2) {
 /******************************* Forward stepper ******************************/
 /******************************************************************************/
 /* Forward stepper (no damping) */
-__global__ void stepFwdGpu_3D(double *dev_o, double *dev_c, double *dev_n, double *dev_vel2Dtw2) {
+__global__ void stepFwdGpu_3D(float *dev_o, float *dev_c, float *dev_n, float *dev_vel2Dtw2) {
 
     // Allocate shared memory for a specific block
-	__shared__ double shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT];  // Current wavefield y-slice block
+	__shared__ float shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT];  // Current wavefield y-slice block
 
     // Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Coordinate of current thread on the z-axis
@@ -584,7 +584,7 @@ __global__ void stepFwdGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
     // Each thread will have its own version of this array
     // Question: is that on the global memory? -> can it fit in the register?
     // Why do we create this temporary array and not call it directly from global memory?
-    double dev_c_y[2*FAT+1];
+    float dev_c_y[2*FAT+1];
 
     // Number of elements in one y-slice
     long long yStride = dev_nz * dev_nx;
@@ -673,7 +673,7 @@ __global__ void stepFwdGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
     }
 }
 
-__global__ void setFreeSurfaceConditionFwdGpu_3D(double *dev_c) {
+__global__ void setFreeSurfaceConditionFwdGpu_3D(float *dev_c) {
 
 	// Global coordinates for the slowest axis
 	long long iyGlobal = FAT + blockIdx.y * BLOCK_SIZE_Y + threadIdx.y; // Global y-coordinate
@@ -693,11 +693,11 @@ __global__ void setFreeSurfaceConditionFwdGpu_3D(double *dev_c) {
 /******************************* Adjoint stepper ******************************/
 /******************************************************************************/
 /* Adjoint stepper (no damping) */
-__global__ void stepAdjGpu_3D(double *dev_o, double *dev_c, double *dev_n, double *dev_vel2Dtw2) {
+__global__ void stepAdjGpu_3D(float *dev_o, float *dev_c, float *dev_n, float *dev_vel2Dtw2) {
 
     // Allocate shared memory for a specific block
-	__shared__ double shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
-	__shared__ double shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
+	__shared__ float shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
+	__shared__ float shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
 
     // Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -711,8 +711,8 @@ __global__ void stepAdjGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
     // Each thread will have its own version of this array
     // Question: is that on the global memory? -> can it fit in the register?
     // Why do we create this temporary array and not call it directly from global memory?
-    double dev_c_y[2*FAT+1]; // Array for the current wavefield y-slice
-    double dev_vel_y[2*FAT+1]; // Array for the scaled velocity y-slice
+    float dev_c_y[2*FAT+1]; // Array for the current wavefield y-slice
+    float dev_vel_y[2*FAT+1]; // Array for the scaled velocity y-slice
 
     // Number of elements in one y-slice
     long long yStride = dev_nz * dev_nx;
@@ -803,11 +803,11 @@ __global__ void stepAdjGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
 }
 
 /* Adjoint stepper free surface (no damping) */
-__global__ void stepAdjFreeSurfaceGpu_3D(double *dev_o, double *dev_c, double *dev_n, double *dev_vel2Dtw2) {
+__global__ void stepAdjFreeSurfaceGpu_3D(float *dev_o, float *dev_c, float *dev_n, float *dev_vel2Dtw2) {
 
     // Allocate shared memory for a specific block
-	__shared__ double shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
-	__shared__ double shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
+	__shared__ float shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
+	__shared__ float shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
 
     // Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -821,8 +821,8 @@ __global__ void stepAdjFreeSurfaceGpu_3D(double *dev_o, double *dev_c, double *d
     // Each thread will have its own version of this array
     // Question: is that on the global memory? -> can it fit in the register?
     // Why do we create this temporary array and not call it directly from global memory?
-    double dev_c_y[2*FAT+1]; // Array for the current wavefield y-slice
-    double dev_vel_y[2*FAT+1]; // Array for the scaled velocity y-slice
+    float dev_c_y[2*FAT+1]; // Array for the current wavefield y-slice
+    float dev_vel_y[2*FAT+1]; // Array for the scaled velocity y-slice
 
     // Number of elements in one y-slice
     long long yStride = dev_nz * dev_nx;
@@ -1001,11 +1001,11 @@ __global__ void stepAdjFreeSurfaceGpu_3D(double *dev_o, double *dev_c, double *d
 }
 
 /* Adjoint stepper for the body (free surface) */
-__global__ void stepAdjBodyFreeSurfaceGpu_3D(double *dev_o, double *dev_c, double *dev_n, double *dev_vel2Dtw2) {
+__global__ void stepAdjBodyFreeSurfaceGpu_3D(float *dev_o, float *dev_c, float *dev_n, float *dev_vel2Dtw2) {
 
     // Allocate shared memory for a specific block
-	__shared__ double shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
-	__shared__ double shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
+	__shared__ float shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
+	__shared__ float shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
 
     // Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + (blockIdx.x + 1) * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -1019,8 +1019,8 @@ __global__ void stepAdjBodyFreeSurfaceGpu_3D(double *dev_o, double *dev_c, doubl
     // Each thread will have its own version of this array
     // Question: is that on the global memory? -> can it fit in the register?
     // Why do we create this temporary array and not call it directly from global memory?
-    double dev_c_y[2*FAT+1]; // Array for the current wavefield y-slice
-    double dev_vel_y[2*FAT+1]; // Array for the scaled velocity y-slice
+    float dev_c_y[2*FAT+1]; // Array for the current wavefield y-slice
+    float dev_vel_y[2*FAT+1]; // Array for the scaled velocity y-slice
 
     // Number of elements in one y-slice
     long long yStride = dev_nz * dev_nx;
@@ -1110,7 +1110,7 @@ __global__ void stepAdjBodyFreeSurfaceGpu_3D(double *dev_o, double *dev_c, doubl
 /******************************** Imaging kernels *****************************/
 /******************************************************************************/
 // Forward non-extended
-__global__ void imagingFwdGpu_3D_zLoop(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts) {
+__global__ void imagingFwdGpu_3D_zLoop(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts) {
 
 	int iyGlobal = FAT + blockIdx.y * BLOCK_SIZE_Y + threadIdx.y; // Coordinate on y-axis
 
@@ -1127,7 +1127,7 @@ __global__ void imagingFwdGpu_3D_zLoop(double *dev_model, double *dev_data, doub
 	}
 }
 
-__global__ void imagingFwdGpu_3D_yLoop(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts) {
+__global__ void imagingFwdGpu_3D_yLoop(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts) {
 
 	// Global coordinates for the faster two axes (z and x)
 	int izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate

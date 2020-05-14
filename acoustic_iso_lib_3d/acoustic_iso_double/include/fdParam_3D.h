@@ -2,6 +2,7 @@
 #define FD_PARAM_3D_H 1
 
 #include <string>
+#include <double1DReg.h>
 #include "double2DReg.h"
 #include "double3DReg.h"
 #include "double5DReg.h"
@@ -33,6 +34,10 @@ class fdParam_3D{
 		std::shared_ptr<paramObj> _par;
 		std::shared_ptr<double3DReg> _vel, _smallVel;
 		axis _timeAxisCoarse, _timeAxisFine, _zAxis, _xAxis, _yAxis, _extAxis1, _extAxis2;
+
+        // Damping volume
+        std::shared_ptr<double3DReg> _dampVolume;
+        std::shared_ptr<double1DReg> _dampArray;
 
 		double *_vel2Dtw2, *_reflectivityScale;
 		double _errorTolerance;

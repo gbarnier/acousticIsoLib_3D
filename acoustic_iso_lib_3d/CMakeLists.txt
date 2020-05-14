@@ -40,6 +40,7 @@ find_package(TBB REQUIRED)
 
 # Acoustic isotropic operators
 add_subdirectory(acoustic_iso_double)
+add_subdirectory(acoustic_iso_float)
 
 # Acoustic isotropic python interface
 add_subdirectory(python/python_double)

@@ -82,7 +82,7 @@ bool getGpuInfo_3D(std::vector<int> gpuList, int info, int deviceNumberInfo){
 
 	return true;
 }
-void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int nts, double dts, int sub, int minPad, int blockSize, double alphaCos, int nGpu, int iGpuId, int iGpuAlloc){
+void initNonlinearGpu_3D(float dz, float dx, float dy, int nz, int nx, int ny, int nts, float dts, int sub, int minPad, int blockSize, float alphaCos, int nGpu, int iGpuId, int iGpuAlloc){
 
 	// Set GPU
 	cudaSetDevice(iGpuId);
@@ -103,27 +103,27 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 	if (iGpuId == iGpuAlloc) {
 
 		// Time slices for FD stepping
-		dev_p0 = new double*[nGpu];
-		dev_p1 = new double*[nGpu];
-		dev_temp1 = new double*[nGpu];
+		dev_p0 = new float*[nGpu];
+		dev_p1 = new float*[nGpu];
+		dev_temp1 = new float*[nGpu];
 
 		// Data and model
-		dev_modelRegDtw = new double*[nGpu];
-		dev_dataRegDts = new double*[nGpu];
+		dev_modelRegDtw = new float*[nGpu];
+		dev_dataRegDts = new float*[nGpu];
 
 		// Source and receivers
 		dev_sourcesPositionReg = new long long*[nGpu];
 		dev_receiversPositionReg = new long long*[nGpu];
 
 		// Scaled velocity
-		dev_vel2Dtw2 = new double*[nGpu];
+		dev_vel2Dtw2 = new float*[nGpu];
 
 		// Damping slice
-		dev_dampingSlice = new double*[nGpu];
+		dev_dampingSlice = new float*[nGpu];
 
 		// Debug model and data
-		dev_modelDebug = new double*[nGpu];
-		dev_dataDebug = new double*[nGpu];
+		dev_modelDebug = new float*[nGpu];
+		dev_dataDebug = new float*[nGpu];
 
 		// Compute and transfer stream
 		topStream = new cudaStream_t[nGpu];
@@ -133,7 +133,7 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 
 	/**************************** COMPUTE LAPLACIAN COEFFICIENTS ************************/
 	// Compute coefficients for 8th order central finite difference Laplacian
-	double host_coeff[COEFF_SIZE] = get_coeffs((double)dz,(double)dx,(double)dy); // Stored on host
+	float host_coeff[COEFF_SIZE] = get_coeffs((float)dz,(float)dx,(float)dy); // Stored on host
 
 	/**************************** COMPUTE TIME-INTERPOLATION FILTER *********************/
 	// Time interpolation filter length / half length
@@ -147,12 +147,12 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 	}
 
 	// Allocate and fill time interpolation filter
-	double interpFilter[nInterpFilter];
+	float interpFilter[nInterpFilter];
 	for (int iFilter = 0; iFilter < hInterpFilter; iFilter++){
 		interpFilter[iFilter] = 1.0 - 1.0 * iFilter/host_sub;
 		interpFilter[iFilter+hInterpFilter] = 1.0 - interpFilter[iFilter];
-		interpFilter[iFilter] = interpFilter[iFilter] * (1.0 / sqrt(double(host_ntw)/double(host_nts)));
-		interpFilter[iFilter+hInterpFilter] = interpFilter[iFilter+hInterpFilter] * (1.0 / sqrt(double(host_ntw)/double(host_nts)));
+		interpFilter[iFilter] = interpFilter[iFilter] * (1.0 / sqrt(float(host_ntw)/float(host_nts)));
+		interpFilter[iFilter+hInterpFilter] = interpFilter[iFilter+hInterpFilter] * (1.0 / sqrt(float(host_ntw)/float(host_nts)));
 	}
 
 	/************************* COMPUTE COSINE DAMPING COEFFICIENTS **********************/
@@ -160,11 +160,11 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 		std::cout << "**** ERROR [nonlinearShotsGpuFunctions_3D]: Padding value is too high ****" << std::endl;
 		assert (1==2);
 	}
-	double cosDampingCoeff[minPad];
+	float cosDampingCoeff[minPad];
 
 	// Cosine padding
 	for (int iFilter=FAT; iFilter<FAT+minPad; iFilter++){
-		double arg = M_PI / (1.0 * minPad) * 1.0 * (minPad-iFilter+FAT);
+		float arg = M_PI / (1.0 * minPad) * 1.0 * (minPad-iFilter+FAT);
 		arg = alphaCos + (1.0-alphaCos) * cos(arg);
 		cosDampingCoeff[iFilter-FAT] = arg;
 		// std::cout << "Damp array gpu [" << iFilter-FAT << "] = " << arg << std::endl;
@@ -178,16 +178,16 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 
 	/**************************** COPY TO CONSTANT MEMORY *******************************/
 	// Laplacian coefficients
-	cuda_call(cudaMemcpyToSymbol(dev_coeff, host_coeff, COEFF_SIZE*sizeof(double), 0, cudaMemcpyHostToDevice)); // Copy Laplacian coefficients to device
+	cuda_call(cudaMemcpyToSymbol(dev_coeff, host_coeff, COEFF_SIZE*sizeof(float), 0, cudaMemcpyHostToDevice)); // Copy Laplacian coefficients to device
 
 	// Time interpolation filter
 	cuda_call(cudaMemcpyToSymbol(dev_nTimeInterpFilter, &nInterpFilter, sizeof(int), 0, cudaMemcpyHostToDevice)); // Filter length
 	cuda_call(cudaMemcpyToSymbol(dev_hTimeInterpFilter, &hInterpFilter, sizeof(int), 0, cudaMemcpyHostToDevice)); // Filter half-length
-	cuda_call(cudaMemcpyToSymbol(dev_timeInterpFilter, interpFilter, nInterpFilter*sizeof(double), 0, cudaMemcpyHostToDevice)); // Filter
+	cuda_call(cudaMemcpyToSymbol(dev_timeInterpFilter, interpFilter, nInterpFilter*sizeof(float), 0, cudaMemcpyHostToDevice)); // Filter
 
 	// Cosine damping parameters
-	cuda_call(cudaMemcpyToSymbol(dev_cosDampingCoeff, &cosDampingCoeff, minPad*sizeof(double), 0, cudaMemcpyHostToDevice)); // Array for damping
-	cuda_call(cudaMemcpyToSymbol(dev_alphaCos, &alphaCos, sizeof(double), 0, cudaMemcpyHostToDevice)); // Coefficient in the damping formula
+	cuda_call(cudaMemcpyToSymbol(dev_cosDampingCoeff, &cosDampingCoeff, minPad*sizeof(float), 0, cudaMemcpyHostToDevice)); // Array for damping
+	cuda_call(cudaMemcpyToSymbol(dev_alphaCos, &alphaCos, sizeof(float), 0, cudaMemcpyHostToDevice)); // Coefficient in the damping formula
 	cuda_call(cudaMemcpyToSymbol(dev_minPad, &minPad, sizeof(int), 0, cudaMemcpyHostToDevice)); // min (zPadMinus, zPadPlus, xPadMinus, xPadPlus)
 
 	// FD parameters
@@ -201,22 +201,22 @@ void initNonlinearGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny
 	cuda_call(cudaMemcpyToSymbol(dev_ntw, &host_ntw, sizeof(int), 0, cudaMemcpyHostToDevice)); // Copy number of coarse time parameters to device
 
 }
-void allocateNonlinearGpu_3D(double *vel2Dtw2, int iGpu, int iGpuId){
+void allocateNonlinearGpu_3D(float *vel2Dtw2, int iGpu, int iGpuId){
 
 	// Get GPU number
 	cudaSetDevice(iGpuId);
 
 	// Scaled velocity
-	cuda_call(cudaMalloc((void**) &dev_vel2Dtw2[iGpu], host_nModel*sizeof(double))); // Allocate scaled velocity model on device
-	cuda_call(cudaMemcpy(dev_vel2Dtw2[iGpu], vel2Dtw2, host_nModel*sizeof(double), cudaMemcpyHostToDevice));
+	cuda_call(cudaMalloc((void**) &dev_vel2Dtw2[iGpu], host_nModel*sizeof(float))); // Allocate scaled velocity model on device
+	cuda_call(cudaMemcpy(dev_vel2Dtw2[iGpu], vel2Dtw2, host_nModel*sizeof(float), cudaMemcpyHostToDevice));
 
 	// Damping slice
-	cuda_call(cudaMalloc((void**) &dev_dampingSlice[iGpu], host_nModel*sizeof(double))); // Allocate scaled velocity model on device
-	cuda_call(cudaMemcpy(dev_dampingSlice[iGpu], vel2Dtw2, host_nModel*sizeof(double), cudaMemcpyHostToDevice));
+	cuda_call(cudaMalloc((void**) &dev_dampingSlice[iGpu], host_nModel*sizeof(float))); // Allocate scaled velocity model on device
+	cuda_call(cudaMemcpy(dev_dampingSlice[iGpu], vel2Dtw2, host_nModel*sizeof(float), cudaMemcpyHostToDevice));
 
 	// Allocate time slices on device
-	cuda_call(cudaMalloc((void**) &dev_p0[iGpu], host_nModel*sizeof(double))); // Allocate time slices on device (for the stepper)
-	cuda_call(cudaMalloc((void**) &dev_p1[iGpu], host_nModel*sizeof(double)));
+	cuda_call(cudaMalloc((void**) &dev_p0[iGpu], host_nModel*sizeof(float))); // Allocate time slices on device (for the stepper)
+	cuda_call(cudaMalloc((void**) &dev_p1[iGpu], host_nModel*sizeof(float)));
 
 }
 void deallocateNonlinearGpu_3D(int iGpu, int iGpuId){
@@ -229,7 +229,7 @@ void deallocateNonlinearGpu_3D(int iGpu, int iGpuId){
 /****************************************************************************************/
 /******************************* Nonlinear forward propagation **************************/
 /****************************************************************************************/
-void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId) {
+void propShotsFwdGpu_3D(float *modelRegDtw, float *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId) {
 
 	// Set device number on GPU cluster
 	cudaSetDevice(iGpuId);
@@ -245,17 +245,17 @@ void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
 
 	// Model
-  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(double))); // Allocate input on device
-	cuda_call(cudaMemcpy(dev_modelRegDtw[iGpu], modelRegDtw, nSourcesReg*host_ntw*sizeof(double), cudaMemcpyHostToDevice)); // Copy input signals on device
+  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(float))); // Allocate input on device
+	cuda_call(cudaMemcpy(dev_modelRegDtw[iGpu], modelRegDtw, nSourcesReg*host_ntw*sizeof(float), cudaMemcpyHostToDevice)); // Copy input signals on device
 
 	// Data
-  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate output on device
-  	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize output on device
+  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate output on device
+  	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize output on device
 
 	// Time slices
-  	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(double)));
-	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(double)));
-	cuda_call(cudaMemset(dev_dampingSlice[iGpu], 0, host_nModel*sizeof(double)));
+  	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(float)));
+	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(float)));
+	cuda_call(cudaMemset(dev_dampingSlice[iGpu], 0, host_nModel*sizeof(float)));
 
 	// Laplacian grid and blocks
 	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
@@ -283,7 +283,7 @@ void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 
 	// Timer
 	std::clock_t start;
-	double duration;
+	float duration;
 	start = std::clock();
 
 	// Loop over coarse time samples
@@ -320,11 +320,11 @@ void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 		}
 	}
 
-	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
+	duration = (std::clock() - start) / (float) CLOCKS_PER_SEC;
 	std::cout << "duration: " << duration << std::endl;
 
 	// Copy data back to host
-	cuda_call(cudaMemcpy(dataRegDts, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost));
+	cuda_call(cudaMemcpy(dataRegDts, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float), cudaMemcpyDeviceToHost));
 
 	// Deallocate
     cuda_call(cudaFree(dev_modelRegDtw[iGpu]));
@@ -334,7 +334,7 @@ void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 
 }
 
-void propShotsFwdGpu_3D_dampTest(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId, double *dampVolume) {
+void propShotsFwdGpu_3D_dampTest(float *modelRegDtw, float *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId, float *dampVolume) {
 
 	// Set device number on GPU cluster
 	cudaSetDevice(iGpuId);
@@ -350,24 +350,24 @@ void propShotsFwdGpu_3D_dampTest(double *modelRegDtw, double *dataRegDts, long l
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
 
 	// Model
-  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(double))); // Allocate input on device
-	cuda_call(cudaMemcpy(dev_modelRegDtw[iGpu], modelRegDtw, nSourcesReg*host_ntw*sizeof(double), cudaMemcpyHostToDevice)); // Copy input signals on device
+  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(float))); // Allocate input on device
+	cuda_call(cudaMemcpy(dev_modelRegDtw[iGpu], modelRegDtw, nSourcesReg*host_ntw*sizeof(float), cudaMemcpyHostToDevice)); // Copy input signals on device
 
 	// Data
-  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate output on device
-  	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize output on device
+  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate output on device
+  	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize output on device
 
 	// Time slices
-  	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(double)));
-	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(double)));
-	// cuda_call(cudaMemset(dev_dampingSlice[iGpu], 0, host_nModel*sizeof(double)));
+  	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(float)));
+	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(float)));
+	// cuda_call(cudaMemset(dev_dampingSlice[iGpu], 0, host_nModel*sizeof(float)));
 
-	// double *p0, *p1, *pDiff;
-	// p0 = new double[host_nModel];
-	// p1 = new double[host_nModel];
-	// pDiff = new double[host_nModel];
-	// std::memset(p0, 0, host_nModel*sizeof(double));
-	// std::memset(p1, 0, host_nModel*sizeof(double));
+	// float *p0, *p1, *pDiff;
+	// p0 = new float[host_nModel];
+	// p1 = new float[host_nModel];
+	// pDiff = new float[host_nModel];
+	// std::memset(p0, 0, host_nModel*sizeof(float));
+	// std::memset(p1, 0, host_nModel*sizeof(float));
 
 	// Set p0 and p1 to zero
 	// std::fill(p0, p0+host_nModel, 0.0);
@@ -389,8 +389,8 @@ void propShotsFwdGpu_3D_dampTest(double *modelRegDtw, double *dataRegDts, long l
 	// 	}
 	// }
 
-	// cuda_call(cudaMemcpy(dev_p0[iGpu], p0, host_nModel*sizeof(double), cudaMemcpyHostToDevice));
-	// cuda_call(cudaMemcpy(dev_p1[iGpu], p1, host_nModel*sizeof(double), cudaMemcpyHostToDevice));
+	// cuda_call(cudaMemcpy(dev_p0[iGpu], p0, host_nModel*sizeof(float), cudaMemcpyHostToDevice));
+	// cuda_call(cudaMemcpy(dev_p1[iGpu], p1, host_nModel*sizeof(float), cudaMemcpyHostToDevice));
 	//
 	// std::cout << "p0 min after = " << *std::min_element(p0,p0+host_nModel) << std::endl;
 	// std::cout << "p0 max after = " << *std::max_element(p0,p0+host_nModel) << std::endl;
@@ -425,7 +425,7 @@ void propShotsFwdGpu_3D_dampTest(double *modelRegDtw, double *dataRegDts, long l
 
 	// Timer
 	std::clock_t start;
-	double duration;
+	float duration;
 	start = std::clock();
 
 	// Damp front / back
@@ -475,8 +475,8 @@ void propShotsFwdGpu_3D_dampTest(double *modelRegDtw, double *dataRegDts, long l
 	}
 
 	// Compare damp volumes CPU/GPU
-	// cuda_call(cudaMemcpy(p0, dev_p0[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
-	// cuda_call(cudaMemcpy(p1, dev_p1[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
+	// cuda_call(cudaMemcpy(p0, dev_p0[iGpu], host_nModel*sizeof(float), cudaMemcpyDeviceToHost));
+	// cuda_call(cudaMemcpy(p1, dev_p1[iGpu], host_nModel*sizeof(float), cudaMemcpyDeviceToHost));
 	//
 	// for (long long iGlobal = 0; iGlobal < host_nModel; iGlobal++){
 	//
@@ -487,11 +487,11 @@ void propShotsFwdGpu_3D_dampTest(double *modelRegDtw, double *dataRegDts, long l
 	// std::cout << "pDiff min after = " << *std::min_element(pDiff,pDiff+host_nModel) << std::endl;
 	// std::cout << "pDiff max after = " << *std::max_element(pDiff,pDiff+host_nModel) << std::endl;
 
-	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
+	duration = (std::clock() - start) / (float) CLOCKS_PER_SEC;
 	std::cout << "duration: " << duration << std::endl;
 
 	// Copy data back to host
-	cuda_call(cudaMemcpy(dataRegDts, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost));
+	cuda_call(cudaMemcpy(dataRegDts, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float), cudaMemcpyDeviceToHost));
 
 	// Deallocate
     cuda_call(cudaFree(dev_modelRegDtw[iGpu]));
@@ -501,7 +501,7 @@ void propShotsFwdGpu_3D_dampTest(double *modelRegDtw, double *dataRegDts, long l
 
 }
 
-void propShotsFwdFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId) {
+void propShotsFwdFreeSurfaceGpu_3D(float *modelRegDtw, float *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId) {
 
 	// Set device number on GPU cluster
 	cudaSetDevice(iGpuId);
@@ -517,16 +517,16 @@ void propShotsFwdFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
 
 	// Model
-  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(double))); // Allocate input on device
-	cuda_call(cudaMemcpy(dev_modelRegDtw[iGpu], modelRegDtw, nSourcesReg*host_ntw*sizeof(double), cudaMemcpyHostToDevice)); // Copy input signals on device
+  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(float))); // Allocate input on device
+	cuda_call(cudaMemcpy(dev_modelRegDtw[iGpu], modelRegDtw, nSourcesReg*host_ntw*sizeof(float), cudaMemcpyHostToDevice)); // Copy input signals on device
 
 	// Data
-  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate output on device
-  	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize output on device
+  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate output on device
+  	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize output on device
 
 	// Time slices
-  	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(double)));
-	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(double)));
+  	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(float)));
+	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(float)));
 
 	// Laplacian grid and blocks
 	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
@@ -575,7 +575,7 @@ void propShotsFwdFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long
 	}
 
 	// Copy data back to host
-	cuda_call(cudaMemcpy(dataRegDts, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost));
+	cuda_call(cudaMemcpy(dataRegDts, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float), cudaMemcpyDeviceToHost));
 
 	// Deallocate
     cuda_call(cudaFree(dev_modelRegDtw[iGpu]));
@@ -588,7 +588,7 @@ void propShotsFwdFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long
 /****************************************************************************************/
 /******************************* Nonlinear adjoint propagation **************************/
 /****************************************************************************************/
-void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId) {
+void propShotsAdjGpu_3D(float *modelRegDtw, float *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId) {
 
 	// Set device number on GPU cluster
 	cudaSetDevice(iGpuId);
@@ -613,16 +613,16 @@ void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
 
 	// Model
-  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(double))); // Allocate model on device
-  	cuda_call(cudaMemset(dev_modelRegDtw[iGpu], 0, nSourcesReg*host_ntw*sizeof(double))); // Initialize model on device
+  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(float))); // Allocate model on device
+  	cuda_call(cudaMemset(dev_modelRegDtw[iGpu], 0, nSourcesReg*host_ntw*sizeof(float))); // Initialize model on device
 
 	// Data
-  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data on device
-	cuda_call(cudaMemcpy(dev_dataRegDts[iGpu], dataRegDts, nReceiversReg*host_nts*sizeof(double), cudaMemcpyHostToDevice)); // Copy data on device
+  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data on device
+	cuda_call(cudaMemcpy(dev_dataRegDts[iGpu], dataRegDts, nReceiversReg*host_nts*sizeof(float), cudaMemcpyHostToDevice)); // Copy data on device
 
 	// Initialize time slices on device
-	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(double)));
-  	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(double)));
+	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(float)));
+  	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(float)));
 
 	// Grid and block dimensions for stepper
 	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
@@ -667,7 +667,7 @@ void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 	}
 
 	// Copy data back to host
-	cuda_call(cudaMemcpy(modelRegDtw, dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(double), cudaMemcpyDeviceToHost));
+	cuda_call(cudaMemcpy(modelRegDtw, dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(float), cudaMemcpyDeviceToHost));
 
 	// Deallocate all slices
     cuda_call(cudaFree(dev_modelRegDtw[iGpu]));
@@ -677,7 +677,7 @@ void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 
 }
 
-void propShotsAdjFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId) {
+void propShotsAdjFreeSurfaceGpu_3D(float *modelRegDtw, float *dataRegDts, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId) {
 
 	// Set device number on GPU cluster
 	cudaSetDevice(iGpuId);
@@ -702,16 +702,16 @@ void propShotsAdjFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
 
 	// Model
-  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(double))); // Allocate model on device
-  	cuda_call(cudaMemset(dev_modelRegDtw[iGpu], 0, nSourcesReg*host_ntw*sizeof(double))); // Initialize model on device
+  	cuda_call(cudaMalloc((void**) &dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(float))); // Allocate model on device
+  	cuda_call(cudaMemset(dev_modelRegDtw[iGpu], 0, nSourcesReg*host_ntw*sizeof(float))); // Initialize model on device
 
 	// Data
-  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data on device
-	cuda_call(cudaMemcpy(dev_dataRegDts[iGpu], dataRegDts, nReceiversReg*host_nts*sizeof(double), cudaMemcpyHostToDevice)); // Copy data on device
+  	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data on device
+	cuda_call(cudaMemcpy(dev_dataRegDts[iGpu], dataRegDts, nReceiversReg*host_nts*sizeof(float), cudaMemcpyHostToDevice)); // Copy data on device
 
 	// Initialize time slices on device
-	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(double)));
-  	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(double)));
+	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(float)));
+  	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(float)));
 
 	// Grid and block dimensions for stepper
 	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
@@ -792,7 +792,7 @@ void propShotsAdjFreeSurfaceGpu_3D(double *modelRegDtw, double *dataRegDts, long
 	// }
 
 	// Copy data back to host
-	cuda_call(cudaMemcpy(modelRegDtw, dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(double), cudaMemcpyDeviceToHost));
+	cuda_call(cudaMemcpy(modelRegDtw, dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(float), cudaMemcpyDeviceToHost));
 
 	// Deallocate all slices
     cuda_call(cudaFree(dev_modelRegDtw[iGpu]));

@@ -4,7 +4,7 @@
 #include "nonlinearPropGpu_3D.h"
 
 // Constructor
-nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector) {
+nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector) {
 
 	// Setup parameters
 	_par = par;
@@ -58,7 +58,7 @@ void nonlinearPropShotsGpu_3D::createGpuIdList_3D(){
 }
 
 // Forward
-void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<double2DReg> model, std::shared_ptr<double3DReg> data) const {
+void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<float2DReg> model, std::shared_ptr<float3DReg> data) const {
 
 	if (!add) data->scale(0.0);
 
@@ -79,12 +79,12 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 	else {constantRecGeom=0;}
 
 	// Create a vector that will contain copies of the model that will be sent to each GPU
-	std::vector<std::shared_ptr<double2DReg>> modelSliceVector;
+	std::vector<std::shared_ptr<float2DReg>> modelSliceVector;
 	axis dummyAxis(1);
 	std::shared_ptr<SEP::hypercube> hyperModelSlice(new hypercube(model->getHyper()->getAxis(1), dummyAxis)); // Add a dummy axis so that each component of the model slice vector is a 2D array
 
     // Create a vector that will contain copies of the data (for each shot) that will be sent to each GPU
-	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
+	std::vector<std::shared_ptr<float2DReg>> dataSliceVector;
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
 
     // Create a vector that will contain copies nonlinearPropGpu_3D that will be sent to each GPU
@@ -110,11 +110,11 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 		allocateNonlinearGpu_3D(propObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, iGpu, _gpuList[iGpu]);
 
 		// Model slice
-		std::shared_ptr<SEP::double2DReg> modelSlice(new SEP::double2DReg(hyperModelSlice));
+		std::shared_ptr<SEP::float2DReg> modelSlice(new SEP::float2DReg(hyperModelSlice));
 		modelSliceVector.push_back(modelSlice);
 
 		// Data slice
-		std::shared_ptr<SEP::double2DReg> dataSlice(new SEP::double2DReg(hyperDataSlice));
+		std::shared_ptr<SEP::float2DReg> dataSlice(new SEP::float2DReg(hyperDataSlice));
 		dataSliceVector.push_back(dataSlice);
 
 	}
@@ -144,9 +144,9 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 
 		// Copy model slice (wavelet)
 		if(constantSrcSignal == 1) {
-			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[0]), sizeof(double)*hyperModelSlice->getAxis(1).n);
+			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[0]), sizeof(float)*hyperModelSlice->getAxis(1).n);
 		} else {
-			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[iShot*hyperModelSlice->getAxis(1).n]), sizeof(double)*hyperModelSlice->getAxis(1).n);
+			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[iShot*hyperModelSlice->getAxis(1).n]), sizeof(float)*hyperModelSlice->getAxis(1).n);
 		}
 
 		// Set acquisition geometry
@@ -185,7 +185,7 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 }
 
 // Adjoint
-void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DReg> model, const std::shared_ptr<double3DReg> data) const {
+void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float2DReg> model, const std::shared_ptr<float3DReg> data) const {
 
 	if (!add) model->scale(0.0);
 
@@ -205,8 +205,8 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 	axis dummyAxis(1);
 	std::shared_ptr<SEP::hypercube> hyperModelSlice(new hypercube(model->getHyper()->getAxis(1), dummyAxis));
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
-	std::vector<std::shared_ptr<double2DReg>> modelSliceVector;
-	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
+	std::vector<std::shared_ptr<float2DReg>> modelSliceVector;
+	std::vector<std::shared_ptr<float2DReg>> dataSliceVector;
 	std::vector<std::shared_ptr<nonlinearPropGpu_3D>> propObjectVector;
 
 	// Loop over GPUs
@@ -225,12 +225,12 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 		allocateNonlinearGpu_3D(propObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, iGpu, _gpuList[iGpu]);
 
 		// Model slice
-		std::shared_ptr<SEP::double2DReg> modelSlice(new SEP::double2DReg(hyperModelSlice));
+		std::shared_ptr<SEP::float2DReg> modelSlice(new SEP::float2DReg(hyperModelSlice));
 		modelSliceVector.push_back(modelSlice);
 		modelSliceVector[iGpu]->scale(0.0); // Initialize each model slice to zero
 
 		// Data slice
-		std::shared_ptr<SEP::double2DReg> dataSlice(new SEP::double2DReg(hyperDataSlice));
+		std::shared_ptr<SEP::float2DReg> dataSlice(new SEP::float2DReg(hyperDataSlice));
 		dataSliceVector.push_back(dataSlice);
 
 	}
@@ -243,7 +243,7 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 		int iGpuId = _gpuList[iGpu];
 
 		// Copy data slice
-		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[iShot*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n]), sizeof(double)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
+		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[iShot*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n]), sizeof(float)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
 
 		// Set acquisition geometry
 		if(constantRecGeom == 1) {
