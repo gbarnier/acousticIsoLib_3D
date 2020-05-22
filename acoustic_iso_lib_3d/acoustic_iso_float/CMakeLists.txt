@@ -37,10 +37,10 @@ target_link_libraries(ACOUSTIC_ISO_FLOAT_NL_3D ${LIBS} OpenMP::OpenMP_CXX)
 
 # Compiling the project executables
 # Model padding program for GPU
-add_executable(padFileGpuMain_3D ${SRC_DIR}/padFileGpuMain_3D.cpp)
-target_link_libraries(padFileGpuMain_3D ${LIBS} OpenMP::OpenMP_CXX)
+# add_executable(padFileGpuMain_3D ${SRC_DIR}/padFileGpuMain_3D.cpp)
+# target_link_libraries(padFileGpuMain_3D ${LIBS} OpenMP::OpenMP_CXX)
 
 #Adding libray and header files to install destination
 install(TARGETS ACOUSTIC_ISO_FLOAT_NL_3D DESTINATION lib)
-install(TARGETS padFileGpuMain_3D DESTINATION bin)
+# install(TARGETS padFileGpuMain_3D DESTINATION bin)
 install(FILES ${HEADERS} DESTINATION include)

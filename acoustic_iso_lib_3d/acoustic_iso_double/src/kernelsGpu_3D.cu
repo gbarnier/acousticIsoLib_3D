@@ -584,7 +584,7 @@ __global__ void stepFwdGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
     // Each thread will have its own version of this array
     // Question: is that on the global memory? -> can it fit in the register?
     // Why do we create this temporary array and not call it directly from global memory?
-    double dev_c_y[2*FAT+1];
+    double dev_c_y[2*FAT];
 
     // Number of elements in one y-slice
     long long yStride = dev_nz * dev_nx;
@@ -601,10 +601,10 @@ __global__ void stepFwdGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
     dev_c_y[2] = dev_c[iGlobalTemp+=yStride]; // iy = 1
     dev_c_y[3] = dev_c[iGlobalTemp+=yStride]; // iy = 2
     shared_c[ixLocal][izLocal] = dev_c[iGlobalTemp+=yStride]; // Only the central point on the y-axis is stored in the shared memory // iy = 3
-    dev_c_y[5] = dev_c[iGlobalTemp+=yStride]; // iy = 4
-    dev_c_y[6] = dev_c[iGlobalTemp+=yStride]; // iy = 5
-    dev_c_y[7] = dev_c[iGlobalTemp+=yStride];// iy = 6
-    dev_c_y[8] = dev_c[iGlobalTemp+=yStride]; // At that point, iyTemp = 2*FAT-1 // iy = 7
+    dev_c_y[4] = dev_c[iGlobalTemp+=yStride]; // iy = 4
+    dev_c_y[5] = dev_c[iGlobalTemp+=yStride]; // iy = 5
+    dev_c_y[6] = dev_c[iGlobalTemp+=yStride];// iy = 6
+    dev_c_y[7] = dev_c[iGlobalTemp+=yStride]; // At that point, iyTemp = 2*FAT-1 // iy = 7
 
     // Loop over y
     for (long long iy=FAT; iy<dev_ny-FAT; iy++){
@@ -614,12 +614,12 @@ __global__ void stepFwdGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
         dev_c_y[1] = dev_c_y[2];
         dev_c_y[2] = dev_c_y[3];
         dev_c_y[3] = shared_c[ixLocal][izLocal];
-		__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
-        shared_c[ixLocal][izLocal] = dev_c_y[5]; // Store the middle one in the shared memory (it will be re-used to compute the Laplacian in the z- and x-directions)
+				__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
+        shared_c[ixLocal][izLocal] = dev_c_y[4]; // Store the middle one in the shared memory (it will be re-used to compute the Laplacian in the z- and x-directions)
+        dev_c_y[4] = dev_c_y[5];
         dev_c_y[5] = dev_c_y[6];
         dev_c_y[6] = dev_c_y[7];
-        dev_c_y[7] = dev_c_y[8];
-        dev_c_y[8] = dev_c[iGlobalTemp+=yStride]; // The last point of the stencil now points to the next y-slice
+        dev_c_y[7] = dev_c[iGlobalTemp+=yStride]; // The last point of the stencil now points to the next y-slice
 
         // Remark on assignments just above:
         // iyTemp = iy + FAT
@@ -628,21 +628,21 @@ __global__ void stepFwdGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
         // Load the halos in the x-direction
         // Threads with x-index ranging from 0,...,FAT will load the first and last FAT elements of the block on the x-axis to shared memory
         if (threadIdx.y < FAT) {
-    		// shared_c[ixLocal-FAT][izLocal] = dev_c[iGlobal-dev_nz*FAT]; // Left side
-			shared_c[threadIdx.y][izLocal] = dev_c[iGlobal-dev_nz*FAT]; // Left side
-    		shared_c[ixLocal+BLOCK_SIZE_X][izLocal] = dev_c[iGlobal+dev_nz*BLOCK_SIZE_X]; // Right side
-    	}
+    			// shared_c[ixLocal-FAT][izLocal] = dev_c[iGlobal-dev_nz*FAT]; // Left side
+					shared_c[threadIdx.y][izLocal] = dev_c[iGlobal-dev_nz*FAT]; // Left side
+    			shared_c[ixLocal+BLOCK_SIZE_X][izLocal] = dev_c[iGlobal+dev_nz*BLOCK_SIZE_X]; // Right side
+    		}
 
         // Load the halos in the z-direction
         if (threadIdx.x < FAT) {
-    		shared_c[ixLocal][threadIdx.x] = dev_c[iGlobal-FAT]; // Up
-    		shared_c[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_c[iGlobal+BLOCK_SIZE_Z]; // Down
-    	}
+    			shared_c[ixLocal][threadIdx.x] = dev_c[iGlobal-FAT]; // Up
+    			shared_c[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_c[iGlobal+BLOCK_SIZE_Z]; // Down
+    		}
 
         // Wait until all threads of this block have loaded the slice y-slice into shared memory
         __syncthreads(); // Synchronise all threads within each block
-    	// For a given block, we have now loaded the entire "block slice" plus the halos on both directions into the shared memory
-    	// We can now compute the Laplacian value at each point of the entire block slice
+    		// For a given block, we have now loaded the entire "block slice" plus the halos on both directions into the shared memory
+    		// We can now compute the Laplacian value at each point of the entire block slice
 
         // Apply forward stepping operator
         dev_n[iGlobal] = dev_vel2Dtw2[iGlobal] * (
@@ -651,19 +651,19 @@ __global__ void stepFwdGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
 
             + dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] )
             + dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] )
-            + dev_coeff[CY1] * ( dev_c_y[3] + dev_c_y[5] )
+            + dev_coeff[CY1] * ( dev_c_y[3] + dev_c_y[4] )
 
             + dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] )
             + dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] )
-            + dev_coeff[CY2] * ( dev_c_y[2] + dev_c_y[6] )
+            + dev_coeff[CY2] * ( dev_c_y[2] + dev_c_y[5] )
 
             + dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] )
             + dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] )
-            + dev_coeff[CY3] * ( dev_c_y[1] + dev_c_y[7] )
+            + dev_coeff[CY3] * ( dev_c_y[1] + dev_c_y[6] )
 
             + dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] )
             + dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] )
-            + dev_coeff[CY4] * ( dev_c_y[0] + dev_c_y[8] )
+            + dev_coeff[CY4] * ( dev_c_y[0] + dev_c_y[7] )
 
         ) + 2.0 * shared_c[ixLocal][izLocal] - dev_o[iGlobal];
 
@@ -711,8 +711,8 @@ __global__ void stepAdjGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
     // Each thread will have its own version of this array
     // Question: is that on the global memory? -> can it fit in the register?
     // Why do we create this temporary array and not call it directly from global memory?
-    double dev_c_y[2*FAT+1]; // Array for the current wavefield y-slice
-    double dev_vel_y[2*FAT+1]; // Array for the scaled velocity y-slice
+    double dev_c_y[2*FAT]; // Array for the current wavefield y-slice
+    double dev_vel_y[2*FAT]; // Array for the scaled velocity y-slice
 
     // Number of elements in one y-slice
     long long yStride = dev_nz * dev_nx;
@@ -726,49 +726,49 @@ __global__ void stepAdjGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
 
     // Load the values along the y-direction (Remember: each thread has its own version of dev_c_y and dev_vel_y array)
     // Points from the current wavefield time-slice that will be used by the current block
-    dev_c_y[1] = dev_c[iGlobalTemp];								dev_vel_y[1] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[1] = dev_c[iGlobalTemp];										dev_vel_y[1] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[2] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[2] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[3] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[3] = dev_vel2Dtw2[iGlobalTemp];
-	// These ones go to shared memory because used multiple times in Laplacian computation for the z- and x-directions
+		// These ones go to shared memory because used multiple times in Laplacian computation for the z- and x-directions
     shared_c[ixLocal][izLocal] = dev_c[iGlobalTemp+=yStride]; 		shared_vel[ixLocal][izLocal] = dev_vel2Dtw2[iGlobalTemp];
-	dev_c_y[5] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[5] = dev_vel2Dtw2[iGlobalTemp];
-    dev_c_y[6] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[6] = dev_vel2Dtw2[iGlobalTemp];
-	dev_c_y[7] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
-    dev_c_y[8] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[8] = dev_vel2Dtw2[iGlobalTemp];
+		dev_c_y[4] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[4] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[5] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[5] = dev_vel2Dtw2[iGlobalTemp];
+		dev_c_y[6] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[6] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[7] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
 
     // Loop over y
     for (long long iyGlobal=FAT; iyGlobal<dev_ny-FAT; iyGlobal++){
 
         // Update temporary arrays with current wavefield values along the y-axis
-        dev_c_y[0] = dev_c_y[1];						dev_vel_y[0] = dev_vel_y[1];
-        dev_c_y[1] = dev_c_y[2];						dev_vel_y[1] = dev_vel_y[2];
-        dev_c_y[2] = dev_c_y[3];						dev_vel_y[2] = dev_vel_y[3];
+        dev_c_y[0] = dev_c_y[1];										dev_vel_y[0] = dev_vel_y[1];
+        dev_c_y[1] = dev_c_y[2];										dev_vel_y[1] = dev_vel_y[2];
+        dev_c_y[2] = dev_c_y[3];										dev_vel_y[2] = dev_vel_y[3];
         dev_c_y[3] = shared_c[ixLocal][izLocal];		dev_vel_y[3] = shared_vel[ixLocal][izLocal];
-		__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
-        shared_c[ixLocal][izLocal] = dev_c_y[5]; 		shared_vel[ixLocal][izLocal] = dev_vel_y[5]; // Load central points to shared memory (for both current slice and scaled velocity)
-        dev_c_y[5] = dev_c_y[6];						dev_vel_y[5] = dev_vel_y[6];
-        dev_c_y[6] = dev_c_y[7];						dev_vel_y[6] = dev_vel_y[7];
-        dev_c_y[7] = dev_c_y[8];						dev_vel_y[7] = dev_vel_y[8];
-        dev_c_y[8] = dev_c[iGlobalTemp+=yStride];		dev_vel_y[8] = dev_vel2Dtw2[iGlobalTemp];
+				__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
+        shared_c[ixLocal][izLocal] = dev_c_y[4]; 		shared_vel[ixLocal][izLocal] = dev_vel_y[4]; // Load central points to shared memory (for both current slice and scaled velocity)
+        dev_c_y[4] = dev_c_y[5];										dev_vel_y[4] = dev_vel_y[5];
+        dev_c_y[5] = dev_c_y[6];										dev_vel_y[5] = dev_vel_y[6];
+        dev_c_y[6] = dev_c_y[7];										dev_vel_y[6] = dev_vel_y[7];
+        dev_c_y[7] = dev_c[iGlobalTemp+=yStride];		dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
 
         // Load the halos in the z-direction
         if (threadIdx.x < FAT) {
-            // Top halo
-    		shared_c[ixLocal][izLocal-FAT] = dev_c[iGlobal-FAT];
-            shared_vel[ixLocal][izLocal-FAT] = dev_vel2Dtw2[iGlobal-FAT];
-            // Bottom halo
-    		shared_c[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_c[iGlobal+BLOCK_SIZE_Z];
-    		shared_vel[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_vel2Dtw2[iGlobal+BLOCK_SIZE_Z];
-    	}
+          // Top halo
+    			shared_c[ixLocal][izLocal-FAT] = dev_c[iGlobal-FAT];
+          shared_vel[ixLocal][izLocal-FAT] = dev_vel2Dtw2[iGlobal-FAT];
+          // Bottom halo
+    			shared_c[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_c[iGlobal+BLOCK_SIZE_Z];
+    			shared_vel[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_vel2Dtw2[iGlobal+BLOCK_SIZE_Z];
+    		}
         // Load the halos in the x-direction
         if (threadIdx.y < FAT) {
-            // Left side
-    		shared_c[ixLocal-FAT][izLocal] = dev_c[iGlobal-dev_nz*FAT];
-            shared_vel[ixLocal-FAT][izLocal] = dev_vel2Dtw2[iGlobal-dev_nz*FAT];
-            // Right side
-    		shared_c[ixLocal+BLOCK_SIZE_X][izLocal] = dev_c[iGlobal+dev_nz*BLOCK_SIZE_X];
-    		shared_vel[ixLocal+BLOCK_SIZE_X][izLocal] = dev_vel2Dtw2[iGlobal+dev_nz*BLOCK_SIZE_X];
-    	}
+          // Left side
+    			shared_c[ixLocal-FAT][izLocal] = dev_c[iGlobal-dev_nz*FAT];
+          shared_vel[ixLocal-FAT][izLocal] = dev_vel2Dtw2[iGlobal-dev_nz*FAT];
+          // Right side
+    			shared_c[ixLocal+BLOCK_SIZE_X][izLocal] = dev_c[iGlobal+dev_nz*BLOCK_SIZE_X];
+    			shared_vel[ixLocal+BLOCK_SIZE_X][izLocal] = dev_vel2Dtw2[iGlobal+dev_nz*BLOCK_SIZE_X];
+    		}
 
         // Wait until all threads of this block have loaded the slice y-slice into shared memory
         __syncthreads();
@@ -780,19 +780,19 @@ __global__ void stepAdjGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
 
             + dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
             + dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
-            + dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[5] * dev_vel_y[5])
+            + dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[4] * dev_vel_y[4])
 
             + dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
             + dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
-            + dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[6] * dev_vel_y[6])
+            + dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[5] * dev_vel_y[5])
 
             + dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
             + dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
-            + dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[7] * dev_vel_y[7])
+            + dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[6] * dev_vel_y[6])
 
             + dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
             + dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
-            + dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[8] * dev_vel_y[8])
+            + dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[7] * dev_vel_y[7])
 
         ) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
 
@@ -806,23 +806,23 @@ __global__ void stepAdjGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
 __global__ void stepAdjFreeSurfaceGpu_3D(double *dev_o, double *dev_c, double *dev_n, double *dev_vel2Dtw2) {
 
     // Allocate shared memory for a specific block
-	__shared__ double shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
-	__shared__ double shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
+		__shared__ double shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
+		__shared__ double shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
 
     // Global coordinates for the faster two axes (z and x)
-	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
-	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+		long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+		long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
 
     // Local coordinates for the fastest two axes
-	long long izLocal = FAT + threadIdx.x; // z-coordinate on the local grid stored in shared memory
-	long long ixLocal = FAT + threadIdx.y; // x-coordinate on the local grid stored in shared memory
+		long long izLocal = FAT + threadIdx.x; // z-coordinate on the local grid stored in shared memory
+		long long ixLocal = FAT + threadIdx.y; // x-coordinate on the local grid stored in shared memory
 
     // Allocate (on global memory?) the array that will store the wavefield values in the y-direction
     // Each thread will have its own version of this array
     // Question: is that on the global memory? -> can it fit in the register?
     // Why do we create this temporary array and not call it directly from global memory?
-    double dev_c_y[2*FAT+1]; // Array for the current wavefield y-slice
-    double dev_vel_y[2*FAT+1]; // Array for the scaled velocity y-slice
+    double dev_c_y[2*FAT]; // Array for the current wavefield y-slice
+    double dev_vel_y[2*FAT]; // Array for the scaled velocity y-slice
 
     // Number of elements in one y-slice
     long long yStride = dev_nz * dev_nx;
@@ -836,167 +836,169 @@ __global__ void stepAdjFreeSurfaceGpu_3D(double *dev_o, double *dev_c, double *d
 
     // Load the values along the y-direction (Remember: each thread has its own version of dev_c_y and dev_vel_y array)
     // Points from the current wavefield time-slice that will be used by the current block
-    dev_c_y[1] = dev_c[iGlobalTemp];								dev_vel_y[1] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[1] = dev_c[iGlobalTemp];										dev_vel_y[1] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[2] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[2] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[3] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[3] = dev_vel2Dtw2[iGlobalTemp];
-	// These ones go to shared memory because used multiple times in Laplacian computation for the z- and x-directions
+		// These ones go to shared memory because used multiple times in Laplacian computation for the z- and x-directions
     shared_c[ixLocal][izLocal] = dev_c[iGlobalTemp+=yStride]; 		shared_vel[ixLocal][izLocal] = dev_vel2Dtw2[iGlobalTemp];
-	dev_c_y[5] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[5] = dev_vel2Dtw2[iGlobalTemp];
-    dev_c_y[6] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[6] = dev_vel2Dtw2[iGlobalTemp];
-	dev_c_y[7] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
-    dev_c_y[8] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[8] = dev_vel2Dtw2[iGlobalTemp];
+		dev_c_y[4] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[4] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[5] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[5] = dev_vel2Dtw2[iGlobalTemp];
+		dev_c_y[6] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[6] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[7] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
 
     // Loop over y
     for (long long iyGlobal=FAT; iyGlobal<dev_ny-FAT; iyGlobal++){
 
         // Update temporary arrays with current wavefield values along the y-axis
-        dev_c_y[0] = dev_c_y[1];						dev_vel_y[0] = dev_vel_y[1];
-        dev_c_y[1] = dev_c_y[2];						dev_vel_y[1] = dev_vel_y[2];
-        dev_c_y[2] = dev_c_y[3];						dev_vel_y[2] = dev_vel_y[3];
+        dev_c_y[0] = dev_c_y[1];										dev_vel_y[0] = dev_vel_y[1];
+        dev_c_y[1] = dev_c_y[2];										dev_vel_y[1] = dev_vel_y[2];
+        dev_c_y[2] = dev_c_y[3];										dev_vel_y[2] = dev_vel_y[3];
         dev_c_y[3] = shared_c[ixLocal][izLocal];		dev_vel_y[3] = shared_vel[ixLocal][izLocal];
-		__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
-        shared_c[ixLocal][izLocal] = dev_c_y[5]; 		shared_vel[ixLocal][izLocal] = dev_vel_y[5]; // Load central points to shared memory (for both current slice and scaled velocity)
-        dev_c_y[5] = dev_c_y[6];						dev_vel_y[5] = dev_vel_y[6];
-        dev_c_y[6] = dev_c_y[7];						dev_vel_y[6] = dev_vel_y[7];
-        dev_c_y[7] = dev_c_y[8];						dev_vel_y[7] = dev_vel_y[8];
-        dev_c_y[8] = dev_c[iGlobalTemp+=yStride];		dev_vel_y[8] = dev_vel2Dtw2[iGlobalTemp];
+				__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
+        shared_c[ixLocal][izLocal] = dev_c_y[4]; 		shared_vel[ixLocal][izLocal] = dev_vel_y[4]; // Load central points to shared memory (for both current slice and scaled velocity)
+        dev_c_y[4] = dev_c_y[5];										dev_vel_y[4] = dev_vel_y[5];
+        dev_c_y[5] = dev_c_y[6];										dev_vel_y[5] = dev_vel_y[6];
+        dev_c_y[6] = dev_c_y[7];										dev_vel_y[6] = dev_vel_y[7];
+        dev_c_y[7] = dev_c[iGlobalTemp+=yStride];		dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
 
         // Load the halos in the z-direction
         if (threadIdx.x < FAT) {
-            // Top halo
-    		shared_c[ixLocal][izLocal-FAT] = dev_c[iGlobal-FAT];
-            shared_vel[ixLocal][izLocal-FAT] = dev_vel2Dtw2[iGlobal-FAT];
-            // Bottom halo
-    		shared_c[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_c[iGlobal+BLOCK_SIZE_Z];
-    		shared_vel[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_vel2Dtw2[iGlobal+BLOCK_SIZE_Z];
-    	}
+          // Top halo
+    			shared_c[ixLocal][izLocal-FAT] = dev_c[iGlobal-FAT];
+          shared_vel[ixLocal][izLocal-FAT] = dev_vel2Dtw2[iGlobal-FAT];
+          // Bottom halo
+    			shared_c[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_c[iGlobal+BLOCK_SIZE_Z];
+    			shared_vel[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_vel2Dtw2[iGlobal+BLOCK_SIZE_Z];
+    		}
         // Load the halos in the x-direction
         if (threadIdx.y < FAT) {
-            // Left side
-    		shared_c[ixLocal-FAT][izLocal] = dev_c[iGlobal-dev_nz*FAT];
-            shared_vel[ixLocal-FAT][izLocal] = dev_vel2Dtw2[iGlobal-dev_nz*FAT];
-            // Right side
-    		shared_c[ixLocal+BLOCK_SIZE_X][izLocal] = dev_c[iGlobal+dev_nz*BLOCK_SIZE_X];
-    		shared_vel[ixLocal+BLOCK_SIZE_X][izLocal] = dev_vel2Dtw2[iGlobal+dev_nz*BLOCK_SIZE_X];
-    	}
+          // Left side
+    			shared_c[ixLocal-FAT][izLocal] = dev_c[iGlobal-dev_nz*FAT];
+          shared_vel[ixLocal-FAT][izLocal] = dev_vel2Dtw2[iGlobal-dev_nz*FAT];
+          // Right side
+    			shared_c[ixLocal+BLOCK_SIZE_X][izLocal] = dev_c[iGlobal+dev_nz*BLOCK_SIZE_X];
+    			shared_vel[ixLocal+BLOCK_SIZE_X][izLocal] = dev_vel2Dtw2[iGlobal+dev_nz*BLOCK_SIZE_X];
+    		}
 
         // Wait until all threads of this block have loaded the slice y-slice into shared memory
         __syncthreads();
 
         // Apply adjoint stepping operator
-		// if (izGlobal == 4){
-			// dev_o[iGlobal] = - dev_n[iGlobal];
-		// 	dev_o[iGlobal] = 0.0;
-		// }
-		if (izGlobal == 5){
+				// if (izGlobal == 4){
+				// dev_o[iGlobal] = - dev_n[iGlobal];
+				// 	dev_o[iGlobal] = 0.0;
+				// }
+				if (izGlobal == 5){
 	        dev_o[iGlobal] = (
 
 	            dev_coeff[C0] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
 
 	            + dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
 	            + dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
-	            + dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[5] * dev_vel_y[5])
+	            + dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[4] * dev_vel_y[4])
 
-				- dev_coeff[CZ2] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
-				- dev_coeff[CZ3] * shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1]
-				- dev_coeff[CZ4] * shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2]
+							- dev_coeff[CZ2] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
+							- dev_coeff[CZ3] * shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1]
+							- dev_coeff[CZ4] * shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2]
 
 	            + dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
 	            + dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
-	            + dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[6] * dev_vel_y[6])
+	            + dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[5] * dev_vel_y[5])
 
 	            + dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
 	            + dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
-	            + dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[7] * dev_vel_y[7])
+	            + dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[6] * dev_vel_y[6])
 
 	            + dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
 	            + dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
-	            + dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[8] * dev_vel_y[8])
+	            + dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[7] * dev_vel_y[7])
 
 	        ) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
 
-		}
+				}
 
-		if (izGlobal == 6){
+				if (izGlobal == 6){
 
-			dev_o[iGlobal] = (
+					dev_o[iGlobal] = (
 
-				dev_coeff[C0] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
+						dev_coeff[C0] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
 
-				+ dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
-				+ dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
-				+ dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[5] * dev_vel_y[5])
+						+ dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
+						+ dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
+						+ dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[4] * dev_vel_y[4])
 
-				- dev_coeff[CZ3] * shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1]
-				- dev_coeff[CZ4] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
+						- dev_coeff[CZ3] * shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1]
+						- dev_coeff[CZ4] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
 
-				+ dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
-				+ dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
-				+ dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[6] * dev_vel_y[6])
+						+ dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
+						+ dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
+						+ dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[5] * dev_vel_y[5])
 
-				+ dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
-				+ dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
-				+ dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[7] * dev_vel_y[7])
+						+ dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
+						+ dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
+						+ dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[6] * dev_vel_y[6])
 
-				+ dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
-				+ dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
-				+ dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[8] * dev_vel_y[8])
+						+ dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
+						+ dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
+						+ dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[7] * dev_vel_y[7])
 
-			) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
+				) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
 
-		}
-		if (izGlobal == 7){
+			}
 
-			dev_o[iGlobal] = (
+			if (izGlobal == 7){
 
-				dev_coeff[C0] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
+				dev_o[iGlobal] = (
 
-				+ dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
-				+ dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
-				+ dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[5] * dev_vel_y[5])
+					dev_coeff[C0] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
 
-				- dev_coeff[CZ4] * shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2]
+					+ dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
+					+ dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
+					+ dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[4] * dev_vel_y[4])
 
-				+ dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
-				+ dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
-				+ dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[6] * dev_vel_y[6])
+					- dev_coeff[CZ4] * shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2]
 
-				+ dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
-				+ dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
-				+ dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[7] * dev_vel_y[7])
+					+ dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
+					+ dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
+					+ dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[5] * dev_vel_y[5])
 
-				+ dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
-				+ dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
-				+ dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[8] * dev_vel_y[8])
+					+ dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
+					+ dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
+					+ dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[6] * dev_vel_y[6])
 
-			) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
+					+ dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
+					+ dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
+					+ dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[7] * dev_vel_y[7])
 
-		}
-		if (izGlobal > 7){
+				) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
 
-			dev_o[iGlobal] = (
+			}
 
-				dev_coeff[C0] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
+			if (izGlobal > 7){
 
-				+ dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
-				+ dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
-				+ dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[5] * dev_vel_y[5])
+				dev_o[iGlobal] = (
 
-				+ dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
-				+ dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
-				+ dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[6] * dev_vel_y[6])
+					dev_coeff[C0] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
 
-				+ dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
-				+ dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
-				+ dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[7] * dev_vel_y[7])
+					+ dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
+					+ dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
+					+ dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[4] * dev_vel_y[4])
 
-				+ dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
-				+ dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
-				+ dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[8] * dev_vel_y[8])
+					+ dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
+					+ dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
+					+ dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[5] * dev_vel_y[5])
 
-			) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
-		}
-		iGlobal = iGlobal + yStride;
+					+ dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
+					+ dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
+					+ dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[6] * dev_vel_y[6])
+
+					+ dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
+					+ dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
+					+ dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[7] * dev_vel_y[7])
+
+				) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
+			}
+			iGlobal = iGlobal + yStride;
     }
 }
 
@@ -1004,23 +1006,23 @@ __global__ void stepAdjFreeSurfaceGpu_3D(double *dev_o, double *dev_c, double *d
 __global__ void stepAdjBodyFreeSurfaceGpu_3D(double *dev_o, double *dev_c, double *dev_n, double *dev_vel2Dtw2) {
 
     // Allocate shared memory for a specific block
-	__shared__ double shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
-	__shared__ double shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
+		__shared__ double shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Current wavefield y-slice block
+		__shared__ double shared_vel[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT]; // Scaled velocity y-slice block
 
     // Global coordinates for the faster two axes (z and x)
-	long long izGlobal = FAT + (blockIdx.x + 1) * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
-	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+		long long izGlobal = FAT + (blockIdx.x + 1) * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+		long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
 
     // Local coordinates for the fastest two axes
-	long long izLocal = FAT + threadIdx.x; // z-coordinate on the local grid stored in shared memory
-	long long ixLocal = FAT + threadIdx.y; // x-coordinate on the local grid stored in shared memory
+		long long izLocal = FAT + threadIdx.x; // z-coordinate on the local grid stored in shared memory
+		long long ixLocal = FAT + threadIdx.y; // x-coordinate on the local grid stored in shared memory
 
     // Allocate (on global memory?) the array that will store the wavefield values in the y-direction
     // Each thread will have its own version of this array
     // Question: is that on the global memory? -> can it fit in the register?
     // Why do we create this temporary array and not call it directly from global memory?
-    double dev_c_y[2*FAT+1]; // Array for the current wavefield y-slice
-    double dev_vel_y[2*FAT+1]; // Array for the scaled velocity y-slice
+    double dev_c_y[2*FAT]; // Array for the current wavefield y-slice
+    double dev_vel_y[2*FAT]; // Array for the scaled velocity y-slice
 
     // Number of elements in one y-slice
     long long yStride = dev_nz * dev_nx;
@@ -1034,76 +1036,76 @@ __global__ void stepAdjBodyFreeSurfaceGpu_3D(double *dev_o, double *dev_c, doubl
 
     // Load the values along the y-direction (Remember: each thread has its own version of dev_c_y and dev_vel_y array)
     // Points from the current wavefield time-slice that will be used by the current block
-    dev_c_y[1] = dev_c[iGlobalTemp];								dev_vel_y[1] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[1] = dev_c[iGlobalTemp];										dev_vel_y[1] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[2] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[2] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[3] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[3] = dev_vel2Dtw2[iGlobalTemp];
-	// These ones go to shared memory because used multiple times in Laplacian computation for the z- and x-directions
+		// These ones go to shared memory because used multiple times in Laplacian computation for the z- and x-directions
     shared_c[ixLocal][izLocal] = dev_c[iGlobalTemp+=yStride]; 		shared_vel[ixLocal][izLocal] = dev_vel2Dtw2[iGlobalTemp];
-	dev_c_y[5] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[5] = dev_vel2Dtw2[iGlobalTemp];
-    dev_c_y[6] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[6] = dev_vel2Dtw2[iGlobalTemp];
-	dev_c_y[7] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
-    dev_c_y[8] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[8] = dev_vel2Dtw2[iGlobalTemp];
+		dev_c_y[4] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[4] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[5] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[5] = dev_vel2Dtw2[iGlobalTemp];
+		dev_c_y[6] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[6] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[7] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
 
     // Loop over y
     for (long long iyGlobal=FAT; iyGlobal<dev_ny-FAT; iyGlobal++){
 
         // Update temporary arrays with current wavefield values along the y-axis
-        dev_c_y[0] = dev_c_y[1];						dev_vel_y[0] = dev_vel_y[1];
-        dev_c_y[1] = dev_c_y[2];						dev_vel_y[1] = dev_vel_y[2];
-        dev_c_y[2] = dev_c_y[3];						dev_vel_y[2] = dev_vel_y[3];
+        dev_c_y[0] = dev_c_y[1];										dev_vel_y[0] = dev_vel_y[1];
+        dev_c_y[1] = dev_c_y[2];										dev_vel_y[1] = dev_vel_y[2];
+        dev_c_y[2] = dev_c_y[3];										dev_vel_y[2] = dev_vel_y[3];
         dev_c_y[3] = shared_c[ixLocal][izLocal];		dev_vel_y[3] = shared_vel[ixLocal][izLocal];
-		__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
-        shared_c[ixLocal][izLocal] = dev_c_y[5]; 		shared_vel[ixLocal][izLocal] = dev_vel_y[5]; // Load central points to shared memory (for both current slice and scaled velocity)
-        dev_c_y[5] = dev_c_y[6];						dev_vel_y[5] = dev_vel_y[6];
-        dev_c_y[6] = dev_c_y[7];						dev_vel_y[6] = dev_vel_y[7];
-        dev_c_y[7] = dev_c_y[8];						dev_vel_y[7] = dev_vel_y[8];
-        dev_c_y[8] = dev_c[iGlobalTemp+=yStride];		dev_vel_y[8] = dev_vel2Dtw2[iGlobalTemp];
+				__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
+        shared_c[ixLocal][izLocal] = dev_c_y[4]; 		shared_vel[ixLocal][izLocal] = dev_vel_y[4]; // Load central points to shared memory (for both current slice and scaled velocity)
+        dev_c_y[4] = dev_c_y[5];										dev_vel_y[4] = dev_vel_y[5];
+        dev_c_y[5] = dev_c_y[6];										dev_vel_y[5] = dev_vel_y[6];
+        dev_c_y[6] = dev_c_y[7];										dev_vel_y[6] = dev_vel_y[7];
+        dev_c_y[7] = dev_c[iGlobalTemp+=yStride];		dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
 
         // Load the halos in the z-direction
         if (threadIdx.x < FAT) {
-            // Top halo
-    		shared_c[ixLocal][izLocal-FAT] = dev_c[iGlobal-FAT];
-            shared_vel[ixLocal][izLocal-FAT] = dev_vel2Dtw2[iGlobal-FAT];
-            // Bottom halo
-    		shared_c[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_c[iGlobal+BLOCK_SIZE_Z];
-    		shared_vel[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_vel2Dtw2[iGlobal+BLOCK_SIZE_Z];
-    	}
+          // Top halo
+    			shared_c[ixLocal][izLocal-FAT] = dev_c[iGlobal-FAT];
+          shared_vel[ixLocal][izLocal-FAT] = dev_vel2Dtw2[iGlobal-FAT];
+          // Bottom halo
+    			shared_c[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_c[iGlobal+BLOCK_SIZE_Z];
+    			shared_vel[ixLocal][izLocal+BLOCK_SIZE_Z] = dev_vel2Dtw2[iGlobal+BLOCK_SIZE_Z];
+    		}
         // Load the halos in the x-direction
         if (threadIdx.y < FAT) {
-            // Left side
-    		shared_c[ixLocal-FAT][izLocal] = dev_c[iGlobal-dev_nz*FAT];
-            shared_vel[ixLocal-FAT][izLocal] = dev_vel2Dtw2[iGlobal-dev_nz*FAT];
-            // Right side
-    		shared_c[ixLocal+BLOCK_SIZE_X][izLocal] = dev_c[iGlobal+dev_nz*BLOCK_SIZE_X];
-    		shared_vel[ixLocal+BLOCK_SIZE_X][izLocal] = dev_vel2Dtw2[iGlobal+dev_nz*BLOCK_SIZE_X];
-    	}
+          // Left side
+    			shared_c[ixLocal-FAT][izLocal] = dev_c[iGlobal-dev_nz*FAT];
+          shared_vel[ixLocal-FAT][izLocal] = dev_vel2Dtw2[iGlobal-dev_nz*FAT];
+          // Right side
+    			shared_c[ixLocal+BLOCK_SIZE_X][izLocal] = dev_c[iGlobal+dev_nz*BLOCK_SIZE_X];
+    			shared_vel[ixLocal+BLOCK_SIZE_X][izLocal] = dev_vel2Dtw2[iGlobal+dev_nz*BLOCK_SIZE_X];
+    		}
 
         // Wait until all threads of this block have loaded the slice y-slice into shared memory
         __syncthreads();
 
-		dev_o[iGlobal] = (
+				dev_o[iGlobal] = (
 
-			dev_coeff[C0] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
+					dev_coeff[C0] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
 
-			+ dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
-			+ dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
-			+ dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[5] * dev_vel_y[5])
+					+ dev_coeff[CZ1] * ( shared_c[ixLocal][izLocal-1] * shared_vel[ixLocal][izLocal-1] + shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1] )
+					+ dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
+					+ dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[4] * dev_vel_y[4])
 
-			+ dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
-			+ dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
-			+ dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[6] * dev_vel_y[6])
+					+ dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
+					+ dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
+					+ dev_coeff[CY2] * ( dev_c_y[2] * dev_vel_y[2] + dev_c_y[5] * dev_vel_y[5])
 
-			+ dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
-			+ dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
-			+ dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[7] * dev_vel_y[7])
+					+ dev_coeff[CZ3] * ( shared_c[ixLocal][izLocal-3] * shared_vel[ixLocal][izLocal-3] + shared_c[ixLocal][izLocal+3] * shared_vel[ixLocal][izLocal+3] )
+					+ dev_coeff[CX3] * ( shared_c[ixLocal-3][izLocal] * shared_vel[ixLocal-3][izLocal] + shared_c[ixLocal+3][izLocal] * shared_vel[ixLocal+3][izLocal] )
+					+ dev_coeff[CY3] * ( dev_c_y[1] * dev_vel_y[1] + dev_c_y[6] * dev_vel_y[6])
 
-			+ dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
-			+ dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
-			+ dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[8] * dev_vel_y[8])
+					+ dev_coeff[CZ4] * ( shared_c[ixLocal][izLocal-4] * shared_vel[ixLocal][izLocal-4] + shared_c[ixLocal][izLocal+4] * shared_vel[ixLocal][izLocal+4] )
+					+ dev_coeff[CX4] * ( shared_c[ixLocal-4][izLocal] * shared_vel[ixLocal-4][izLocal] + shared_c[ixLocal+4][izLocal] * shared_vel[ixLocal+4][izLocal] )
+					+ dev_coeff[CY4] * ( dev_c_y[0] * dev_vel_y[0] + dev_c_y[7] * dev_vel_y[7])
 
-		) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
-		iGlobal = iGlobal + yStride;
-    }
+				) + 2.0 * shared_c[ixLocal][izLocal] - dev_n[iGlobal];
+			iGlobal = iGlobal + yStride;
+    	}
 }
 
 /******************************************************************************/
