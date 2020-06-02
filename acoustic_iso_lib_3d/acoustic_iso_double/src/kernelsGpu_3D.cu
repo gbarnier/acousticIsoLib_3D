@@ -607,6 +607,7 @@ __global__ void stepFwdGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
     dev_c_y[7] = dev_c[iGlobalTemp+=yStride]; // At that point, iyTemp = 2*FAT-1 // iy = 7
 
     // Loop over y
+		#pragma unroll(9)
     for (long long iy=FAT; iy<dev_ny-FAT; iy++){
 
         // Update values along the y-axis
@@ -737,6 +738,7 @@ __global__ void stepAdjGpu_3D(double *dev_o, double *dev_c, double *dev_n, doubl
     dev_c_y[7] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
 
     // Loop over y
+		#pragma unroll(9)
     for (long long iyGlobal=FAT; iyGlobal<dev_ny-FAT; iyGlobal++){
 
         // Update temporary arrays with current wavefield values along the y-axis
