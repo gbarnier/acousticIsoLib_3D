@@ -163,8 +163,10 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<flo
 		// std::cout << "data" << dataSliceVector[iGpu]->max() << std::endl;
 		// Launch modeling
 		// std::cout << "[nonlinearShots] Before running forward for iShot= " << iShot << ", iGpu=" << iGpu << std::endl;
+		// std::cout << "forward shots 1 = " << std::endl;
 		propObjectVector[iGpu]->forward(false, modelSliceVector[iGpu], dataSliceVector[iGpu]);
 		// std::cout << "[nonlinearShots] After running forward for iShot= " << iShot << ", iGpu=" << iGpu << std::endl;
+		// std::cout << "forward shots 2 = " << std::endl;
 
 		// Store dataSlice into data
 		#pragma omp parallel for

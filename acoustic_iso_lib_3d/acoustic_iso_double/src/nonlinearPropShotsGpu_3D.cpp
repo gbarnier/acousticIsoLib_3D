@@ -51,7 +51,7 @@ void nonlinearPropShotsGpu_3D::createGpuIdList_3D(){
 	}
 
 	// Check that the user does not ask for more GPUs than shots to be modeled
-	// if (_nGpu > _nShot){std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; assert(1==2);}
+	if (_nGpu > _nShot){std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; assert(1==2);}
 
 	// Allocation of arrays of arrays will be done by the gpu # _gpuList[0]
 	_iGpuAlloc = _gpuList[0];
@@ -154,6 +154,9 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 			propObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _receiversVector[0], modelSliceVector[iGpu], dataSliceVector[iGpu]);
 		} else {
 			propObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _receiversVector[iShot], modelSliceVector[iGpu], dataSliceVector[iGpu]);
+			// Allocate small evlocity for ginsu
+			// Update cuda allocation for propObjectVector[iGpu]
+			// Update fd param
 		}
 
 		// Set GPU number for propagator object

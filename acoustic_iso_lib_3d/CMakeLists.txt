@@ -40,10 +40,12 @@ find_package(TBB REQUIRED)
 
 # Acoustic isotropic operators
 add_subdirectory(acoustic_iso_double)
-# add_subdirectory(acoustic_iso_float)
+add_subdirectory(acoustic_iso_float)
+
 
 # Acoustic isotropic python interface
 add_subdirectory(python/python_double)
+add_subdirectory(python/python_float)
 
 execute_process(COMMAND git submodule update --init --recursive -- external/pySolver WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(external/pySolver/GenericSolver)

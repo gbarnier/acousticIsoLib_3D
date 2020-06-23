@@ -47,7 +47,9 @@ void nonlinearPropGpu_3D::forward(const bool add, const std::shared_ptr<float2DR
 	/* Propagate */
 	if (_fdParam_3D->_freeSurface != 1){
 		if (_fdParam_3D->_par->getInt("dampTest") == 0){
+			// std::cout << "forward 1 = " << std::endl;
 			propShotsFwdGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg,_iGpu, _iGpuId);
+			// std::cout << "forward 2 = " << std::endl;
 		} else {
 			std::cout << "Damping test" << std::endl;
 			propShotsFwdGpu_3D_dampTest(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg,_iGpu, _iGpuId, _fdParam_3D->_dampVolume->getVals());

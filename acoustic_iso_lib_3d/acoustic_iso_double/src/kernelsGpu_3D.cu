@@ -528,7 +528,7 @@ __global__ void dampCosineEdge_3D_32(double *dev_p1, double *dev_p2) {
 
 	    		// Apply damping
 	    		dev_p1[iGlobal] *= damp;
-	    		// dev_p2[iGlobal] *= damp;
+	    		dev_p2[iGlobal] *= damp;
 	    	}
 	    }
 	}

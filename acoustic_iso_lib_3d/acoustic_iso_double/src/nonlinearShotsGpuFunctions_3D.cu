@@ -303,7 +303,7 @@ void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 
 			// Damp wavefields
 			kernel_exec(dampCosineEdge_3D_32<<<dimGridTest1, dimBlockTest1>>>(dev_p0[iGpu], dev_p1[iGpu]));
-			kernel_exec(dampCosineEdge_3D_32<<<dimGridTest1, dimBlockTest1>>>(dev_p1[iGpu], dev_p0[iGpu]));
+			// kernel_exec(dampCosineEdge_3D_32<<<dimGridTest1, dimBlockTest1>>>(dev_p1[iGpu], dev_p0[iGpu]));
 			// kernel_exec(dampCosineEdge_3D<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu]));
 			// kernel_exec(dampCosineEdge_3D_8<<<dimGridTest2, dimBlockTest2>>>(dev_p0[iGpu], dev_p1[iGpu]));
 			// kernel_exec(dampCosineEdge_3DBenchmark<<<dimGrid, dimBlock>>>(dev_p0[iGpu], dev_p1[iGpu], dev_dampingSlice[iGpu]));
@@ -321,7 +321,7 @@ void propShotsFwdGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 	}
 
 	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
-	// std::cout << "duration: " << duration << std::endl;
+	std::cout << "duration: " << duration << std::endl;
 
 	// Copy data back to host
 	cuda_call(cudaMemcpy(dataRegDts, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost));

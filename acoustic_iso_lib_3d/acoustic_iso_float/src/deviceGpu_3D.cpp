@@ -312,7 +312,7 @@ void deviceGpu_3D::checkOutOfBounds(const int &nzDevice, const int &ozDevice, co
 	_nxSmall = _nx - 2 * _fat - _xPadMinus - _xPadPlus;
 	_nySmall = _ny - 2 * _fat - 2 * _yPad;
 
-	// ozDevice, oxDevice and oyDevice are the indices on the grid (laready shifted by fat + padMinus)
+	// ozDevice, oxDevice and oyDevice are the indices on the grid (already shifted by fat + padMinus)
 	int ozDeviceNoShift = ozDevice - _fat - _zPadMinus + 1;
 	int oxDeviceNoShift = oxDevice - _fat - _xPadMinus + 1;
 	int oyDeviceNoShift = oyDevice - _fat - _yPad + 1;
