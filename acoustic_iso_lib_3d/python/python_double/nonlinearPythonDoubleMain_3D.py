@@ -12,8 +12,35 @@ if __name__ == '__main__':
 	# Initialize operator
 	modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector,dataHyperForOutput=Acoustic_iso_double_3D.nonlinearOpInitDouble_3D(sys.argv)
 
+	# Initialize Ginsu
+	if (parObject.getInt("ginsu", 0) == 1):
+		velHyperVectorGinsu, xPadMinusVectorGinsu, xPadPlusVectorGinsu, sourcesVector, receiversVector,_,_ = Acoustic_iso_double_3D.buildGeometryGinsu_3D(parObject,velDouble,sourcesVector,receiversVector)
+
+	# QC acquisition devices
+	# nShot = len(sourcesVector)
+	# print("Position devices after")
+	# for iShot in range(nShot):
+	# 	sourcesVector[iShot].printRegPosUnique()
+	# 	receiversVector[iShot].printRegPosUnique()
+
+	# print("-----------------------")
+	# QC geometry coordinates
+	# Shot 1
+	# print("Shot 1, nzGinsu = ", velHyperVectorGinsu[0].axes[0].n)
+	# print("Shot 1, ozGinsu = ", velHyperVectorGinsu[0].axes[0].o)
+	# print("Shot 1, dzGinsu = ", velHyperVectorGinsu[0].axes[0].d)
+	# print("Shot 1, nxGinsu = ", velHyperVectorGinsu[0].axes[1].n)
+	# print("Shot 1, oxGinsu = ", velHyperVectorGinsu[0].axes[1].o)
+	# print("Shot 1, dxGinsu = ", velHyperVectorGinsu[0].axes[1].d)
+	# print("Shot 1, nyGinsu = ", velHyperVectorGinsu[0].axes[2].n)
+	# print("Shot 1, oyGinsu = ", velHyperVectorGinsu[0].axes[2].o)
+	# print("Shot 1, dyGinsu = ", velHyperVectorGinsu[0].axes[2].d)
+
 	# Construct nonlinear operator object
-	nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector)
+	if (parObject.getInt("ginsu", 0) == 0):
+		nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector)
+	else:
+		nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu)
 
 	#Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
@@ -52,6 +79,11 @@ if __name__ == '__main__':
 
 		# Apply forward
 		nonlinearOp.forward(False,modelDouble,dataDouble)
+		# nonlinearOp.forward(False,modelDouble,dataDouble)
+		# nonlinearOp.forward(False,modelDouble,dataDouble)
+		# nonlinearOp.forward(False,modelDouble,dataDouble)
+		# nonlinearOp.forward(False,modelDouble,dataDouble)
+		# nonlinearOp.forward(False,modelDouble,dataDouble)
 
 		# QC data size
 		# print("dataDouble nDim=",dataDouble.getHyper().getNdim())
@@ -85,7 +117,7 @@ if __name__ == '__main__':
 		# 	genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
 		# Saving damping volumes
-		if (parObject.getInt("saveDampCpu", 1) == 1):
+		if (parObject.getInt("saveDampCpu", 0) == 1):
 			dampCpuDouble = nonlinearOp.getDampVolumeShots_3D()
 			dampCpuFloat=SepVector.getSepVector(dampCpuDouble.getHyper())
 			dampCpuDoubleNp=dampCpuDouble.getNdArray()
@@ -124,6 +156,13 @@ if __name__ == '__main__':
 
 		# Apply adjoint
 		nonlinearOp.adjoint(False,modelDouble,dataDouble)
+		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
+		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
+		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
+		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
+		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
+		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
+		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
 
 		# Write model
 		modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")

@@ -35,8 +35,8 @@ void seismicOperator_3D <V1, V2>::setSources_3D(std::shared_ptr<deviceGpu_3D> so
 	_secTimeDer->forward(false, _sourcesSignalsRegDts, _sourcesSignalsRegDtsDt2);
 
 	// Scale seismic source
-	scaleSeismicSource_3D(_sources, _sourcesSignalsRegDtsDt2, _fdParam_3D); // Scale sources signals by dtw^2 * vel^2
-	scaleSeismicSource_3D(_sources, _sourcesSignalsRegDts, _fdParam_3D); // Scale sources signals by dtw^2 * vel^2
+	scaleSeismicSource_3D(_sources, _sourcesSignalsRegDtsDt2); // Scale sources signals by dtw^2 * vel^2
+	scaleSeismicSource_3D(_sources, _sourcesSignalsRegDts); // Scale sources signals by dtw^2 * vel^2
 
 	// Interpolate to fine time-sampling
 	_timeInterp_3D->forward(false, _sourcesSignalsRegDtsDt2, _sourcesSignalsRegDtwDt2); // Interpolate sources signals to fine time-sampling
@@ -71,18 +71,44 @@ void seismicOperator_3D <V1, V2>::setAcquisition_3D(std::shared_ptr<deviceGpu_3D
 }
 
 // Scale seismic source
+// template <class V1, class V2>
+// void seismicOperator_3D <V1, V2>::scaleSeismicSource_3D(const std::shared_ptr<deviceGpu_3D> seismicSource, std::shared_ptr<V2> signal) const{
+//
+// 	std::shared_ptr<double2D> sig = signal->_mat;
+// 	double *v = _fdParam_3D->_vel->getVals();
+// 	long long *pos = seismicSource->getRegPosUnique();
+//
+// 	#pragma omp parallel for
+// 	for (int iGridPoint = 0; iGridPoint < seismicSource->getNDeviceReg(); iGridPoint++){
+// 		double scale = _fdParam_3D->_dtw * _fdParam_3D->_dtw * v[pos[iGridPoint]]*v[pos[iGridPoint]];
+// 		for (int it = 0; it < signal->getHyper()->getAxis(1).n; it++){
+// 			(*sig)[iGridPoint][it] = (*sig)[iGridPoint][it] * scale;
+// 		}
+// 	}
+// }
+
 template <class V1, class V2>
-void seismicOperator_3D <V1, V2>::scaleSeismicSource_3D(const std::shared_ptr<deviceGpu_3D> seismicSource, std::shared_ptr<V2> signal, const std::shared_ptr<fdParam_3D> parObj) const{
+void seismicOperator_3D <V1, V2>::scaleSeismicSource_3D(const std::shared_ptr<deviceGpu_3D> seismicSource, std::shared_ptr<V2> signal) const{
 
 	std::shared_ptr<double2D> sig = signal->_mat;
-	double *v = _fdParam_3D->_vel->getVals();
 	long long *pos = seismicSource->getRegPosUnique();
 
-	#pragma omp parallel for
-	for (int iGridPoint = 0; iGridPoint < seismicSource->getNDeviceReg(); iGridPoint++){
-		double scale = _fdParam_3D->_dtw * _fdParam_3D->_dtw * v[pos[iGridPoint]]*v[pos[iGridPoint]];
-		for (int it = 0; it < signal->getHyper()->getAxis(1).n; it++){
-			(*sig)[iGridPoint][it] = (*sig)[iGridPoint][it] * scale;
+	if (_ginsu == 0){
+		#pragma omp parallel for
+		for (int iGridPoint = 0; iGridPoint < seismicSource->getNDeviceReg(); iGridPoint++){
+			double scale = _fdParam_3D->_vel2Dtw2[pos[iGridPoint]];
+			for (int it = 0; it < signal->getHyper()->getAxis(1).n; it++){
+				(*sig)[iGridPoint][it] = (*sig)[iGridPoint][it] * scale;
+			}
+		}
+	} else {
+		#pragma omp parallel for
+		for (int iGridPoint = 0; iGridPoint < seismicSource->getNDeviceReg(); iGridPoint++){
+			double scale = _fdParam_3D->_vel2Dtw2Ginsu[pos[iGridPoint]];
+			for (int it = 0; it < signal->getHyper()->getAxis(1).n; it++){
+				(*sig)[iGridPoint][it] = (*sig)[iGridPoint][it] * scale;
+			}
 		}
 	}
+
 }

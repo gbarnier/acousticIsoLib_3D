@@ -17,7 +17,11 @@ class fdParam_3D{
 
 		// Constructor
   		fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared_ptr<paramObj> par);
-		// Destructor
+
+        // Ginsu mutator
+  		void setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu);
+
+        // Destructor
   		~fdParam_3D();
 
 		// QC stuff
@@ -51,6 +55,13 @@ class fdParam_3D{
 		int _saveWavefield, _blockSize, _fat, _freeSurface, _splitTopBody;
 		double _alphaCos;
 		std::string _extension, _offsetType;
+
+        // Ginsu parameters
+        double *_vel2Dtw2Ginsu, *_reflectivityScaleGinsu;
+        int _nzGinsu, _nxGinsu, _nyGinsu;
+        int _zPadMinusGinsu, _zPadPlusGinsu, _xPadMinusGinsu, _xPadPlusGinsu, _yPadMinusGinsu, _yPadPlusGinsu, _zPadGinsu, _xPadGinsu, _yPadGinsu, _minPadGinsu;
+        double _ozGinsu, _dzGinsu, _oxGinsu, _dxGinsu, _oyGinsu, _dyGinsu;
+        int _izGinsu, _ixGinsu, _iyGinsu;
 
 };
 

@@ -13,10 +13,49 @@ nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3D
 	createGpuIdList_3D();
 	_info = par->getInt("info", 0);
 	_deviceNumberInfo = par->getInt("deviceNumberInfo", _gpuList[0]);
-	assert(getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo));
+	if ( not getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo) ){
+		throw std::runtime_error("Error in getGpuInfo_3D");
+   	}
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
+	_ginsu = par->getInt("ginsu");
 
+}
+
+// Constructor for Ginsu
+nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu) {
+
+	// Setup parameters
+	_par = par;
+	_vel = vel;
+	_nShot = par->getInt("nShot");
+	createGpuIdList_3D();
+	_info = par->getInt("info", 0);
+	_deviceNumberInfo = par->getInt("deviceNumberInfo", _gpuList[0]);
+	if ( not getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo) ){
+		throw std::runtime_error("Error in getGpuInfo");
+   	}
+	_sourcesVector = sourcesVector;
+	_receiversVector = receiversVector;
+	_ginsu = par->getInt("ginsu");
+	_velHyperVectorGinsu = velHyperVectorGinsu;
+	_xPadMinusVectorGinsu = xPadMinusVectorGinsu;
+	_xPadPlusVectorGinsu = xPadPlusVectorGinsu;
+
+	// Print pad vector
+	// for (int i=0; i < _xPadMinusVectorGinsu->getHyper()->getAxis(1).n; i++){
+	// 	std::cout << "_xPadMinusVectorGinsu [" << i << "] = " << (*_xPadMinusVectorGinsu->_mat)[i] << std::endl;
+	// 	std::cout << "_xPadPlusVectorGinsu [" << i << "] = " << (*_xPadPlusVectorGinsu->_mat)[i] << std::endl;
+	// 	std::cout << "nzGinsu = " << _velHyperVectorGinsu[i]->getAxis(1).n << std::endl;
+	// 	std::cout << "ozGinsu = " << _velHyperVectorGinsu[i]->getAxis(1).o << std::endl;
+	// 	std::cout << "dzGinsu = " << _velHyperVectorGinsu[i]->getAxis(1).d << std::endl;
+	// 	std::cout << "nxGinsu = " << _velHyperVectorGinsu[i]->getAxis(2).n << std::endl;
+	// 	std::cout << "oxGinsu = " << _velHyperVectorGinsu[i]->getAxis(2).o << std::endl;
+	// 	std::cout << "dxGinsu = " << _velHyperVectorGinsu[i]->getAxis(2).d << std::endl;
+	// 	std::cout << "nyGinsu = " << _velHyperVectorGinsu[i]->getAxis(3).n << std::endl;
+	// 	std::cout << "oyGinsu = " << _velHyperVectorGinsu[i]->getAxis(3).o << std::endl;
+	// 	std::cout << "dyGinsu = " << _velHyperVectorGinsu[i]->getAxis(3).d << std::endl;
+	// }
 }
 
 void nonlinearPropShotsGpu_3D::createGpuIdList_3D(){
@@ -29,7 +68,10 @@ void nonlinearPropShotsGpu_3D::createGpuIdList_3D(){
 	_gpuList = _par->getInts("iGpu", dummyVector);
 
 	// If the user does not provide nGpu > 0 or a valid list -> break
-	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; assert(1==2);}
+	if (_nGpu <= 0 && _gpuList[0]<0){
+		std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl;
+		throw std::runtime_error("");
+	}
 
 	// If user does not provide a valid list but provides nGpu -> use id: 0,...,nGpu-1
 	if (_nGpu>0 && _gpuList[0]<0){
@@ -46,12 +88,12 @@ void nonlinearPropShotsGpu_3D::createGpuIdList_3D(){
 		std::vector<int>::iterator it = std::unique(_gpuList.begin(), _gpuList.end());
 		bool isUnique = (it==_gpuList.end());
 		if (isUnique==0) {
-			std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: Please make sure there are no duplicates in the GPU Id list ****" << std::endl; assert(1==2);
+			std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: Please make sure there are no duplicates in the GPU Id list ****" << std::endl; throw std::runtime_error("");
 		}
 	}
 
 	// Check that the user does not ask for more GPUs than shots to be modeled
-	if (_nGpu > _nShot){std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; assert(1==2);}
+	if (_nGpu > _nShot){std::cout << "**** ERROR [nonlinearPropShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; throw std::runtime_error("");}
 
 	// Allocation of arrays of arrays will be done by the gpu # _gpuList[0]
 	_iGpuAlloc = _gpuList[0];
@@ -68,7 +110,6 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 
 	// Check whether we use the same source signals for all shots
 	if (model->getHyper()->getAxis(2).n == 1) {
-			// std::cout << "Constant source signal over shots" << std::endl;
 			constantSrcSignal = 1; }
 	else {constantSrcSignal=0;}
 
@@ -83,7 +124,7 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 	axis dummyAxis(1);
 	std::shared_ptr<SEP::hypercube> hyperModelSlice(new hypercube(model->getHyper()->getAxis(1), dummyAxis)); // Add a dummy axis so that each component of the model slice vector is a 2D array
 
-    // Create a vector that will contain copies of the data (for each shot) that will be sent to each GPU
+    // Create a vector that will contain slices of the data (for each shot) that will be sent to each GPU
 	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
 
@@ -96,18 +137,20 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
-		// Nonlinear propagator object
+		// Instanciate nonlinear propagator object
 		std::shared_ptr<nonlinearPropGpu_3D> propGpuObject(new nonlinearPropGpu_3D(_vel, _par, _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
 		propObjectVector.push_back(propGpuObject);
 
 		// Display finite-difference parameters info
 		if ( (_info == 1) && (_gpuList[iGpu] == _deviceNumberInfo) ){
 			propGpuObject->getFdParam_3D()->getInfo_3D();
-
 		}
 
-		// Allocate memory on device
-		allocateNonlinearGpu_3D(propObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, iGpu, _gpuList[iGpu]);
+		// No Ginsu
+		if (_ginsu == 0){
+			// Allocate memory on device
+			allocateNonlinearGpu_3D(propObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, iGpu, _gpuList[iGpu]);
+		}
 
 		// Model slice
 		std::shared_ptr<SEP::double2DReg> modelSlice(new SEP::double2DReg(hyperModelSlice));
@@ -119,55 +162,44 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 
 	}
 
-	// std::cout << "_nGpu= " << _nGpu << std::endl;
-	// std::cout << "_nShot= " << _nShot << std::endl;
-	// std::cout << "_gpuList.size() " << _gpuList.size() << std::endl;
-	// for (int i=0; i<_gpuList.size(); i++){
-	// 	std::cout << "gpuList[" << i << "] = " << _gpuList[i] << std::endl;
-	// }
-
+	// std::cout << "Done instanciation shots nonlinear" << std::endl;
 	// Launch nonlinear forward
-	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	// #pragma omp parallel for num_threads(2)
 	// #pragma omp parallel for
-    for (int iShot=0; iShot<_nShot; iShot++){
+	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
+	for (int iShot=0; iShot<_nShot; iShot++){
 
 		int iGpu = omp_get_thread_num();
 		int iGpuId = _gpuList[iGpu];
 
-		// if (iShot == 1){
-		// std::cout << "iShot= " << iShot << " is run by = " << iGpu << " with iGpuId: " << iGpuId << std::endl;
-		// std::cout << "iShot= " << iShot << std::endl;
-		// std::cout << "iGpuId= " << iGpuId << std::endl;
-		// }
-			// std::cout << "iShot = " << iShot << std::endl;
+		// std::cout << "iShot = " << iShot << std::endl;
 
 		// Copy model slice (wavelet)
-		if(constantSrcSignal == 1) {
+		if (constantSrcSignal == 1) {
 			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[0]), sizeof(double)*hyperModelSlice->getAxis(1).n);
 		} else {
 			memcpy(modelSliceVector[iGpu]->getVals(), &(model->getVals()[iShot*hyperModelSlice->getAxis(1).n]), sizeof(double)*hyperModelSlice->getAxis(1).n);
 		}
 
-		// Set acquisition geometry
+		// Set acquisition geometry for the non-Ginsu modeling
 		if (constantRecGeom == 1) {
 			propObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _receiversVector[0], modelSliceVector[iGpu], dataSliceVector[iGpu]);
 		} else {
 			propObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _receiversVector[iShot], modelSliceVector[iGpu], dataSliceVector[iGpu]);
-			// Allocate small evlocity for ginsu
-			// Update cuda allocation for propObjectVector[iGpu]
-			// Update fd param
+		}
+
+		// Ginsu modeling
+		if (_ginsu == 1){
+			// Allocate and set Ginsu
+			propObjectVector[iGpu]->setNonlinearPropGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], iGpu, iGpuId);
+
 		}
 
 		// Set GPU number for propagator object
 		propObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 
-		// std::cout << "Before" << std::endl;
-		// std::cout << "data" << dataSliceVector[iGpu]->max() << std::endl;
-		// Launch modeling
-		// std::cout << "[nonlinearShots] Before running forward for iShot= " << iShot << ", iGpu=" << iGpu << std::endl;
+		// Launch forward
 		propObjectVector[iGpu]->forward(false, modelSliceVector[iGpu], dataSliceVector[iGpu]);
-		// std::cout << "[nonlinearShots] After running forward for iShot= " << iShot << ", iGpu=" << iGpu << std::endl;
 
 		// Store dataSlice into data
 		#pragma omp parallel for
@@ -176,14 +208,18 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
                 (*data->_mat)[iShot][iReceiver][its] += (*dataSliceVector[iGpu]->_mat)[iReceiver][its];
             }
         }
-		// std::cout << "After" << std::endl;
-		// std::cout << "data" << dataSliceVector[iGpu]->max() << std::endl;
-		// std::cout << "[nonlinearShots] Done running forward for iShot= " << iShot << ", iGpu=" << iGpu << std::endl;
+
+		if (_ginsu == 1){
+			// Deallocate memory on GPU
+			deallocateNonlinearGpu_3D(iGpu, iGpuId);
+		}
     }
 
 	// Deallocate memory on device
-	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		deallocateNonlinearGpu_3D(iGpu, _gpuList[iGpu]);
+	if (_ginsu == 0){
+		for (int iGpu=0; iGpu<_nGpu; iGpu++){
+			deallocateNonlinearGpu_3D(iGpu, _gpuList[iGpu]);
+		}
 	}
 }
 
@@ -224,8 +260,11 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 			propGpuObject->getFdParam_3D()->getInfo_3D();
 		}
 
-		// Allocate memory on device
-		allocateNonlinearGpu_3D(propObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, iGpu, _gpuList[iGpu]);
+		// No Ginsu
+		if (_ginsu == 0){
+			// Allocate memory on device
+			allocateNonlinearGpu_3D(propObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, iGpu, _gpuList[iGpu]);
+		}
 
 		// Model slice
 		std::shared_ptr<SEP::double2DReg> modelSlice(new SEP::double2DReg(hyperModelSlice));
@@ -255,6 +294,11 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 			propObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _receiversVector[iShot], modelSliceVector[iGpu], dataSliceVector[iGpu]);
 		}
 
+		// Ginsu modeling
+		if (_ginsu == 1){
+			propObjectVector[iGpu]->setNonlinearPropGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], iGpu, iGpuId);
+		}
+
 		// Set GPU number for propagator object
 		propObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 
@@ -265,10 +309,16 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 		} else {
 			// Copy the shot into model slice --> Is there a way to parallelize this?
 			propObjectVector[iGpu]->adjoint(false, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+
+			// Copy the contribution of this shot into model slice
 			#pragma omp parallel for
 			for (int its=0; its<hyperModelSlice->getAxis(1).n; its++){
 				(*model->_mat)[iShot][its] += (*modelSliceVector[iGpu]->_mat)[0][its];
 			}
+		}
+		if (_ginsu == 1){
+			// Deallocate memory on GPU
+			deallocateNonlinearGpu_3D(iGpu, iGpuId);
 		}
 	}
 
@@ -283,9 +333,10 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 		}
 	}
 
-	// Deallocate memory on device
-	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		deallocateNonlinearGpu_3D(iGpu, _gpuList[iGpu]);
+	if (_ginsu == 0){
+		// Deallocate memory on device
+		for (int iGpu=0; iGpu<_nGpu; iGpu++){
+			deallocateNonlinearGpu_3D(iGpu, _gpuList[iGpu]);
+		}
 	}
-
 }

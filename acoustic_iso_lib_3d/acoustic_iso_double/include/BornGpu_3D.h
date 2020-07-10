@@ -30,6 +30,10 @@ class BornGpu_3D : public seismicOperator_3D<SEP::double3DReg, SEP::double2DReg>
 		/* Overloaded constructors */
 		BornGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::shared_ptr<SEP::double4DReg> srcWavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
 
+		/* Mutator */
+		void resetWavefield(){_srcWavefield->scale(0.0);}
+		void setBornGinsuGpu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int 	xPadMinusGinsu, int xPadPlusGinsu, int iGpu, int iGpuId);
+
 		/* QC */
 		bool checkParfileConsistency_3D(const std::shared_ptr<SEP::double3DReg> model, const std::shared_ptr<SEP::double2DReg> data) const;
 
@@ -39,9 +43,6 @@ class BornGpu_3D : public seismicOperator_3D<SEP::double3DReg, SEP::double2DReg>
 
 		/* Accessors */
 		std::shared_ptr<double4DReg> getSrcWavefield_3D() { return _srcWavefield; }
-
-		/* Mutator */
-		void resetWavefield(){_srcWavefield->scale(0.0);}
 
 		/* Destructor */
 		~BornGpu_3D(){};

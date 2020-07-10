@@ -21,7 +21,7 @@ using namespace SEP;
 class BornShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 
 	private:
-		int _nShot, _nGpu, _iGpuAlloc;
+		int _nShot, _nGpu, _iGpuAlloc, _ginsu;
 		int _info, _deviceNumberInfo;
 		std::shared_ptr<SEP::double3DReg> _vel;
 		std::shared_ptr<SEP::double2DReg> _sourcesSignals;
@@ -30,11 +30,16 @@ class BornShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 		std::vector<std::shared_ptr<SEP::double4DReg>> _srcWavefieldVector;
 		std::vector<int> _gpuList;
 		std::shared_ptr <hypercube> _srcWavefieldHyper;
+		std::vector<std::shared_ptr<SEP::hypercube>> _velHyperVectorGinsu;
+		std::shared_ptr<SEP::int1DReg> _xPadMinusVectorGinsu, _xPadPlusVectorGinsu;
 
 	public:
 
-		/* Overloaded constructors */
-		BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector);
+		/* Overloaded constructor */
+		BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::double4DReg>> srcWavefieldVector);
+
+		/* Overloaded constructor for Ginsu */
+		BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinu, std::vector<std::shared_ptr<SEP::double4DReg>> srcWavefieldVector);
 
 		/* Destructor */
 		~BornShotsGpu_3D(){};

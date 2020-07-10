@@ -25,7 +25,7 @@ class seismicOperator_3D : public Operator <V1, V2> {
 		long long *_sourcesPositionReg, *_receiversPositionReg;
 		int _nSourcesReg, _nReceiversReg;
 		int _nts;
-		int _iGpu, _nGpu, _iGpuId;
+		int _iGpu, _nGpu, _iGpuId, _ginsu;
 		std::shared_ptr<interpTimeLinTbb_3D> _timeInterp_3D;
 		std::shared_ptr<secondTimeDerivative_3D> _secTimeDer;
 		std::shared_ptr<V2> _sourcesSignals, _sourcesSignalsRegDts, _sourcesSignalsRegDtsDt2, _sourcesSignalsRegDtwDt2, _sourcesSignalsRegDtw;
@@ -47,7 +47,7 @@ class seismicOperator_3D : public Operator <V1, V2> {
 		void setAcquisition_3D(std::shared_ptr<deviceGpu_3D> sources, std::shared_ptr<double2DReg> sourcesSignals, std::shared_ptr<deviceGpu_3D> receivers, const std::shared_ptr<V1> model, const std::shared_ptr<V2> data); // Born + Tomo
 
 		// Scaling
-		void scaleSeismicSource_3D(const std::shared_ptr<deviceGpu_3D> seismicSource, std::shared_ptr<V2> signal, const std::shared_ptr<fdParam_3D> parObj) const;
+		void scaleSeismicSource_3D(const std::shared_ptr<deviceGpu_3D> seismicSource, std::shared_ptr<V2> signal) const;
 
 		// Other mutators
 		void setGpuNumber_3D(int iGpu, int iGpuId){_iGpu = iGpu; _iGpuId = iGpuId;}

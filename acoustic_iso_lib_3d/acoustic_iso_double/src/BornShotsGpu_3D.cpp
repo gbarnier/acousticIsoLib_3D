@@ -3,7 +3,7 @@
 #include "BornShotsGpu_3D.h"
 #include "BornGpu_3D.h"
 
-BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector){
+BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::double4DReg>> srcWavefieldVector){
 
 	// Setup parameters
 	_par = par;
@@ -12,28 +12,88 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	createGpuIdList_3D();
 	_info = par->getInt("info", 0);
 	_deviceNumberInfo = par->getInt("deviceNumberInfo", _gpuList[0]);
-	assert(getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo)); // Get info on GPU cluster and check that there are enough available GPUs
+	if (not getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo)){
+		throw std::runtime_error("Error in getGpuInfo_3D");
+   	}
+	_ginsu = par->getInt("ginsu");
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
-	// std::cout << "test0" << std::endl;
-	// Allocate source wavefields for all GPUs
-	// std::cout << "Allocating " << _nGpu << " wavefield(s)" << std::endl;
-	axis zAxis = _vel->getHyper()->getAxis(1);
-	axis xAxis = _vel->getHyper()->getAxis(2);
-	axis yAxis = _vel->getHyper()->getAxis(3);
+	_srcWavefieldVector = srcWavefieldVector;
+
+	// axis zAxis = _vel->getHyper()->getAxis(1);
+	// axis xAxis = _vel->getHyper()->getAxis(2);
+	// axis yAxis = _vel->getHyper()->getAxis(3);
+	// axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
+	// _srcWavefieldHyper = std::make_shared<hypercube>(zAxis, xAxis, yAxis, timeAxis);
+	// double sizeWavefield = zAxis.n * xAxis.n * yAxis.n * timeAxis.n * 8.0 / (1024*1024*1024);
+	// std::cout << "Size of wavefield = " << sizeWavefield << " [GB]" << std::endl;
+
+	// std::cout << "Constructor nz = " << zAxis.n << std::endl;
+	// std::cout << "Constructor nx = " << xAxis.n << std::endl;
+	// std::cout << "Constructor ny = " << yAxis.n << std::endl;
+	// std::cout << "Constructor nts = " << timeAxis.n << std::endl;
+	// std::cout << "z * x = " << zAxis.n * xAxis.n << std::endl;
+	// std::cout << "z * x * y = " << zAxis.n * xAxis.n * yAxis.n << std::endl;
+	// unsigned long long testNumber = zAxis.n * xAxis.n * yAxis.n * 200;
+	// std::cout << "z * x * y * t = " << testNumber << std::endl;
+	// printf("Very Large Number: %lld \n", testNumber);
+	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
+	// 	std::cout << "iGpu 1 = " << iGpu << std::endl;
+	// 	// wavefieldTemp = std::make_shared<SEP::double4DReg>(_srcWavefieldHyper);
+	// 	std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
+	// 	std::cout << "iGpu 2 = " << iGpu << std::endl;
+	// 	_srcWavefieldVector.push_back(wavefieldTemp);
+	// 	_srcWavefieldVector[iGpu]->scale(0.0);
+	// 	std::cout << "iGpu 3 = " << iGpu << std::endl;
+	// }
+}
+
+BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<std::shared_ptr<SEP::double4DReg>> srcWavefieldVector){
+
+	// Setup parameters
+	_par = par;
+	_vel = vel;
+	_nShot = par->getInt("nShot");
+	createGpuIdList_3D();
+	_info = par->getInt("info", 0);
+	_deviceNumberInfo = par->getInt("deviceNumberInfo", _gpuList[0]);
+	if ( not getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo) ){
+		throw std::runtime_error("Error in getGpuInfo");
+   	}
+	_ginsu = par->getInt("ginsu");
+	_sourcesVector = sourcesVector;
+	_receiversVector = receiversVector;
+	_sourcesSignals = sourcesSignals;
+
+	// Compute the dimension of the largest model we will have to allocate among all the different shots
+	axis zAxisWavefield = axis(_vel->getHyper()->getAxis(1).n, 1.0, 1.0);
+	axis xAxisWavefield = axis(nxMaxGinsu, 1.0, 1.0);
+	axis yAxisWavefield = axis(nyMaxGinsu, 1.0, 1.0);
 	axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
-	_srcWavefieldHyper = std::make_shared<hypercube>(zAxis, xAxis, yAxis, timeAxis);
-	// std::shared_ptr<SEP::double4DReg> wavefieldTemp;
-	std::cout << "Allocating wavefields" << std::endl;
-	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// wavefieldTemp = std::make_shared<SEP::double4DReg>(_srcWavefieldHyper);
-		std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
-		_srcWavefieldVector.push_back(wavefieldTemp);
-		_srcWavefieldVector[iGpu]->scale(0.0);
-		// std::cout << "[BornShotGpu]: address for source wavefield inside loop [" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-	}
-	std::cout << "Done allocating wavefields" << std::endl;
+	std::cout << "Ginsu nz = " << zAxisWavefield.n << std::endl;
+	std::cout << "Ginsu nx = " << xAxisWavefield.n << std::endl;
+	std::cout << "Ginsu ny = " << yAxisWavefield.n << std::endl;
+	std::cout << "Ginsu nts = " << timeAxis.n << std::endl;
+	_velHyperVectorGinsu = velHyperVectorGinsu;
+	_xPadMinusVectorGinsu = xPadMinusVectorGinsu;
+	_xPadPlusVectorGinsu = xPadPlusVectorGinsu;
+	_srcWavefieldVector = srcWavefieldVector;
+
+	// _srcWavefieldHyper = std::make_shared<hypercube>(zAxisWavefield, xAxisWavefield, yAxisWavefield, timeAxis);
+	// For each GPU we are going to use
+	// Allocate the wavefield on the CPU
+	// No need to allocate the wavefield for the full model, just nz x nxMax x nyMax x nts
+	// double sizeWavefield = zAxisWavefield.n * xAxisWavefield.n * yAxisWavefield.n * timeAxis.n * 8 / (1024*1024*1024);
+	// std::cout << "Size of wavefield = " << sizeWavefield << " [GB]" << std::endl;
+	// std::cout << "Starting wavefields allocation" << std::endl;
+	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
+	// 	// std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
+	// 	_srcWavefieldVector.push_back(wavefieldTemp);
+	// 	_srcWavefieldVector[iGpu]->scale(0.0);
+	// }
+	// std::cout << "Done allocating wavefields" << std::endl;
+
 }
 
 void BornShotsGpu_3D::createGpuIdList_3D(){
@@ -41,15 +101,12 @@ void BornShotsGpu_3D::createGpuIdList_3D(){
 	// Setup Gpu numbers
 	_nGpu = _par->getInt("nGpu", -1);
 
-	// Check that the user does not ask for more GPUs than shots to be modeled
-	// if (_nGpu > _nShot){std::cout << "**** ERROR [BornShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; assert(1==2);}
-
 	std::vector<int> dummyVector;
  	dummyVector.push_back(-1);
 	_gpuList = _par->getInts("iGpu", dummyVector);
 
 	// If the user does not provide nGpu > 0 or a valid list -> break
-	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [BornShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; assert(1==2);}
+	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [BornShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; throw std::runtime_error("");}
 
 	// If user does not provide a valid list but provides nGpu -> use id: 0,...,nGpu-1
 	if (_nGpu>0 && _gpuList[0]<0){
@@ -66,14 +123,18 @@ void BornShotsGpu_3D::createGpuIdList_3D(){
 		std::vector<int>::iterator it = std::unique(_gpuList.begin(), _gpuList.end());
 		bool isUnique = (it==_gpuList.end());
 		if (isUnique==0) {
-			std::cout << "**** ERROR [BornShotsGpu_3D]: Please make sure there are no duplicates in the list ****" << std::endl; assert(1==2);
+			std::cout << "**** ERROR [BornShotsGpu_3D]: Please make sure there are no duplicates in the list ****" << std::endl; throw std::runtime_error("");
 		}
 	}
+
+	// Check that the user does not ask for more GPUs than shots to be modeled
+	if (_nGpu > _nShot){std::cout << "**** ERROR [BornShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; throw std::runtime_error("");}
 
 	// Allocation of arrays of arrays will be done by the gpu # _gpuList[0]
 	_iGpuAlloc = _gpuList[0];
 }
 
+// Forward
 void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> model, std::shared_ptr<double3DReg> data) const {
 
 	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
@@ -94,7 +155,7 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 
 	// Check if we have constant receiver geometry
 	if (_receiversVector.size() == 1) {
-		// std::cout << "Constant receiver geometry over shots" << std::endl;
+		std::cout << "Constant receiver geometry over shots" << std::endl;
 		constantRecGeom=1;}
 	else {constantRecGeom=0;}
 
@@ -102,35 +163,30 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
 	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
 	std::vector<std::shared_ptr<BornGpu_3D>> BornObjectVector;
-
+	// std::cout << "Here 1" << std::endl;
 	// Loop over GPUs
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-
+		// std::cout << "Here 1a" << std::endl;
 		// Create Born object
-		// std::cout << "Max source wavefield 1 = " << _srcWavefieldVector[iGpu]->max() << std::endl;
-		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
 		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _srcWavefieldVector[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
 		BornObjectVector.push_back(BornGpuObject);
-		// std::cout << "Max source wavefield 2 = " << _srcWavefieldVector[iGpu]->max() << std::endl;
-		// std::cout << "Min source wavefield 2 = " << _srcWavefieldVector[iGpu]->min() << std::endl;
-
+		// std::cout << "Here 1b" << std::endl;
 		// Display finite-difference parameters info
 		if ( (_info == 1) && (_gpuList[iGpu] == _deviceNumberInfo) ){
 			BornGpuObject->getFdParam_3D()->getInfo_3D();
 		}
-
-		// Allocate memory on device
-		allocateBornShotsGpu_3D(BornObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
-
+		// std::cout << "Here 1c" << std::endl;
+		if (_ginsu == 0){
+			// Allocate memory on device
+			allocateBornShotsGpu_3D(BornObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
+		}
+		// std::cout << "Here 1d" << std::endl;
 		// Create data slice for this GPU number
 		std::shared_ptr<SEP::double2DReg> dataSlice(new SEP::double2DReg(hyperDataSlice));
 		dataSliceVector.push_back(dataSlice);
-
-
+		// std::cout << "Here 1e" << std::endl;
 	}
-
-	// exit(0);
-
+	// std::cout << "Here 2" << std::endl;
 	// Launch Born forward
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
@@ -142,9 +198,47 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 		std::shared_ptr<SEP::double2DReg> sourcesSignalsTemp;
 		axis dummyAxis(1);
 
+		// Temporary arrays/hypercube for the Ginsu
+		std::shared_ptr<SEP::double3DReg> modelTemp;
+		std::shared_ptr<SEP::hypercube> hyperTemp;
+		// std::cout << "Here 3" << std::endl;
+		// If no ginsu is used, use the full model
+		if (_ginsu == 0){
+			modelTemp = model;
+
+		// If ginsu is used, copy the part of the model into modelTemp
+		} else {
+			// std::cout << "Here 3a" << std::endl;
+			// Allocate and set Ginsu
+			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], iGpu, iGpuId);
+			// std::cout << "Here 3b" << std::endl;
+			// Allocate Ginsu model
+			modelTemp = std::make_shared<SEP::double3DReg>(_velHyperVectorGinsu[iShot]);
+			// std::cout << "Here 3c" << std::endl;
+			// Temporary variables (for clarity purpose)
+			int fat = BornObjectVector[iGpu]->getFdParam_3D()->_fat;
+			int nzGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nzGinsu;
+			int nxGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nxGinsu;
+			int nyGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nyGinsu;
+			int izGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_izGinsu;
+			int ixGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_ixGinsu;
+			int iyGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_iyGinsu;
+			// std::cout << "Here 4" << std::endl;
+			// Copy values into Ginsu model
+			modelTemp->scale(0.0);
+			#pragma omp parallel for collapse(3)
+			for (int iy = fat; iy < nyGinsu-fat; iy++){
+				for (int ix = fat; ix < nxGinsu-fat; ix++){
+					for (int iz = 	fat; iz < nzGinsu-fat; iz++){
+						(*modelTemp->_mat)[iy][ix][iz] = (*model->_mat)[iy+iyGinsu][ix+ixGinsu][iz+izGinsu];
+					}
+				}
+			}
+		}
+
 		// Set acquisition geometry
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], model, dataSliceVector[iGpu]);
+			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
@@ -152,33 +246,30 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], model, dataSliceVector[iGpu]);
+			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
 
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], model, dataSliceVector[iGpu]);
+			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
 			sourcesSignalsTemp = std::make_shared<double2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], model, dataSliceVector[iGpu]);
+			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
 
 		// Set GPU number for propagator object
 		BornObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
-
-		// BornObjectVector[iGpu]->resetWavefield();
-
-		// Launch modeling
-		// std::cout << "Running dot product test for iGpu= " << iGpu << std::endl;
-		// BornObjectVector[iGpu]->setDomainRange(model, dataSliceVector[iGpu]);
-		// BornObjectVector[iGpu]->dotTest(true);
-		// std::cout << "Done running dot product test for iGpu= " << iGpu << std::endl;
-		// exit(0);
-		BornObjectVector[iGpu]->forward(false, model, dataSliceVector[iGpu]);
-
+		// std::cout << "Here 5" << std::endl;
+		// Apply forward Born
+		// std::cout << "max model shots before = " << modelTemp->max() << std::endl;
+		// std::cout << "min model shots before = " << modelTemp->min() << std::endl;
+		BornObjectVector[iGpu]->forward(false, modelTemp, dataSliceVector[iGpu]);
+		// std::cout << "max data shots after = " << dataSliceVector[iGpu]->max() << std::endl;
+		// std::cout << "min data shots after = " << dataSliceVector[iGpu]->min() << std::endl;
+		// std::cout << "Here 6" << std::endl;
 		// Store dataSlice into data
 		#pragma omp parallel for
 		for (int iReceiver=0; iReceiver<hyperDataSlice->getAxis(2).n; iReceiver++){
@@ -186,22 +277,23 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 				(*data->_mat)[iShot][iReceiver][its] += (*dataSliceVector[iGpu]->_mat)[iReceiver][its];
 			}
 		}
+		if (_ginsu == 1){
+			// Deallocate memory on GPU
+			deallocateBornShotsGpu_3D(iGpu, iGpuId);
+		}
 	}
-
-	// Deallocate memory on device
-	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+	if (_ginsu ==0){
+		// Deallocate memory on device
+		for (int iGpu=0; iGpu<_nGpu; iGpu++){
+			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+		}
 	}
-
 }
 
+// Adjoint
 void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, const std::shared_ptr<double3DReg> data) const {
 
 	if (!add) model->scale(0.0);
-
-	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	std::cout << "[BornShotGpu]: source wavefield address at step #1 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-	// }
 
 	// Variable declaration
 	int omp_get_thread_num();
@@ -238,8 +330,10 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 			BornGpuObject->getFdParam_3D()->getInfo_3D();
 		}
 
-		// Allocate memory on device for that object
-		allocateBornShotsGpu_3D(BornObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
+		if (_ginsu == 0){
+			// Allocate memory on device for that object
+			allocateBornShotsGpu_3D(BornObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
+		}
 
 		// Model slice
 		std::shared_ptr<SEP::double3DReg> modelSlice(new SEP::double3DReg(hyperModelSlice));
@@ -255,7 +349,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 	// 	std::cout << "[BornShotGpu]: source wavefield address at step #2 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
 	// }
 
-	// Launch Born forward
+	// Launch Born adjoint
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
@@ -269,11 +363,32 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 		// Copy data slice
 		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[iShot*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n]), sizeof(double)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
 
-		// Set acquisition geometry
-		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], model, dataSliceVector[iGpu]);
+		// Temporary arrays/hypercube for the Ginsu
+		std::shared_ptr<SEP::double3DReg> modelTemp;
+		std::shared_ptr<SEP::hypercube> hyperTemp;
+
+		// If no ginsu is used, use the full model
+		if (_ginsu == 0){
+			modelTemp = model;
+			// modelTemp->scale(0.0);
+
+		// If ginsu is used, copy the part of the model into modelTemp
+		} else {
+
+			// Allocate and set Ginsu
+			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], iGpu, iGpuId);
+
+			// Allocate Ginsu model
+			modelTemp = std::make_shared<SEP::double3DReg>(_velHyperVectorGinsu[iShot]);
+
+			// Copy values into Ginsu model
+			modelTemp->scale(0.0);
 		}
 
+		// Set acquisition geometry
+		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
+			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
+		}
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 
 			// Create a 2D-temporary array where you store the wavelet for this shot
@@ -281,13 +396,11 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], model, dataSliceVector[iGpu]);
+			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
-
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], model, dataSliceVector[iGpu]);
+			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
-
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {
 
 			// Create a 2D-temporary array where you store the wavelet for this shot
@@ -295,7 +408,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], model, dataSliceVector[iGpu]);
+			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
 
 		// Set GPU number for propagator object
@@ -303,10 +416,40 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 
 		// Launch modeling
 		// BornObjectVector[iGpu]->resetWavefield();
-		BornObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+		if (_ginsu == 0){
+			// Launch adjoint
+			BornObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+		} else {
+			// Launch adjoint
+			// std::cout << "max data shots before = " << dataSliceVector[iGpu]->max() << std::endl;
+			// std::cout << "min data shots before = " << dataSliceVector[iGpu]->min() << std::endl;
+			BornObjectVector[iGpu]->adjoint(false, modelTemp, dataSliceVector[iGpu]);
+			// std::cout << "max model shots after = " << modelTemp->max() << std::endl;
+			// std::cout << "min model shots after = " << modelTemp->min() << std::endl;
 
+			// Copy modeTemp into modelSliceVector[iGpu]
+			// Temporary variables (for clarity purpose)
+			int fat = BornObjectVector[iGpu]->getFdParam_3D()->_fat;
+			int nzGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nzGinsu;
+			int nxGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nxGinsu;
+			int nyGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nyGinsu;
+			int izGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_izGinsu;
+			int ixGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_ixGinsu;
+			int iyGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_iyGinsu;
+
+			// Copy values into Ginsu model
+			#pragma omp parallel for collapse(3)
+			for (int iy = fat; iy < nyGinsu-fat; iy++){
+				for (int ix = fat; ix < nxGinsu-fat; ix++){
+					for (int iz = 	fat; iz < nzGinsu-fat; iz++){
+						(*modelSliceVector[iGpu]->_mat)[iy+iyGinsu][ix+ixGinsu][iz+izGinsu] += (*modelTemp->_mat)[iy][ix][iz];
+					}
+				}
+			}
+			// Deallocate memory on Gpu
+			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+		}
 	}
-
 	// Stack models computed by each GPU
     for (int iGpu=0; iGpu<_nGpu; iGpu++){
         #pragma omp parallel for
@@ -318,10 +461,10 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
             }
         }
     }
-
 	// Deallocate memory on device
-	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+	if (_ginsu == 0){
+		for (int iGpu=0; iGpu<_nGpu; iGpu++){
+			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+		}
 	}
-
 }

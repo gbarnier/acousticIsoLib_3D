@@ -48,11 +48,8 @@ void laplacianGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 			}
 		}
 	}
-	// std::cout << "Maxval model" << modelTemp->max() << std::endl;
-	// std::cout << "Minval model" << modelTemp->min() << std::endl;
+
 	laplacianFwd_3d(modelTemp->getVals(), dataTemp->getVals(), _iGpu, _iGpuId);
-	// std::cout << "Maxval data" << dataTemp->max() << std::endl;
-	// std::cout << "Minval data" << dataTemp->min() << std::endl;
     data->scaleAdd(dataTemp, 1.0, 1.0);
 
 }
