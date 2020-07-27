@@ -2,8 +2,9 @@
 #include <omp.h>
 #include "BornShotsGpu_3D.h"
 #include "BornGpu_3D.h"
+#include <time.h>
 
-BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::double4DReg>> srcWavefieldVector){
+BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector){
 
 	// Setup parameters
 	_par = par;
@@ -19,7 +20,15 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
-	_srcWavefieldVector = srcWavefieldVector;
+
+	// Allocate wavefields on pinned memory
+	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
+	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
+		std::cout << "Allocating wavefield # " << iGpu << std::endl;
+		allocatePinnedBornGpu_3D(_par->getInt("nz"), _par->getInt("nx"), _par->getInt("ny"), _par->getInt("nts"), _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+	}
+	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
+	// _srcWavefieldVector = srcWavefieldVector;
 
 	// axis zAxis = _vel->getHyper()->getAxis(1);
 	// axis xAxis = _vel->getHyper()->getAxis(2);
@@ -49,7 +58,7 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	// }
 }
 
-BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<std::shared_ptr<SEP::double4DReg>> srcWavefieldVector){
+BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu){
 
 	// Setup parameters
 	_par = par;
@@ -71,6 +80,7 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	axis xAxisWavefield = axis(nxMaxGinsu, 1.0, 1.0);
 	axis yAxisWavefield = axis(nyMaxGinsu, 1.0, 1.0);
 	axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
+	std::cout << "Ginsu constructor" << std::endl;
 	std::cout << "Ginsu nz = " << zAxisWavefield.n << std::endl;
 	std::cout << "Ginsu nx = " << xAxisWavefield.n << std::endl;
 	std::cout << "Ginsu ny = " << yAxisWavefield.n << std::endl;
@@ -78,7 +88,24 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	_velHyperVectorGinsu = velHyperVectorGinsu;
 	_xPadMinusVectorGinsu = xPadMinusVectorGinsu;
 	_xPadPlusVectorGinsu = xPadPlusVectorGinsu;
-	_srcWavefieldVector = srcWavefieldVector;
+	_ixVectorGinsu = ixVectorGinsu;
+	_iyVectorGinsu = iyVectorGinsu;
+
+	for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
+		std::cout << "i = " << iVec << std::endl;
+		std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
+		std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
+
+	}
+
+	// _srcWavefieldVector = srcWavefieldVector;
+	// Allocate wavefields on pinned memory
+	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
+	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
+		std::cout << "Allocating wavefield # " << iGpu << std::endl;
+		allocatePinnedBornGpu_3D(zAxisWavefield.n, xAxisWavefield.n, yAxisWavefield.n, timeAxis.n, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+	}
+	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
 
 	// _srcWavefieldHyper = std::make_shared<hypercube>(zAxisWavefield, xAxisWavefield, yAxisWavefield, timeAxis);
 	// For each GPU we are going to use
@@ -96,6 +123,7 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 
 }
 
+// Gpu list
 void BornShotsGpu_3D::createGpuIdList_3D(){
 
 	// Setup Gpu numbers
@@ -134,6 +162,16 @@ void BornShotsGpu_3D::createGpuIdList_3D(){
 	_iGpuAlloc = _gpuList[0];
 }
 
+// Gpu list
+void BornShotsGpu_3D::deallocatePinnedBornGpu_3D(){
+
+	// Deallocate pinned memory
+	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
+		std::cout << "Deallocating wavefield # " << iGpu << std::endl;
+		deallocatePinnedBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+	}
+}
+
 // Forward
 void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> model, std::shared_ptr<double3DReg> data) const {
 
@@ -164,11 +202,15 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
 	std::vector<std::shared_ptr<BornGpu_3D>> BornObjectVector;
 	// std::cout << "Here 1" << std::endl;
+
+	std::clock_t start;
+	double duration;
+	// start = std::clock();
 	// Loop over GPUs
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 		// std::cout << "Here 1a" << std::endl;
 		// Create Born object
-		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _srcWavefieldVector[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
+		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
 		BornObjectVector.push_back(BornGpuObject);
 		// std::cout << "Here 1b" << std::endl;
 		// Display finite-difference parameters info
@@ -186,8 +228,11 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 		dataSliceVector.push_back(dataSlice);
 		// std::cout << "Here 1e" << std::endl;
 	}
+	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
+	// std::cout << "Duration for allocation: " << duration << std::endl;
 	// std::cout << "Here 2" << std::endl;
 	// Launch Born forward
+	std::cout << "Launching fwd shots" << std::endl;
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
@@ -210,7 +255,7 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 		} else {
 			// std::cout << "Here 3a" << std::endl;
 			// Allocate and set Ginsu
-			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], iGpu, iGpuId);
+			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
 			// std::cout << "Here 3b" << std::endl;
 			// Allocate Ginsu model
 			modelTemp = std::make_shared<SEP::double3DReg>(_velHyperVectorGinsu[iShot]);
@@ -282,7 +327,8 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 			deallocateBornShotsGpu_3D(iGpu, iGpuId);
 		}
 	}
-	if (_ginsu ==0){
+	std::cout << "Done launching fwd shots" << std::endl;
+	if (_ginsu == 0){
 		// Deallocate memory on device
 		for (int iGpu=0; iGpu<_nGpu; iGpu++){
 			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
@@ -322,7 +368,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
 		// Create Born object
-		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _srcWavefieldVector[iGpu], _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
+		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
 		BornObjectVector.push_back(BornGpuObject);
 
 		// Display finite-difference parameters info
@@ -376,7 +422,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 		} else {
 
 			// Allocate and set Ginsu
-			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], iGpu, iGpuId);
+			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
 
 			// Allocate Ginsu model
 			modelTemp = std::make_shared<SEP::double3DReg>(_velHyperVectorGinsu[iShot]);

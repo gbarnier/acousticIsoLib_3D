@@ -28,6 +28,7 @@ class nonlinearPropShotsGpu_3D : public Operator<SEP::double2DReg, SEP::double3D
 		std::shared_ptr<fdParam_3D> _fdParamDampShots_3D;
 		std::vector<std::shared_ptr<SEP::hypercube>> _velHyperVectorGinsu;
 		std::shared_ptr<SEP::int1DReg> _xPadMinusVectorGinsu, _xPadPlusVectorGinsu;
+		std::vector<int> _ixVectorGinsu, _iyVectorGinsu;
 
 	public:
 
@@ -35,7 +36,7 @@ class nonlinearPropShotsGpu_3D : public Operator<SEP::double2DReg, SEP::double3D
 		nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector);
 
 		/* Overloaded constructor Ginsu */
-		nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu);
+		nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu);
 
 		/* Destructor */
 		~nonlinearPropShotsGpu_3D(){};

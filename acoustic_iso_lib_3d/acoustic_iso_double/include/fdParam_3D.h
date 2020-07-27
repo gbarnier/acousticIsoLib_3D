@@ -19,7 +19,7 @@ class fdParam_3D{
   		fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared_ptr<paramObj> par);
 
         // Ginsu mutator
-  		void setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu);
+  		void setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu);
 
         // Destructor
   		~fdParam_3D();
@@ -49,7 +49,7 @@ class fdParam_3D{
 		int _nts, _sub, _ntw;
 		double _ots, _dts, _otw, _dtw, _oExt1, _oExt2, _dExt1, _dExt2;
 		double _Courant, _dispersionRatio;
-		int _nz, _nx, _ny, _nExt1, _nExt2, _hExt1, _hExt2;
+		int _nz, _nx, _ny, _nExt1, _nExt2, _hExt1, _hExt2, _nzSmall, _nxSmall, _nySmall;
 		int _zPadMinus, _zPadPlus, _xPadMinus, _xPadPlus, _yPadMinus, _yPadPlus, _zPad, _xPad, _yPad, _minPad;
 		double _dz, _dx, _dy, _oz, _ox, _oy, _fMax;
 		int _saveWavefield, _blockSize, _fat, _freeSurface, _splitTopBody;

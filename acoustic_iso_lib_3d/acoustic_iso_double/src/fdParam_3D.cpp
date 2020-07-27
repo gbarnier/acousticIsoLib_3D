@@ -139,6 +139,9 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	_saveWavefield = _par->getInt("saveWavefield", 0);
 	_alphaCos = par->getFloat("alphaCos", 0.99);
 	_errorTolerance = par->getFloat("errorTolerance", 0.000001);
+	_nzSmall = _nz - 2*_fat - _zPadMinus - _zPadPlus;
+	_nxSmall = _nx - 2*_fat - _xPadMinus - _xPadPlus;
+	_nySmall = _ny - 2*_fat - 2*_yPad;
 
 	/*********** Damping volume ***********/
 	_dampVolume = std::make_shared<double3DReg>(_zAxis, _xAxis, _yAxis);
@@ -297,7 +300,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 
 }
 
-void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu) {
+void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu) {
 
 	// Clean-up the scaled velocity and reflectity arrays
 	delete [] _vel2Dtw2Ginsu;
@@ -331,12 +334,46 @@ void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGins
 
 	_izGinsu = (_ozGinsu - _oz)/_dz;
 	_ixGinsu = (_oxGinsu - _ox)/_dx;
-	_iyGinsu = (_oyGinsu - _oy)/_dy;
-
-	// std::cout << "izGinsu = " << izGinsu << std::endl;
-	// std::cout << "ixGinsu = " << ixGinsu << std::endl;
-	// std::cout << "iyGinsu = " << iyGinsu << std::endl;
+	_iyGinsu = (int) ((_oyGinsu - _oy)/_dy);
+	// std::cout << "fdParam before izGinsu = " << _izGinsu << std::endl;
+	// std::cout << "fdParam before ixGinsu = " << _ixGinsu << std::endl;
+	// std::cout << "fdParam before iyGinsu = " << _iyGinsu << std::endl;
 	//
+	// std::cout << "fdParam, ozGinsu before = " << _ozGinsu << std::endl;
+	// std::cout << "fdParam, oxGinsu before = " << _oxGinsu << std::endl;
+	// std::cout << "fdParam, oyGinsu before = " << _oyGinsu << std::endl;
+
+	// Check that izGinsu is always at the origin of the big FD grid
+	_izGinsu = (_ozGinsu - _oz)/_dz;
+	if (_izGinsu != 0){
+		std::cout << "**** ERROR [fdParam_3D]: izGinsu does not coincide with the origin of the full finite-difference grid **** " << std::endl;
+		throw std::runtime_error("");
+	}
+
+	_ixGinsu = ixGinsu;
+	_iyGinsu = iyGinsu;
+
+	_ozGinsu = _vel->getHyper()->getAxis(1).o + _izGinsu*_dzGinsu;
+	_oxGinsu = _vel->getHyper()->getAxis(2).o + _ixGinsu*_dxGinsu;
+	_oyGinsu = _vel->getHyper()->getAxis(3).o + _iyGinsu*_dyGinsu;
+
+	// std::cout << "fdParam, ozGinsu after = " << _ozGinsu << std::endl;
+	// std::cout << "fdParam, oxGinsu after = " << _oxGinsu << std::endl;
+	// std::cout << "fdParam, oyGinsu after = " << _oyGinsu << std::endl;
+
+	double izTest = (_ozGinsu - _oz)/_dz;
+	double ixTest = (_oxGinsu - _ox)/_dx;
+	double iyTest = (_oyGinsu - _oy)/_dy;
+	// _iyGinsu = 33;
+	// std::cout << "fdParaizGinsu = " << _izGinsu << std::endl;
+	// std::cout << "fdParam after izGinsu = " << _izGinsu << std::endl;
+	// std::cout << "fdParam after ixGinsu = " << _ixGinsu << std::endl;
+	// std::cout << "fdParam after iyGinsu = " << _iyGinsu << std::endl;
+	//
+	// std::cout << "fdParam, izGinsu double = " << izTest << std::endl;
+	// std::cout << "fdParam, ixGinsu double = " << ixTest << std::endl;
+	// std::cout << "fdParam, iyGinsu double = " << iyTest << std::endl;
+
 	// std::cout << "ozGinsu = " << _ozGinsu << std::endl;
 	// std::cout << "dzGinsu = " << _dzGinsu << std::endl;
 	// std::cout << "nyGinsu = " << _nzGinsu << std::endl;
@@ -356,14 +393,18 @@ void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGins
 	// v^2 * dtw^2
 	_vel2Dtw2Ginsu = new double[_nzGinsu * _nxGinsu * _nyGinsu * sizeof(double)];
 	long long sizeVel = sizeof(_vel2Dtw2Ginsu);
-	long long nElementVel = _nzGinsu * _nxGinsu * _nyGinsu;
-	memset(_vel2Dtw2Ginsu, 0, nElementVel*sizeVel); // Reset values to zero
+	// std::cout << "sizeVel = " << sizeof(_vel2Dtw2Ginsu) << std::endl;
+	// long long nElementVel = _nzGinsu * _nxGinsu * _nyGinsu;
+	long long nElementVel = _nzGinsu * _nxGinsu;
+	nElementVel *= _nyGinsu;
+	// std::cout << "nElementVel = " << nElementVel << std::endl;
+	memset(_vel2Dtw2Ginsu, 0, nElementVel*sizeof(double)); // Reset values to zero
 	// std::cout << "Min value vel = " << *std::min_element(_vel2Dtw2Ginsu,_vel2Dtw2Ginsu+nElementVel) << std::endl;
 	// std::cout << "Max value vel = " << *std::max_element(_vel2Dtw2Ginsu,_vel2Dtw2Ginsu+nElementVel) << std::endl;
 	#pragma omp parallel for collapse(3)
-    for (int iy = _fat; iy < _nyGinsu-_fat; iy++){
-        for (int ix = _fat; ix < _nxGinsu-_fat; ix++){
-            for (int iz = _fat; iz < _nzGinsu-_fat; iz++) {
+    for (long long iy = _fat; iy < _nyGinsu-_fat; iy++){
+        for (long long ix = _fat; ix < _nxGinsu-_fat; ix++){
+            for (long long iz = _fat; iz < _nzGinsu-_fat; iz++) {
                 long long i1 = iy * _nzGinsu * _nxGinsu + ix * _nzGinsu + iz;
                 _vel2Dtw2Ginsu[i1] = (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * _dtw * _dtw;
             }
@@ -524,7 +565,9 @@ bool fdParam_3D::checkFdDispersion_3D(double dispersionRatioMin){
 }
 
 bool fdParam_3D::checkModelSize_3D(){
-	if ( (_nz-2*_fat) % _blockSize != 0) {
+
+
+	if ( (_nz-2*_fat) % _blockSize != 0 ) {
 		std::cout << "**** ERROR [fdParam_3D]: nz-2xFAT not a multiple of block size ****" << std::endl;
 		return false;
 	}

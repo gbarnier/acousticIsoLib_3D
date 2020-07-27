@@ -124,6 +124,7 @@ unsigned long long host_nModel;
 unsigned long long host_nModelExt;
 unsigned long long host_nVel;
 unsigned long long host_extStride;
+unsigned long long host_nWavefieldSpace, host_nWavefieldTime;
 double host_dz;
 double host_dx;
 double host_dy;

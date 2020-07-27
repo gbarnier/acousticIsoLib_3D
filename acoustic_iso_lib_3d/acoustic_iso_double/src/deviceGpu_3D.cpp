@@ -246,6 +246,16 @@ void deviceGpu_3D::setDeviceGpuGinsu_3D(const std::shared_ptr<SEP::hypercube> ve
 	_xPadMinus = xPadMinusGinsu;
 	_xPadPlus = xPadPlusGinsu;
 
+	std::cout << "Device Ginsu, _oz = " << _oz << std::endl;
+	std::cout << "Device Ginsu, _dz = " << _dz << std::endl;
+	std::cout << "Device Ginsu, _nz = " << _nz << std::endl;
+	std::cout << "Device Ginsu, _ox = " << _ox << std::endl;
+	std::cout << "Device Ginsu, _dx = " << _dx << std::endl;
+	std::cout << "Device Ginsu, _nx = " << _nx << std::endl;
+	std::cout << "Device Ginsu, _oy = " << _oy << std::endl;
+	std::cout << "Device Ginsu, _dy = " << _dy << std::endl;
+	std::cout << "Device Ginsu, _ny = " << _ny << std::endl;
+
 	// std::cout << "_xPadMinus = " << _xPadMinus << std::endl;
 	// std::cout << "_xPadPlus = " << _xPadPlus << std::endl;
 	// std::cout << "_nz = " << _nz << std::endl;
@@ -368,6 +378,8 @@ void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<double1DReg> zCoord, c
 			std::cout << "zCoord = " << (*zCoord->_mat)[iDevice] << std::endl;
 			std::cout << "xCoord = " << (*xCoord->_mat)[iDevice] << std::endl;
 			std::cout << "yCoord = " << (*yCoord->_mat)[iDevice] << std::endl;
+			std::cout << "(*zCoord->_mat)[iDevice] - zMin = " << (*zCoord->_mat)[iDevice] - zMin << std::endl;
+			std::cout << "-_errorTolerance = " << -_errorTolerance << std::endl;
 			std::cout << "-------------------------------" << std::endl;
 			throw std::runtime_error("");
 		}
@@ -405,6 +417,9 @@ void deviceGpu_3D::checkOutOfBounds(const int &nzDevice, const int &ozDevice, co
 	// }
 
 	if ( (zIntMax > _nzSmall) || (ozDevice < 0) ){
+		std::cout << "zIntMax = " << zIntMax << std::endl;
+		std::cout << "_nzSmall = " << _nzSmall << std::endl;
+		std::cout << "ozDevice = " << ozDevice << std::endl;
 		std::cout << "**** ERROR [deviceGpu_3D]: One of the acquisition devices is out of bounds in the z-direction ****" << std::endl;
 		throw std::runtime_error("");
 	}

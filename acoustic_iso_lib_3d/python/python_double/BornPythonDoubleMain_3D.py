@@ -14,13 +14,14 @@ if __name__ == '__main__':
 
 	# Initialize Ginsu
 	if (parObject.getInt("ginsu", 0) == 1):
-		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,nxMaxGinsu,nyMaxGinsu = Acoustic_iso_double_3D.buildGeometryGinsu_3D(parObject,velDouble,sourcesVector,receiversVector)
+		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu = Acoustic_iso_double_3D.buildGeometryGinsu_3D(parObject,velDouble,sourcesVector,receiversVector)
 
-	# Construct nonlinear operator object
+	# Construct Born operator object
 	if (parObject.getInt("ginsu", 0) == 0):
 		BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector)
 	else:
-		BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu)
+		print("Ginsu main")
+		BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
 
 	# Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
@@ -65,14 +66,24 @@ if __name__ == '__main__':
 		modelDoubleNp[:]=modelFloatNp
 
 		# Apply forward
+		t0 = time.time()
 		BornOp.forward(False,modelDouble,dataDouble)
-
+		t1 = time.time()
+		total = t1-t0
+		print("Time for Born forward = ", total)
 		# Write data
 		dataFloat=SepVector.getSepVector(dataDouble.getHyper(),storage="dataFloat")
 		dataFloatNp=dataFloat.getNdArray()
 		dataDoubleNp=dataDouble.getNdArray()
 		dataFloatNp[:]=dataDoubleNp
-		genericIO.defaultIO.writeVector(dataFile,dataFloat)
+		# genericIO.defaultIO.writeVector(dataFile,dataFloat)
+
+		if dataHyperForOutput.getNdim() == 7:
+			ioMod=genericIO.defaultIO.cppMode
+			fileObj=genericIO.regFile(ioM=ioMod,tag=dataFile,fromHyper=dataHyperForOutput,usage="output")
+			fileObj.writeWindow(dataFloat)
+		else:
+			genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
 		# Saving source wavefield
 		if (parObject.getInt("saveSrcWavefield",0) == 1):
@@ -111,7 +122,11 @@ if __name__ == '__main__':
 		dataDoubleNp[:]=dataFloatNp
 
 		# Apply adjoint
+		t0 = time.time()
 		BornOp.adjoint(False,modelDouble,dataDouble)
+		t1 = time.time()
+		total = t1-t0
+		print("Time for Born adjoint = ", total)
 
 		# Write model
 		modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")

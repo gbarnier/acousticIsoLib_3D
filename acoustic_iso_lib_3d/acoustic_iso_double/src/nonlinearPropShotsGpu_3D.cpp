@@ -23,7 +23,7 @@ nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3D
 }
 
 // Constructor for Ginsu
-nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu) {
+nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu) {
 
 	// Setup parameters
 	_par = par;
@@ -41,6 +41,15 @@ nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3D
 	_velHyperVectorGinsu = velHyperVectorGinsu;
 	_xPadMinusVectorGinsu = xPadMinusVectorGinsu;
 	_xPadPlusVectorGinsu = xPadPlusVectorGinsu;
+	_ixVectorGinsu = ixVectorGinsu;
+	_iyVectorGinsu = iyVectorGinsu;
+
+	std::cout << "Inside shot constructor" << std::endl;
+	for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
+		std::cout << "i = " << iVec << std::endl;
+		std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
+		std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
+	}
 
 	// Print pad vector
 	// for (int i=0; i < _xPadMinusVectorGinsu->getHyper()->getAxis(1).n; i++){
@@ -134,7 +143,9 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 	// Initialization for each GPU:
 	// (1) Creation of vector of objects, model, and data
 	// (2) Memory allocation on GPU
-
+	std::clock_t start;
+	double duration;
+	start = std::clock();
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
 		// Instanciate nonlinear propagator object
@@ -161,11 +172,20 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 		dataSliceVector.push_back(dataSlice);
 
 	}
-
+	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
+	std::cout << "Duration for allocation: " << duration << std::endl;
 	// std::cout << "Done instanciation shots nonlinear" << std::endl;
 	// Launch nonlinear forward
 	// #pragma omp parallel for num_threads(2)
 	// #pragma omp parallel for
+
+	std::cout << "Inside shot fwd" << std::endl;
+	for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
+		std::cout << "i = " << iVec << std::endl;
+		std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
+		std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
+	}
+
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
@@ -190,8 +210,11 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 
 		// Ginsu modeling
 		if (_ginsu == 1){
-			// Allocate and set Ginsu
-			propObjectVector[iGpu]->setNonlinearPropGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], iGpu, iGpuId);
+			// std::cout << "iShot = " << iShot << std::endl;
+			// // Allocate and set Ginsu
+			// std::cout << "_ixVectorGinsu[iGpu] = " << _ixVectorGinsu[iShot] << std::endl;
+			// std::cout << "_iyVectorGinsu[iGpu] = " << _iyVectorGinsu[iShot] << std::endl;
+			propObjectVector[iGpu]->setNonlinearPropGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
 
 		}
 
@@ -296,7 +319,7 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 
 		// Ginsu modeling
 		if (_ginsu == 1){
-			propObjectVector[iGpu]->setNonlinearPropGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], iGpu, iGpuId);
+			propObjectVector[iGpu]->setNonlinearPropGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
 		}
 
 		// Set GPU number for propagator object

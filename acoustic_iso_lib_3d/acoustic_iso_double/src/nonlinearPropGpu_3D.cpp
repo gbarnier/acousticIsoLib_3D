@@ -19,12 +19,18 @@ nonlinearPropGpu_3D::nonlinearPropGpu_3D(std::shared_ptr<SEP::double3DReg> vel, 
 	}
 }
 
-void nonlinearPropGpu_3D::setNonlinearPropGinsuGpu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int iGpu, int iGpuId){
+void nonlinearPropGpu_3D::setNonlinearPropGinsuGpu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu, int iGpu, int iGpuId){
 
 	// Update Ginsu parameters from fdParam
-	_fdParam_3D->setFdParamGinsu_3D(velHyperGinsu, xPadMinusGinsu, xPadPlusGinsu);
+	_fdParam_3D->setFdParamGinsu_3D(velHyperGinsu, xPadMinusGinsu, xPadPlusGinsu, ixGinsu, iyGinsu);
 	_iGpu = iGpu;
 	_iGpuId = iGpuId;
+	// std::cout << "Nonlinear setFdParamGinsu, ixGinsu = " << ixGinsu << std::endl;
+	// std::cout << "Nonlinear setFdParamGinsu, iyGinsu = " << iyGinsu << std::endl;
+	// std::cout << "nzGinsu = " << _fdParam_3D->_nzGinsu << std::endl;
+	// std::cout << "nxGinsu = " << _fdParam_3D->_nxGinsu << std::endl;
+	// std::cout << "nyGinsu = " << _fdParam_3D->_nyGinsu << std::endl;
+	// std::cout << "minPadGinsu = " << _fdParam_3D->_minPadGinsu << std::endl;
 
 	// Initialize GPU
 	allocateSetNonlinearGinsuGpu_3D(_fdParam_3D->_nzGinsu, _fdParam_3D->_nxGinsu, _fdParam_3D->_nyGinsu, _fdParam_3D->_minPadGinsu, _fdParam_3D->_blockSize, _fdParam_3D->_alphaCos, _fdParam_3D->_vel2Dtw2Ginsu, _iGpu, _iGpuId);
@@ -63,21 +69,25 @@ void nonlinearPropGpu_3D::forward(const bool add, const std::shared_ptr<double2D
 
 	/* Propagate */
 	if (_fdParam_3D->_freeSurface != 1){
-		if (_fdParam_3D->_par->getInt("dampTest") == 0){
 			if (_ginsu == 0){
 				propShotsFwdGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg,_iGpu, _iGpuId);
 			} else {
 				// std::cout << "Ginsu nonlinear" << std::endl;
 				propShotsFwdGinsuGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg,_iGpu, _iGpuId);
 			}
-		} else {
-			propShotsFwdGpu_3D_dampTest(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg,_iGpu, _iGpuId, _fdParam_3D->_dampVolume->getVals());
-		}
 	} else {
 		if (_ginsu == 0){
+			std::cout << "Normal model max val model before = " << modelRegDtw->max() << std::endl;
+			std::cout << "Normal model min val model before = " << modelRegDtw->min() << std::endl;
 			propShotsFwdFreeSurfaceGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			std::cout << "Normal data max val after = " << dataRegDts->max() << std::endl;
+			std::cout << "Normal data min val after = " << dataRegDts->min() << std::endl;
 		} else {
+			std::cout << "Ginsu model max val model before = " << modelRegDtw->max() << std::endl;
+			std::cout << "Ginsu model min val model before = " << modelRegDtw->min() << std::endl;
 			propShotsFwdFreeSurfaceGinsuGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			std::cout << "Ginsu data max val after = " << dataRegDts->max() << std::endl;
+			std::cout << "Ginsu data min val after = " << dataRegDts->min() << std::endl;
 		}
 	}
 

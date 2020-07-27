@@ -37,7 +37,7 @@ PYBIND11_MODULE(pyAcoustic_iso_double_nl_3D, clsGeneric) {
       .def(py::init<std::shared_ptr<SEP::double3DReg>, std::shared_ptr<paramObj>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::vector<std::shared_ptr<deviceGpu_3D>>>(), "Initialize a nonlinearPropShotsGpu_3D")
 
       // Constructor for Ginsu
-      .def(py::init<std::shared_ptr<SEP::double3DReg>, std::shared_ptr<paramObj>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::vector<std::shared_ptr<SEP::hypercube>>, std::shared_ptr<SEP::int1DReg>, std::shared_ptr<SEP::int1DReg>>(), "Initialize a nonlinearPropShotsGpu_3D with Ginsu")
+      .def(py::init<std::shared_ptr<SEP::double3DReg>, std::shared_ptr<paramObj>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::vector<std::shared_ptr<SEP::hypercube>>, std::shared_ptr<SEP::int1DReg>, std::shared_ptr<SEP::int1DReg>, std::vector<int>, std::vector<int>>(), "Initialize a nonlinearPropShotsGpu_3D with Ginsu")
 
       .def("forward", (void (nonlinearPropShotsGpu_3D::*)(const bool, const std::shared_ptr<double2DReg>, std::shared_ptr<double3DReg>)) &nonlinearPropShotsGpu_3D::forward, "Forward")
 

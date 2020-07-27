@@ -473,7 +473,7 @@ __global__ void interpFineToCoarseSlice_32_3D(double *dev_timeSliceLeft, double 
 
     if (izGlobal < dev_nz-FAT && ixGlobal < dev_nx-FAT){
 
-    	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+        for (int iy=FAT; iy<dev_ny-FAT; iy++){
     		// Spread to time-slice its
     		dev_timeSliceLeft[iGlobal] += dev_timeSliceFine[iGlobal] * dev_timeInterpFilter[it2];
     		// Spread to time-slice its+1

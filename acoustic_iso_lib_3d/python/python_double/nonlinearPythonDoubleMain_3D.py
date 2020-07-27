@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
 	# Initialize Ginsu
 	if (parObject.getInt("ginsu", 0) == 1):
-		velHyperVectorGinsu, xPadMinusVectorGinsu, xPadPlusVectorGinsu, sourcesVector, receiversVector,_,_ = Acoustic_iso_double_3D.buildGeometryGinsu_3D(parObject,velDouble,sourcesVector,receiversVector)
+		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,_,_ = Acoustic_iso_double_3D.buildGeometryGinsu_3D(parObject,velDouble,sourcesVector,receiversVector)
 
 	# QC acquisition devices
 	# nShot = len(sourcesVector)
@@ -40,7 +40,10 @@ if __name__ == '__main__':
 	if (parObject.getInt("ginsu", 0) == 0):
 		nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector)
 	else:
-		nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu)
+		nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,ixVectorGinsu,iyVectorGinsu)
+
+		print("ixVectorGinsu = ", ixVectorGinsu)
+		print("iyVectorGinsu = ", iyVectorGinsu)
 
 	#Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
@@ -78,7 +81,11 @@ if __name__ == '__main__':
 		modelDMat[:]=modelSMat
 
 		# Apply forward
+		t0 = time.time()
 		nonlinearOp.forward(False,modelDouble,dataDouble)
+		t1 = time.time()
+		total = t1-t0
+		print("Time for nonlinear forward = ", total)
 		# nonlinearOp.forward(False,modelDouble,dataDouble)
 		# nonlinearOp.forward(False,modelDouble,dataDouble)
 		# nonlinearOp.forward(False,modelDouble,dataDouble)
@@ -105,16 +112,14 @@ if __name__ == '__main__':
 		dataFloatNp=dataFloat.getNdArray()
 		dataDoubleNp=dataDouble.getNdArray()
 		dataFloatNp[:]=dataDoubleNp
-		genericIO.defaultIO.writeVector(dataFile,dataFloat)
-		# if dataHyperForOutput.getNdim() == 7:
-		# 	dataTest=SepVector.getSepVector(dataDouble.getHyper(),storage="dataFloat")
-		# 	io=genericIO.defaultIO
-		# 	fle=io.getRegFile("toto.H",fromHyper=dataHyperForOutput)
-		# 	fle.writeWindow(dataTest)
-		# 	# fileObj=genericIO.regFile(ioM=genericIO.io,tag=dataFile,fromHyper=dataHyperForOutput,usage="output")
-		# 	# fileObj.writeWindow(dataFloat)
-		# else:
-		# 	genericIO.defaultIO.writeVector(dataFile,dataFloat)
+		# genericIO.defaultIO.writeVector(dataFile,dataFloat)
+
+		if dataHyperForOutput.getNdim() == 7:
+			ioMod=genericIO.defaultIO.cppMode
+			fileObj=genericIO.regFile(ioM=ioMod,tag=dataFile,fromHyper=dataHyperForOutput,usage="output")
+			fileObj.writeWindow(dataFloat)
+		else:
+			genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
 		# Saving damping volumes
 		if (parObject.getInt("saveDampCpu", 0) == 1):
