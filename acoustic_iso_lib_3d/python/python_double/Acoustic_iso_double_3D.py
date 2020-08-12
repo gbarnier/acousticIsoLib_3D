@@ -638,6 +638,51 @@ def getGpuNumber_3D(parObject):
 
 	return nGpu,gpuList
 
+############################ Bounds vectors ####################################
+# Create bound vectors for FWI
+def createBoundVectors_3D(parObject,model):
+
+	# Get model dimensions
+	nz=parObject.getInt("nz")
+	nx=parObject.getInt("nx")
+	ny=parObject.getInt("ny")
+	fat=parObject.getInt("fat")
+	spline=parObject.getInt("spline",0)
+	if (spline==1): fat=0
+
+	# Min bound
+	minBoundVectorFile=parObject.getString("minBoundVector","noMinBoundVectorFile")
+	if (minBoundVectorFile=="noMinBoundVectorFile"):
+		minBound=parObject.getFloat("minBound")
+		minBoundVector=model.clone()
+		minBoundVector.scale(0.0)
+		minBoundVectorNd=minBoundVector.getNdArray()
+		for iy in range(fat,ny-fat):
+			for ix in range(fat,nx-fat):
+				for iz in range(fat,nz-fat):
+					minBoundVectorNd[iy][ix][iz]=minBound
+
+	else:
+		minBoundVector=genericIO.defaultIO.getVector(minBoundVectorFile)
+
+	# Max bound
+	maxBoundVectorFile=parObject.getString("maxBoundVector","noMaxBoundVectorFile")
+	if (maxBoundVectorFile=="noMaxBoundVectorFile"):
+		maxBound=parObject.getFloat("maxBound")
+		maxBoundVector=model.clone()
+		maxBoundVector.scale(0.0)
+		maxBoundVectorNd=maxBoundVector.getNdArray()
+		for iy in range(fat,ny-fat):
+			for ix in range(fat,nx-fat):
+				for iz in range(fat,nz-fat):
+					maxBoundVectorNd[iy][ix][iz]=maxBound
+
+	else:
+		maxBoundVector=genericIO.defaultIO.getVector(maxBoundVectorFile)
+
+
+	return minBoundVector,maxBoundVector
+
 ################################################################################
 ############################ Nonlinear propagation #############################
 ################################################################################
@@ -772,6 +817,8 @@ class nonlinearPropShotsGpu_3D(Op.Operator):
 				xPadPlusVectorGinsu = xPadPlusVectorGinsu.getCpp()
 			ixVectorGinsu = args[9]
 			iyVectorGinsu = args[10]
+			print("Nonlinear: ixVectorGinsu = ", ixVectorGinsu)
+			print("Nonlinear: iyVectorGinsu = ", iyVectorGinsu)
 			self.pyOp = pyAcoustic_iso_double_nl_3D.nonlinearPropShotsGpu_3D(velocity,paramP.param,sourceVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,ixVectorGinsu,iyVectorGinsu)
 		else:
 			self.pyOp = pyAcoustic_iso_double_nl_3D.nonlinearPropShotsGpu_3D(velocity,paramP.param,sourceVector,receiversVector)
@@ -1057,14 +1104,20 @@ class BornShotsGpu_3D(Op.Operator):
 		# print("data n2=",data.getHyper().axes[1].n)
 		# print("data n3=",data.getHyper().axes[2].n)
 
+		# print("Born adjoint before data max = ", data.max())
+		# print("Born adjoint before data min = ", data.min())
+
 		#Checking if getCpp is present
-		if("getCpp" in dir(model)):
-			model = model.getCpp()
+		# if("getCpp" in dir(model)):
+		# 	model = model.getCpp()
 		if("getCpp" in dir(data)):
 			data = data.getCpp()
 		with pyAcoustic_iso_double_Born_3D.ostream_redirect():
 			# print("Just before")
-			self.pyOp.adjoint(add,model,data)
+			# print("Before")
+			self.pyOp.adjoint(add,model.getCpp(),data)
+			# print("Born adjoint after model max = ", model.max())
+			# print("Born adjoint after model min = ", model.min())
 		return
 
 	def setVel_3D(self,vel):
@@ -1072,7 +1125,7 @@ class BornShotsGpu_3D(Op.Operator):
 		if("getCpp" in dir(vel)):
 			vel = vel.getCpp()
 		with pyAcoustic_iso_double_Born_3D.ostream_redirect():
-			self.pyOp.setVel(vel)
+			self.pyOp.setVel_3D(vel)
 		return
 
 	def dotTestCpp(self,verb=False,maxError=.00001):
@@ -1105,7 +1158,11 @@ def nonlinearFwiOpInitDouble_3D(args):
 
 	# Read velocity and convert to double
 	modelStartFile=parObject.getString("vel","noVelFile")
-	modelStartDouble=genericIO.defaultIO.getVector(modelStartFile,storage="dataDouble")
+	modelStartFloat=genericIO.defaultIO.getVector(modelStartFile)
+	modelStartDouble=SepVector.getSepVector(modelStartFloat.getHyper(),storage="dataDouble")
+	modelStartDoubleNp=modelStartDouble.getNdArray()
+	modelStartFloatNp=modelStartFloat.getNdArray()
+	modelStartDoubleNp[:]=modelStartFloatNp
 
 	# Determine if the source time signature is constant over shots
 	constantWavelet = parObject.getInt("constantWavelet",-1)
@@ -1117,8 +1174,8 @@ def nonlinearFwiOpInitDouble_3D(args):
 		raise ValueError("**** ERROR [nonlinearOpInitDouble_3D]: User did not specify an acceptable value for tag constantWavelet (must be 0 or 1) ****\n")
 
 	# Build sources/receivers geometry
-	sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velDouble)
-	receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velDouble)
+	sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,modelStartDouble)
+	receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,modelStartDouble)
 
 	# Compute the number of shots
 	if (shotHyper.getNdim() > 1):
@@ -1154,18 +1211,26 @@ def nonlinearFwiOpInitDouble_3D(args):
 	dts=parObject.getFloat("dts",-1.0)
 	timeAxis=Hypercube.axis(n=nts,o=ots,d=dts)
 
-	# Allocate model
+	# Read sources' signals into float array
+	sourcesSignalsFile=parObject.getString("sources")
+	sourcesSignalsFloat=genericIO.defaultIO.getVector(sourcesSignalsFile)
 	# If we use a constant wavelet => allocate a 2D array where the second axis has a length of 1
 	if (constantWavelet == 1):
+		# Allocate array in double precision
 		dummyAxis=Hypercube.axis(n=1)
-		sourcesSignalHyper=Hypercube.hypercube(axes=[timeAxis,dummyAxis])
-		sourcesSignalDouble=SepVector.getSepVector(sourcesSignalHyper,storage="dataDouble")
+		sourcesSignalsHyper=Hypercube.hypercube(axes=[timeAxis,dummyAxis])
+		sourcesSignalsDouble=SepVector.getSepVector(sourcesSignalsHyper,storage="dataDouble")
 
 	else:
 		# If we do not use a constant wavelet
 		# Allocate a 2D array where the second axis has a length of the total number of shots
-		sourcesSignalHyper=Hypercube.hypercube(axes=[timeAxis,shotAxis])
-		sourcesSignalDouble=SepVector.getSepVector(sourcesSignalHyper,storage="dataDouble")
+		sourcesSignalsHyper=Hypercube.hypercube(axes=[timeAxis,shotAxis])
+		sourcesSignalsDouble=SepVector.getSepVector(sourcesSignalsHyper,storage="dataDouble")
+
+	# Copy float into double
+	sourcesSignalsDoubleNp=sourcesSignalsDouble.getNdArray()
+	sourcesSignalsFloatNp=sourcesSignalsFloat.getNdArray()
+	sourcesSignalsDoubleNp[:]=sourcesSignalsFloatNp
 
 	# Allocate data
 	dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
@@ -1180,7 +1245,7 @@ def nonlinearFwiOpInitDouble_3D(args):
 		dataHyperForOutput=dataHyper
 
 	# Outputs
-	return modelStartDouble,dataDouble,sourcesSignalDouble,parObject,sourcesVector,receiversVector,dataHyperForOutput
+	return modelStartDouble,dataDouble,sourcesSignalsDouble,parObject,sourcesVector,receiversVector,dataHyperForOutput
 
 class nonlinearFwiPropShotsGpu_3D(Op.Operator):
 	"""Wrapper encapsulating PYBIND11 module for non-linear 3D propagator"""
@@ -1221,6 +1286,8 @@ class nonlinearFwiPropShotsGpu_3D(Op.Operator):
 				xPadPlusVectorGinsu = xPadPlusVectorGinsu.getCpp()
 			ixVectorGinsu = args[9]
 			iyVectorGinsu = args[10]
+			print("Fwi: ixVectorGinsu = ", ixVectorGinsu)
+			print("Fwi: iyVectorGinsu = ", iyVectorGinsu)
 			self.pyOp = pyAcoustic_iso_double_nl_3D.nonlinearPropShotsGpu_3D(domain,paramP.param,sourceVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,ixVectorGinsu,iyVectorGinsu)
 		else:
 			self.pyOp = pyAcoustic_iso_double_nl_3D.nonlinearPropShotsGpu_3D(domain,paramP.param,sourceVector,receiversVector)
@@ -1232,7 +1299,9 @@ class nonlinearFwiPropShotsGpu_3D(Op.Operator):
 		if("getCpp" in dir(data)):
 			data = data.getCpp()
 		with pyAcoustic_iso_double_nl_3D.ostream_redirect():
+			# print("in fwd, before")
 			self.pyOp.forward(add,self.sourcesSginal,data)
+			# print("in fwd, after")
 		return
 
 	def setVel_3D(self,vel):

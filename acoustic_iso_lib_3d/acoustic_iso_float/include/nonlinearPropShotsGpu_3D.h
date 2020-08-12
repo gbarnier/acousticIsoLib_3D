@@ -19,18 +19,24 @@ using namespace SEP;
 class nonlinearPropShotsGpu_3D : public Operator<SEP::float2DReg, SEP::float3DReg> {
 
 	private:
-		int _nShot, _nGpu, _info, _deviceNumberInfo, _iGpuAlloc;
+		int _nShot, _nGpu, _info, _deviceNumberInfo, _iGpuAlloc, _ginsu;
 		std::shared_ptr<SEP::float3DReg> _vel;
 		std::shared_ptr<paramObj> _par;
 		std::vector<std::shared_ptr<deviceGpu_3D>> _sourcesVector, _receiversVector;
 		std::vector<int> _gpuList;
 		// std::shared_ptr<float3DReg> _dampVolumeShots;
 		std::shared_ptr<fdParam_3D> _fdParamDampShots_3D;
+		std::vector<std::shared_ptr<SEP::hypercube>> _velHyperVectorGinsu;
+		std::shared_ptr<SEP::int1DReg> _xPadMinusVectorGinsu, _xPadPlusVectorGinsu;
+		std::vector<int> _ixVectorGinsu, _iyVectorGinsu;
 
 	public:
 
-		/* Overloaded constructors */
+		/* Overloaded constructor */
 		nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector);
+
+		/* Overloaded constructor Ginsu */
+		nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu);
 
 		/* Destructor */
 		~nonlinearPropShotsGpu_3D(){};
@@ -45,6 +51,7 @@ class nonlinearPropShotsGpu_3D : public Operator<SEP::float2DReg, SEP::float3DRe
 		/* Mutator */
 		void setVel_3D(std::shared_ptr<SEP::float3DReg> vel){_vel = vel;}
 
+		// Debugging
 		std::shared_ptr<float3DReg> getDampVolumeShots_3D() {
 			_fdParamDampShots_3D = std::make_shared<fdParam_3D>(_vel, _par);
 			return _fdParamDampShots_3D->_dampVolume;

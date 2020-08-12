@@ -2,7 +2,7 @@
 import genericIO
 import SepVector
 import Hypercube
-import Acoustic_iso_double_3D
+import Acoustic_iso_float_3D
 import numpy as np
 import time
 import sys
@@ -37,7 +37,7 @@ if __name__ == '__main__':
 
 	############################### Sources ####################################
 	# Manual inputs
-	nShot = 1
+	nShot = 6
 	zSource = 0.1
 
 	# Source geometry
@@ -49,24 +49,28 @@ if __name__ == '__main__':
 	sourceGeomNp[2, :] = zSource
 
 	# First shot
-	sourceGeomNp[0, 0] = 3 # x-position
-	sourceGeomNp[1, 0] = 3 # y-position
+	sourceGeomNp[0, 0] = 3.0 # x-position
+	sourceGeomNp[1, 0] = 3.0 # y-position
 
 	# Second shot
-	# sourceGeomNp[0, 1] = 2.0 # x-position
-	# sourceGeomNp[1, 1] = 3.4 # y-position
-	#
-	# # Third shot
-	# sourceGeomNp[0, 2] = 6.0 # x-position
-	# sourceGeomNp[1, 2] = 2.8 # y-position
+	sourceGeomNp[0, 1] = 2.0 # x-position
+	sourceGeomNp[1, 1] = 3.4 # y-position
+
+	# Third shot
+	sourceGeomNp[0, 2] = 1.3 # x-position
+	sourceGeomNp[1, 2] = 2.8 # y-position
 
 	# Fourth shot
-	# sourceGeomNp[0, 3] = 4.5 # x-position
-	# sourceGeomNp[1, 3] = 4.0 # y-position
-	#
-	# # Fifth shot
-	# sourceGeomNp[0, 4] = 3.0 # x-position
-	# sourceGeomNp[1, 4] = 2.4# y-position
+	sourceGeomNp[0, 3] = 2.5 # x-position
+	sourceGeomNp[1, 3] = 2.2 # y-position
+
+	# Fifth shot
+	sourceGeomNp[0, 4] = 1.5 # x-position
+	sourceGeomNp[1, 4] = 1.8 # y-position
+
+	# Sixth shot
+	sourceGeomNp[0, 5] = 3.1 # x-position
+	sourceGeomNp[1, 5] = 1.5 # y-position
 
 	print("SourceGeom = ", sourceGeomNp.shape)
 	print("sourceGeom axis 0 = ", sourceGeom.getHyper().axes[0].n)
@@ -91,13 +95,14 @@ if __name__ == '__main__':
 
 	# Overwrite bounds
 	for iShot in range(nShot):
+
 		yMinBound = sourceGeomNp[1, iShot]
 		yMaxBound = sourceGeomNp[1, iShot] + 8
 		xMaxBound = sourceGeomNp[0, iShot] + 1.5
 		xMinBound = sourceGeomNp[0, iShot] - 1.5
 
-		xPos = sourceGeomNp[0, iShot] + np.linspace(-1.5, 1.5, 5)
-		yPos = sourceGeomNp[1, iShot] + np.linspace(0.1, 3, 6)
+		xPos = sourceGeomNp[0, iShot] + np.linspace(-0.5, 0.5, 5)
+		yPos = sourceGeomNp[1, iShot] + np.linspace(-1, 1.0, 6)
 		xPos, yPos = np.meshgrid(xPos, yPos)
 		recGeomNp[0, :, iShot] = xPos.flatten()
 		recGeomNp[1, :, iShot] = yPos.flatten()

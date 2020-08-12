@@ -14,6 +14,7 @@
 #define PI_CUDA M_PI // Import the number "Pi" from the math library
 #define PAD_MAX 200 // Maximum number of points for padding (on one side)
 #define SUB_MAX 100 // Maximum subsampling value for time
+#define N_GPU_MAX 16 // Maximum number of GPUs allowed to run in parallel
 
 #define min2(v1,v2) (((v1)<(v2))?(v1):(v2)) /* Minimum function */
 #define max2(v1,v2) (((v1)>(v2))?(v1):(v2)) /* Minimum function */
@@ -103,6 +104,15 @@ cudaEvent_t eventTopFreeSurface, eventBodyFreeSurface, compStreamDone;
 // Debug
 float **dev_modelDebug, **dev_dataDebug;
 
+// Ginsu
+__constant__ int dev_nz_ginsu[N_GPU_MAX];
+__constant__ int dev_nx_ginsu[N_GPU_MAX];
+__constant__ int dev_ny_ginsu[N_GPU_MAX];
+__constant__ long long dev_yStride_ginsu[N_GPU_MAX];
+__constant__ unsigned long long dev_nModel_ginsu[N_GPU_MAX];
+__constant__ int dev_minPad_ginsu[N_GPU_MAX];
+__constant__ float dev_cosDampingCoeffGinsuConstant[N_GPU_MAX][PAD_MAX];
+
 /******************************************************************************/
 /**************************** Declaration on host *****************************/
 /******************************************************************************/
@@ -114,6 +124,7 @@ unsigned long long host_nModel;
 unsigned long long host_nModelExt;
 unsigned long long host_nVel;
 unsigned long long host_extStride;
+unsigned long long host_nWavefieldSpace, host_nWavefieldTime;
 float host_dz;
 float host_dx;
 float host_dy;
@@ -127,5 +138,17 @@ float host_cSide, host_cCenter; // Coefficients for the second-order time deriva
 int host_leg1, host_leg2;
 std::string host_extension;
 int host_minPad;
+
+// Ginsu
+int host_nz_ginsu[N_GPU_MAX];
+int host_nx_ginsu[N_GPU_MAX];
+int host_ny_ginsu[N_GPU_MAX];
+long long host_yStride_ginsu[N_GPU_MAX];
+unsigned long long host_nModel_ginsu[N_GPU_MAX];
+unsigned long long host_nModelExt_ginsu[N_GPU_MAX];
+unsigned long long host_nVel_ginsu[N_GPU_MAX];
+unsigned long long host_extStride_ginsu[N_GPU_MAX];
+unsigned long long host_minPad_ginsu[N_GPU_MAX];
+
 
 #endif

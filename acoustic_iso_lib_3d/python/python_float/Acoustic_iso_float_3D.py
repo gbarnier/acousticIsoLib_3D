@@ -1,10 +1,12 @@
 # Bullshit stuff
 import pyAcoustic_iso_float_nl_3D
+import pyAcoustic_iso_float_Born_3D
 import pyOperator as Op
 import genericIO
 import SepVector
 import Hypercube
 import numpy as np
+import math
 from pyAcoustic_iso_float_nl_3D import deviceGpu_3D
 
 ################################################################################
@@ -73,18 +75,18 @@ def buildSourceGeometry_3D(parObject,vel):
 		# Second (slow) axis: spatial coordinates
 		sourceGeomVectorNd = genericIO.defaultIO.getVector(sourceGeomFile,ndims=2).getNdArray()
 
-		# Create inputs for devceGpu_3D constructor
-		# We assume point sources -> zCoordFloat is a 1D array of length 1
-		zCoord=SepVector.getSepVector(ns=[1])
-		xCoord=SepVector.getSepVector(ns=[1])
-		yCoord=SepVector.getSepVector(ns=[1],storage="dataFloat")
-
 		# Check for consistency between number of shots and provided coordinates
 		if (nShot != sourceGeomVectorNd.shape[1]):
 			raise ValueError("**** ERROR [buildSourceGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with geometry file (#shots=%s)! ****\n" %(nShot,sourceGeomVectorNd.shape[1]))
 
 		# Generate vector containing deviceGpu_3D objects
 		for ishot in range(nShot):
+
+			# Create inputs for devceGpu_3D constructor
+			# We assume point sources -> zCoordFloat is a 1D array of length 1
+			zCoord=SepVector.getSepVector(ns=[1])
+			xCoord=SepVector.getSepVector(ns=[1])
+			yCoord=SepVector.getSepVector(ns=[1])
 
 			# Setting z, x and y-positions of the source for the given experiment
 			zCoord.set(sourceGeomVectorNd[2,ishot]) # n2, n1
@@ -136,7 +138,7 @@ def buildSourceGeometry_3D(parObject,vel):
 		# Shot axes
 		zShotAxis=Hypercube.axis(n=nzShot,o=oz+ozShot*dz,d=dzShot*dz)
 		xShotAxis=Hypercube.axis(n=nxShot,o=ox+oxShot*dx,d=dxShot*dx)
-		yShotAxis=Hypercube.axis(n=nyShot,o=oy+oxShot*dy,d=dyShot*dy)
+		yShotAxis=Hypercube.axis(n=nyShot,o=oy+oyShot*dy,d=dyShot*dy)
 		nShotTemp=nzShot*nxShot*nyShot
 		# Check shot number consistency
 		if (nShotTemp != nShot):
@@ -249,22 +251,21 @@ def buildReceiversGeometry_3D(parObject,vel):
 		if (nShot==1 and info==1):
 				print("**** [buildReceiversGeometry_3D]: User has requested a constant geometry (over shots) for receivers ****\n")
 
-		# Create inputs for devceiGpu_3D constructor
-		zCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
-		xCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
-		yCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
-
-		zCoordNd=zCoord.getNdArray()
-		xCoordNd=xCoord.getNdArray()
-		yCoordNd=yCoord.getNdArray()
-
 		# If receiver geometry is constant -> use only one deviceGpu for the reveivers
 
 		# Generate vector containing deviceGpu_3D objects
 		for ishot in range(nShot):
 
-			# Update the receiver's coordinates
+			# Create inputs for devceiGpu_3D constructor
+			zCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
+			xCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
+			yCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
 
+			zCoordNd=zCoord.getNdArray()
+			xCoordNd=xCoord.getNdArray()
+			yCoordNd=yCoord.getNdArray()
+
+			# Update the receiver's coordinates
 			zCoordNd[:]=receiverGeomVectorNd[2,:,ishot]
 			xCoordNd[:]=receiverGeomVectorNd[0,:,ishot]
 			yCoordNd[:]=receiverGeomVectorNd[1,:,ishot]
@@ -328,6 +329,355 @@ def buildReceiversGeometry_3D(parObject,vel):
 		receiversVector.append(deviceGpu_3D(nzReceiver,ozReceiver,dzReceiver,nxReceiver,oxReceiver,dxReceiver,nyReceiver,oyReceiver,dyReceiver,vel.getCpp(),nts,parObject.param,dipole,zDipoleShift,xDipoleShift,yDipoleShift,"linear",hFilter1d))
 
 	return receiversVector,receiverHyper
+
+################################################################################
+################################### Ginsu ######################################
+################################################################################
+# Geometry
+def buildGeometryGinsu_3D(parObject, vel, sourcesVector, receiversVector):
+
+	"""Function that creates a propagation geometry for each shot for Ginsu modeling
+	   Input:
+	   		- Parameter object
+			- Full velocity model
+			- Sources' and receivers' geometry vectors
+	   Output:
+	   		- Vector of hypercubes containing the Ginsu velocity models for each shot
+			- 2 integer arrays containing the values of xPadMinusGinsu and xPadPlusGinsu for each shot
+		Other:
+			- Updates the sources' and receivers' geometry vectors for Ginsu parameters
+	"""
+
+	# Model coordinates + dimensions
+	xPadMinus = parObject.getInt("xPadMinus")
+	xPadPlus = parObject.getInt("xPadPlus")
+	yPadMinus = parObject.getInt("yPad")
+	yPadPlus = parObject.getInt("yPad")
+	fat = parObject.getInt("fat")
+	blockSize = parObject.getInt("blockSize")
+
+	# z-axis
+	zPadMinus = parObject.getInt("zPadMinus")
+	zPadPlus = parObject.getInt("zPadPlus")
+	nz = vel.getHyper().axes[0].n
+	dz = vel.getHyper().axes[0].d
+	oz = vel.getHyper().axes[0].o
+	ozTrue = oz + (fat+zPadMinus) * dz # Origin of domain of interest x-coordinate
+	zMaxTrue = oz + (nz-zPadPlus-fat-1) * dz # Max x-coordinate without padding
+	print("nz big = ", nz)
+	print("oz big = ", oz)
+	print("dz big = ", dz)
+	print("ozTrue = ", ozTrue)
+	print("zMaxTrue = ", zMaxTrue)
+
+	# x-axis
+	nx = vel.getHyper().axes[1].n
+	dx = vel.getHyper().axes[1].d
+	ox = vel.getHyper().axes[1].o
+	oxTrue = ox + (fat+xPadMinus) * dx # Origin of domain of interest x-coordinate
+	xMaxTrue = ox + (nx-xPadPlus-fat-1) * dx # Max x-coordinate without padding
+
+	# y-axis
+	ny = vel.getHyper().axes[2].n
+	dy = vel.getHyper().axes[2].d
+	oy = vel.getHyper().axes[2].o
+	oyTrue = oy + (fat+yPadMinus) * dy # Origin of domain of interest y-coordinate
+	yMaxTrue = oy + (ny-yPadPlus-fat-1) * dy # Max y-coordinate without padding
+
+	print("nx big = ", nx)
+	print("ox big = ", ox)
+	print("dx big = ", dx)
+	print("xMax big = ", ox + (nx-1)*dx)
+	print("oxTrue = ", oxTrue)
+	print("xMaxTrue = ", xMaxTrue)
+
+	print("ny big = ", ny)
+	print("oy big = ", oy)
+	print("dy big = ", dy)
+	print("yMax big = ", oy + (ny-1)*dy)
+	print("oyTrue = ", oyTrue)
+	print("yMaxTrue = ", yMaxTrue)
+
+	# Loop over shots and create a hypercube for the Ginsu velocity
+	nShot = len(sourcesVector)
+
+	# Create vector of hypercubes for each Ginsu velocity
+	velHyperVectorGinsu=[]
+	ixVectorGinsu=[]
+	iyVectorGinsu=[]
+
+	# Create sepVector array for the
+	xPadMinusVectorGinsu=SepVector.getSepVector(ns=[nShot], storage="dataInt")
+	xPadPlusVectorGinsu=SepVector.getSepVector(ns=[nShot], storage="dataInt")
+	xPadMinusVectorGinsuNp = xPadMinusVectorGinsu.getNdArray()
+	xPadPlusVectorGinsuNp = xPadPlusVectorGinsu.getNdArray()
+
+	# Get buffer sizes
+	xBufferGinsu = parObject.getFloat("xBufferGinsu")
+	yBufferGinsu = parObject.getFloat("yBufferGinsu")
+
+	if (xBufferGinsu < dx):
+		raise ValueError("**** ERROR [buildGeometryGinsu_3D]: xBufferGinsu < dx ****\n")
+
+	if (yBufferGinsu < dy):
+		raise ValueError("**** ERROR [buildGeometryGinsu_3D]: yBufferGinsu < dy ****\n")
+
+	# Declare the maximum nx and ny over all shots
+	nxMaxGinsu = 0
+	nyMaxGinsu = 0
+
+	# Loop over shots
+	for iShot in range(nShot):
+
+		print("Shot #", iShot)
+		# print("Position devices before")
+		# sourcesVector[iShot].printRegPosUnique()
+		# receiversVector[iShot].printRegPosUnique()
+
+		# Get sources' positions [km]
+		xCoordSource = sourcesVector[iShot].getXCoord()
+		xCoordSource = SepVector.floatVector(fromCpp=xCoordSource)
+		xCoordSourceNp = xCoordSource.getNdArray()
+		yCoordSource = sourcesVector[iShot].getYCoord()
+		yCoordSource = SepVector.floatVector(fromCpp=yCoordSource)
+		yCoordSourceNp = yCoordSource.getNdArray()
+
+		# Get receivers' positions [km]
+		xCoordRec = receiversVector[iShot].getXCoord()
+		xCoordRec = SepVector.floatVector(fromCpp=xCoordRec)
+		yCoordRec = receiversVector[iShot].getYCoord()
+		yCoordRec = SepVector.floatVector(fromCpp=yCoordRec)
+
+		# print("xCoordSource max = ", xCoordSource.max())
+		# print("xCoordSource min = ", xCoordSource.min())
+		# print("yCoordSource max = ", yCoordSource.max())
+		# print("yCoordSource min = ", yCoordSource.min())
+
+		# print("xCoordRec max = ", xCoordRec.max())
+		# print("xCoordRec min = ", xCoordRec.min())
+		# print("yCoordRec max = ", yCoordRec.max())
+		# print("yCoordRec min = ", yCoordRec.min())
+
+		# Get max and min values for velocity bounds [km]
+		xMax = max(xCoordSource.max(), xCoordRec.max()) + xBufferGinsu
+		xMin = min(xCoordSource.min(), xCoordRec.min()) - xBufferGinsu
+		yMax = max(yCoordSource.max(), yCoordRec.max()) + yBufferGinsu
+		yMin = min(yCoordSource.min(), yCoordRec.min()) - yBufferGinsu
+
+		# print("xMax before = ", xMax)
+		# print("xMin before = ", xMin)
+		# print("yMax before = ", yMax)
+		# print("yMin before = ", yMin)
+
+		# If the acquisition device is close to the edge, use the bound from the big velocity model
+		xMax = min(xMax, xMaxTrue)
+		xMin = max(xMin, oxTrue)
+		yMax = min(yMax, yMaxTrue)
+		yMin = max(yMin, oyTrue)
+
+		# print("xMax = ", xMax)
+		# print("xMin = ", xMin)
+		# print("yMax = ", yMax)
+		# print("yMin = ", yMin)
+
+		# Compute Ginsu min/max in terms of grid index
+		# print("(xMin-ox)/dx = ", (xMin-ox)/dx)
+		ixMin = int((xMin-ox)/dx)
+		# print("ixMin = ", ixMin)
+		ixMax = int((xMax-ox)/dx+0.5)
+		iyMin = int((yMin-oy)/dy)
+		# print("iyMin = ", ixMin)
+		iyMax = int((yMax-oy)/dy+0.5)
+		nxGinsu = ixMax - ixMin + 1
+		oxGinsu = ox + ixMin * dx
+		nyGinsu = iyMax - iyMin + 1
+		oyGinsu = oy + iyMin * dy
+
+		# print("nxGinsu small = ", nxGinsu)
+		# print("oxGinsu small = ", oxGinsu)
+		# print("nyGinsu small = ", nyGinsu)
+		# print("oyGinsu small = ", oyGinsu)
+
+		# Compute xPadPlusGinsu
+		nxTotalNoFat = 2*xPadMinus + nxGinsu
+		ratiox = math.ceil(float(nxTotalNoFat) / float(blockSize))
+		xPadPlusGinsu = ratiox * blockSize - nxGinsu - xPadMinus
+
+		# Make sure that the new padPlus does not take you out of bounds
+		ixMaxTotal = ixMax + xPadPlusGinsu + fat
+		if (ixMaxTotal >= nx):
+			# In that case, set xPadMinusGinsu
+			# and xPadPlusGinsu to xPadMinus
+			print("Weird case")
+			print("ixMaxTotal = ", ixMaxTotal)
+			print("nx = ", nx)
+			xPadMinusGinsu = xPadPlusGinsu
+			xPadPlusGinsu = xPadMinus
+		else:
+			xPadMinusGinsu = xPadMinus
+
+		# Compute dimensions of vel Ginsu
+		nxGinsu = nxGinsu + xPadMinusGinsu + xPadPlusGinsu + 2*fat
+		oxGinsu = oxGinsu - (xPadMinusGinsu+fat) * dx
+		nyGinsu = nyGinsu + yPadMinus + yPadPlus + 2*fat
+		oyGinsu = oyGinsu - (yPadMinus+fat) * dy
+
+		# Check if the velGinsu did not go out of bounds from the origin (if we switched the padding)
+		if (oxGinsu < ox):
+			oxGinsu = ox
+			nxGinsu = nx
+			xPadMinusGinsu = xPadMinus
+			xPadPlusGinsu = xPadPlus
+
+		# Check that the velGinsu is contained within the large velocity
+		if (nxGinsu > nx):
+			raise ValueError("**** ERROR [buildGeometryGinsu_3D]: nxGinsu > nx ****\n")
+		if (oxGinsu < ox):
+			raise ValueError("**** ERROR [buildGeometryGinsu_3D]: oxGinsu < ox ****\n")
+
+		# Create hypercube for Ginsu velocity
+		zAxisGinsu = vel.getHyper().axes[0]
+		xAxisGinsu = Hypercube.axis(n=nxGinsu, o=oxGinsu, d=dx)
+		yAxisGinsu = Hypercube.axis(n=nyGinsu, o=oyGinsu, d=dy)
+		velHyperGinsu = Hypercube.hypercube(axes=[zAxisGinsu, xAxisGinsu, yAxisGinsu])
+
+		xPadMinusVectorGinsuNp[iShot] = xPadMinusGinsu
+		xPadPlusVectorGinsuNp[iShot] = xPadPlusGinsu
+
+		print("xPadMinusGinsu = ", xPadMinusVectorGinsuNp[iShot])
+		print("xPadPlusGinsu = ", xPadPlusVectorGinsuNp[iShot])
+
+		print("nz Ginsu = ", velHyperGinsu.axes[0].n)
+		print("oz Ginsu = ", velHyperGinsu.axes[0].o)
+		print("dz Ginsu = ", velHyperGinsu.axes[0].d)
+		print("nx Ginsu = ", velHyperGinsu.axes[1].n)
+		print("ox Ginsu = ", velHyperGinsu.axes[1].o)
+		print("dx Ginsu = ", velHyperGinsu.axes[1].d)
+		print("ny Ginsu = ", velHyperGinsu.axes[2].n)
+		print("oy Ginsu = ", velHyperGinsu.axes[2].o)
+		print("dy Ginsu = ", velHyperGinsu.axes[2].d)
+
+		izGinsu = (velHyperGinsu.axes[0].o-oz)/velHyperGinsu.axes[0].d
+		ixGinsu = (velHyperGinsu.axes[1].o-ox)/velHyperGinsu.axes[1].d
+		iyGinsu = (velHyperGinsu.axes[2].o-oy)/velHyperGinsu.axes[2].d
+		ixGinsu = int(ixGinsu)
+		iyGinsu = int(iyGinsu)
+
+		ixVectorGinsu.append(ixGinsu)
+		iyVectorGinsu.append(iyGinsu)
+
+		print("iz Ginsu = ", izGinsu)
+		print("ix Ginsu = ", ixGinsu)
+		print("iy Ginsu = ", iyGinsu)
+
+		print("New oz Ginsu = ", oz+izGinsu*velHyperGinsu.axes[0].d)
+		print("New ox Ginsu = ", ox+ixGinsu*velHyperGinsu.axes[1].d)
+		print("New oy Ginsu = ", oy+iyGinsu*velHyperGinsu.axes[2].d)
+
+		# Compute nx and ny max among all shots for the wavefield allocation
+		if (velHyperGinsu.axes[1].n > nxMaxGinsu):
+			nxMaxGinsu = velHyperGinsu.axes[1].n
+
+		if (velHyperGinsu.axes[2].n > nyMaxGinsu):
+			nyMaxGinsu = velHyperGinsu.axes[2].n
+
+		# Transform the stupid Hypercube into a f*** pyHypercube
+		velHyperGinsu = velHyperGinsu.getCpp()
+
+		# Append hyper
+		velHyperVectorGinsu.append(velHyperGinsu)
+
+		# Update source and receivers vectors with Ginsu parameters
+		sourcesVector[iShot].setDeviceGpuGinsu_3D(velHyperGinsu, xPadMinusGinsu, xPadPlusGinsu)
+		receiversVector[iShot].setDeviceGpuGinsu_3D(velHyperGinsu, xPadMinusGinsu, xPadPlusGinsu)
+
+		print("Finished Shot #", iShot+1)
+		print("------------------------")
+
+	print("nxMaxGinsu = ", nxMaxGinsu)
+	print("nyMaxGinsu = ", nyMaxGinsu)
+
+	return velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu
+
+################################################################################
+############################# Useful functions #################################
+################################################################################
+# Gpu list to preallocate wavefields on the CPU
+def getGpuNumber_3D(parObject):
+
+	# Get number of Gpus
+	nGpu = parObject.getInt("nGpu",-1)
+
+	# Get number of shots
+	nShot = parObject.getInt("nShot",-1)
+
+	# If the user does not provide nGpu > 0 or a valid list -> break
+	gpuList = parObject.getInts("iGpu", [-1])
+	if (gpuList[0]<0 and nGpu<=0):
+		raise ValueError("**** ERROR [getGpuNumber_3D]: Please provide a list of GPUs to be used ****\n")
+
+	# If user does not provide a valid list but provides nGpu -> use id: 0,...,nGpu-1
+	if (gpuList[0]<0 and nGpu>0):
+		gpuList=[iGpu for iGpu in range(nGpu)]
+
+	# If the user provides a list -> use that list and ignore nGpu for the parfile
+	if (gpuList[0]>=0):
+		# Get number of Gpu
+		nGpu=len(gpuList)
+		for iGpu in gpuList:
+			if gpuList.count(iGpu) > 1:
+				raise ValueError("**** ERROR [getGpuNumber_3D]: Please provide a correct list of GPUs to be used without duplicates ****")
+
+	# Check that nGpu <= nShot
+	if (nGpu > nShot):
+		raise ValueError("**** ERROR [getGpuNumber_3D]: User required more GPUs than shots to be modeled ****\n")
+
+	return nGpu,gpuList
+
+# Bounds vectors
+# Create bound vectors for FWI
+def createBoundVectors_3D(parObject,model):
+
+	# Get model dimensions
+	nz=parObject.getInt("nz")
+	nx=parObject.getInt("nx")
+	ny=parObject.getInt("ny")
+	fat=parObject.getInt("fat")
+	spline=parObject.getInt("spline",0)
+	if (spline==1): fat=0
+
+	# Min bound
+	minBoundVectorFile=parObject.getString("minBoundVector","noMinBoundVectorFile")
+	if (minBoundVectorFile=="noMinBoundVectorFile"):
+		minBound=parObject.getFloat("minBound")
+		minBoundVector=model.clone()
+		minBoundVector.scale(0.0)
+		minBoundVectorNd=minBoundVector.getNdArray()
+		for iy in range(fat,ny-fat):
+			for ix in range(fat,nx-fat):
+				for iz in range(fat,nz-fat):
+					minBoundVectorNd[iy][ix][iz]=minBound
+
+	else:
+		minBoundVector=genericIO.defaultIO.getVector(minBoundVectorFile)
+
+	# Max bound
+	maxBoundVectorFile=parObject.getString("maxBoundVector","noMaxBoundVectorFile")
+	if (maxBoundVectorFile=="noMaxBoundVectorFile"):
+		maxBound=parObject.getFloat("maxBound")
+		maxBoundVector=model.clone()
+		maxBoundVector.scale(0.0)
+		maxBoundVectorNd=maxBoundVector.getNdArray()
+		for iy in range(fat,ny-fat):
+			for ix in range(fat,nx-fat):
+				for iz in range(fat,nz-fat):
+					maxBoundVectorNd[iy][ix][iz]=maxBound
+
+	else:
+		maxBoundVector=genericIO.defaultIO.getVector(maxBoundVectorFile)
+
+
+	return minBoundVector,maxBoundVector
 
 ################################################################################
 ############################ Nonlinear propagation #############################
@@ -430,16 +780,39 @@ def nonlinearOpInitFloat_3D(args):
 class nonlinearPropShotsGpu_3D(Op.Operator):
 	"""Wrapper encapsulating PYBIND11 module for non-linear 3D propagator"""
 
-	def __init__(self,domain,range,velocity,paramP,sourceVector,receiversVector):
+	def __init__(self,*args):
 		#Domain = source wavelet
 		#Range = recorded data space
+		domain = args[0]
+		range = args[1]
 		self.setDomainRange(domain,range)
-		#Checking if getCpp is present
+		velocity = args[2]
 		if("getCpp" in dir(velocity)):
 			velocity = velocity.getCpp()
+		paramP = args[3]
 		if("getCpp" in dir(paramP)):
 			paramP = paramP.getCpp()
-		self.pyOp = pyAcoustic_iso_float_nl_3D.nonlinearPropShotsGpu_3D(velocity,paramP.param,sourceVector,receiversVector)
+		sourceVector = args[4]
+		receiversVector = args[5]
+		# Ginsu
+		if (len(args) > 6):
+			velHyperVectorGinsu = args[6]
+			if("getCpp" in dir(velHyperVectorGinsu)):
+				velHyperVectorGinsu = velHyperVectorGinsu.getCpp()
+			xPadMinusVectorGinsu = args[7]
+			if("getCpp" in dir(xPadMinusVectorGinsu)):
+				xPadMinusVectorGinsu = xPadMinusVectorGinsu.getCpp()
+			xPadPlusVectorGinsu = args[8]
+			if("getCpp" in dir(xPadPlusVectorGinsu)):
+				xPadPlusVectorGinsu = xPadPlusVectorGinsu.getCpp()
+			ixVectorGinsu = args[9]
+			iyVectorGinsu = args[10]
+			print("Nonlinear: ixVectorGinsu = ", ixVectorGinsu)
+			print("Nonlinear: iyVectorGinsu = ", iyVectorGinsu)
+			self.pyOp = pyAcoustic_iso_float_nl_3D.nonlinearPropShotsGpu_3D(velocity,paramP.param,sourceVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,ixVectorGinsu,iyVectorGinsu)
+		# No ginsu
+		else:
+			self.pyOp = pyAcoustic_iso_float_nl_3D.nonlinearPropShotsGpu_3D(velocity,paramP.param,sourceVector,receiversVector)
 		return
 
 	def forward(self,add,model,data):
@@ -476,8 +849,370 @@ class nonlinearPropShotsGpu_3D(Op.Operator):
 			result=self.pyOp.dotTest(verb,maxError)
 		return result
 
-	def getDampVolumeShots_3D(self):
-		with pyAcoustic_iso_float_nl_3D.ostream_redirect():
-			dampVolume = self.pyOp.getDampVolumeShots_3D()
-			dampVolume = SepVector.floatVector(fromCpp=dampVolume)
-		return dampVolume
+################################################################################
+################################### Born #######################################
+################################################################################
+def BornOpInitFloat_3D(args):
+	"""Function to correctly initialize Born operator
+	   The function will return the necessary variables for operator construction
+	"""
+
+	# IO object
+	parObject=genericIO.io(params=args)
+
+	# Read flag to display information
+	info = parObject.getInt("info",0)
+	if (info == 1):
+		print("**** [BornOpInitFloat_3D]: User has requested to display information ****\n")
+
+	# Read velocity and convert to double
+	velFile=parObject.getString("vel","noVelFile")
+	if (velFile == "noVelFile"):
+		raise ValueError("**** ERROR [BornOpInitFloat_3D]: User did not provide velocity file ****\n")
+	velFloat=genericIO.defaultIO.getVector(velFile)
+
+	# Determine if the source time signature is constant over shots
+	constantWavelet = parObject.getInt("constantWavelet",-1)
+	if (info == 1 and constantWavelet == 1):
+		print("**** [BornOpInitDouble_3D]: Using the same seismic source time signature for all shots ****\n")
+	if (info == 1 and constantWavelet == 0):
+		print("**** [BornOpInitDouble_3D]: Using different seismic source time signatures for each shot ****\n")
+	if (constantWavelet != 0 and constantWavelet != 1):
+		raise ValueError("**** ERROR [BornOpInitDouble_3D]: User did not specify an acceptable value for tag constantWavelet (must be 0 or 1) ****\n")
+
+	# Build sources/receivers geometry
+	sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat)
+	receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat)
+
+	# Compute the number of shots
+	if (shotHyper.getNdim() > 1):
+		# Case where we have a regular source geometry (the hypercube has 3 axes)
+		nShot=shotHyper.axes[0].n*shotHyper.axes[1].n*shotHyper.axes[2].n
+		zShotAxis=shotHyper.axes[0]
+		xShotAxis=shotHyper.axes[1]
+		yShotAxis=shotHyper.axes[2]
+	else:
+		# Case where we have an irregular geometry (the shot hypercube has one axis)
+		nShot=shotHyper.axes[0].n
+
+	# Create shot axis for the modeling
+	shotAxis=Hypercube.axis(n=nShot)
+
+	# Compute the number of receivers per shot (the number is constant for all shots for both regular/irregular geometries)
+	if (receiverHyper.getNdim() > 1):
+		# Regular geometry
+		nReceiver=receiverHyper.axes[0].n*receiverHyper.axes[1].n*receiverHyper.axes[2].n
+		zReceiverAxis=receiverHyper.axes[0]
+		xReceiverAxis=receiverHyper.axes[1]
+		yReceiverAxis=receiverHyper.axes[2]
+	else:
+		# Irregular geometry
+		nReceiver=receiverHyper.axes[0].n
+
+	# Create receiver axis for the modeling
+	receiverAxis=Hypercube.axis(n=nReceiver)
+
+	# Time Axis
+	nts=parObject.getInt("nts",-1)
+	ots=parObject.getFloat("ots",0.0)
+	dts=parObject.getFloat("dts",-1.0)
+	timeAxis=Hypercube.axis(n=nts,o=ots,d=dts)
+
+	# Allocate model
+	modelFloat=SepVector.getSepVector(velFloat.getHyper())
+
+	# Read velocity and convert to double
+	sourcesSignalsFile=parObject.getString("sources","noSourcesFile")
+	if (sourcesSignalsFile == "noSourcesFile"):
+		raise IOError("**** ERROR [BornOpInitDouble_3D]: User did not provide seismic sources file ****\n")
+	sourcesSignalsFloat=genericIO.defaultIO.getVector(sourcesSignalsFile,ndims=2)
+
+	# Allocate data
+	dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
+	dataFloat=SepVector.getSepVector(dataHyper)
+
+	# Create data hypercurbe for writing the data to disk
+	# Regular geometry for both the sources and receivers
+	if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
+		dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
+	# Irregular geometry for both the sources and receivers
+	if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
+		dataHyperForOutput=dataHyper
+
+	return modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput
+
+class BornShotsGpu_3D(Op.Operator):
+	"""Wrapper encapsulating PYBIND11 module for Born operator"""
+
+	# def __init__(self,domain,range,velocity,paramP,sourceVector,sourcesSignalsFloat,receiversVector):
+	def __init__(self,*args):
+
+		# Domain = reflectivity
+		# Range = Born data
+		domainOp = args[0]
+		rangeOp = args[1]
+		self.setDomainRange(domainOp,rangeOp)
+
+		# Get wavefield dimensions
+		zAxisWavefield = domainOp.getHyper().axes[0]
+		xAxisWavefield = domainOp.getHyper().axes[1]
+		yAxisWavefield = domainOp.getHyper().axes[2]
+		timeAxisWavefield = rangeOp.getHyper().axes[0]
+
+		# Velocity model
+		velocity = args[2]
+		if("getCpp" in dir(velocity)):
+			velocity = velocity.getCpp()
+
+		# Parameter object
+		paramP = args[3]
+		nGpu = getGpuNumber_3D(paramP)
+		if("getCpp" in dir(paramP)):
+			paramP = paramP.getCpp()
+
+		# Source / receiver geometry
+		sourceVector = args[4]
+		receiversVector = args[6]
+
+		# Source signal
+		sourcesSignalsFloat = args[5]
+		if("getCpp" in dir(sourcesSignalsFloat)):
+			sourcesSignalsFloat = sourcesSignalsFloat.getCpp()
+
+		# Declare wavefield vector
+		wavefieldVector = []
+
+		# Ginsu
+		if (len(args) > 7):
+
+			print("Ginsu constructor Iso")
+
+			# Vel hypercube for Ginsu
+			velHyperVectorGinsu = args[7]
+			if("getCpp" in dir(velHyperVectorGinsu)):
+				velHyperVectorGinsu = velHyperVectorGinsu.getCpp()
+
+			# Padding for Ginsu
+			xPadMinusVectorGinsu = args[8]
+			if("getCpp" in dir(xPadMinusVectorGinsu)):
+				xPadMinusVectorGinsu = xPadMinusVectorGinsu.getCpp()
+			xPadPlusVectorGinsu = args[9]
+			if("getCpp" in dir(xPadPlusVectorGinsu)):
+				xPadPlusVectorGinsu = xPadPlusVectorGinsu.getCpp()
+
+			# Maximum dimensions for model
+			nxMaxGinsu = args[10]
+			nyMaxGinsu = args[11]
+
+			# Create hypercube for Ginsu wavefield
+			xAxisWavefield = Hypercube.axis(n=nxMaxGinsu, o=0.0, d=1.0)
+			yAxisWavefield = Hypercube.axis(n=nyMaxGinsu, o=0.0, d=1.0)
+			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
+			print("Allocating Ginsu wavefields")
+			nzWav = zAxisWavefield.n
+			nxWav = xAxisWavefield.n
+			nyWav = yAxisWavefield.n
+			ntWav = timeAxisWavefield.n
+			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*4/(1024*1024*1024), " [GB]")
+			ixVectorGinsu = args[12]
+			iyVectorGinsu = args[13]
+
+			# Allocate wavefield
+			# for iGpu in range(nGpu):
+			# 	newWavefield = SepVector.getSepVector(hyperWavefield,storage="dataDouble")
+			# 	if("getCpp" in dir(newWavefield)):
+			# 		newWavefield = newWavefield.getCpp()
+			# 	wavefieldVector.append(newWavefield)
+			# print("Done allocating Ginsu wavefields")
+			# if("getCpp" in dir(wavefieldVector)):
+			# 	wavefieldVector = wavefieldVector.getCpp()
+
+			# Ginsu constructor
+			self.pyOp = pyAcoustic_iso_float_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+
+		else:
+			# Create hypercube for wavefield
+			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
+			# print("Allocating normal wavefields")
+			nzWav = zAxisWavefield.n
+			nxWav = xAxisWavefield.n
+			nyWav = yAxisWavefield.n
+			ntWav = timeAxisWavefield.n
+			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*8/(1024*1024*1024), " [GB]")
+			# for iGpu in range(nGpu):
+			# 	newWavefield = SepVector.getSepVector(hyperWavefield,storage="dataDouble")
+			# 	if("getCpp" in dir(newWavefield)):
+			# 		newWavefield = newWavefield.getCpp()
+			# 	wavefieldVector.append(newWavefield)
+			# print("Done allocating normal wavefields")
+			# if("getCpp" in dir(wavefieldVector)):
+			# 	wavefieldVector = wavefieldVector.getCpp()
+			# Normal constructor
+			self.pyOp = pyAcoustic_iso_float_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector)
+		return
+
+	def __str__(self):
+		"""Name of the operator"""
+		return " BornOp "
+
+	def forward(self,add,model,data):
+		#Checking if getCpp is present
+		if("getCpp" in dir(model)):
+			model = model.getCpp()
+		if("getCpp" in dir(data)):
+			data = data.getCpp()
+		with pyAcoustic_iso_float_Born_3D.ostream_redirect():
+			self.pyOp.forward(add,model,data)
+		return
+
+	def adjoint(self,add,model,data):
+		# QC data size
+		# print("Inside adjoint")
+		# print("model nDim=",model.getHyper().getNdim())
+		# print("model n1=",model.getHyper().axes[0].n)
+		# print("model n2=",model.getHyper().axes[1].n)
+		# print("model n3=",model.getHyper().axes[2].n)
+		# print("data nDim=",data.getHyper().getNdim())
+		# print("data n1=",data.getHyper().axes[0].n)
+		# print("data n2=",data.getHyper().axes[1].n)
+		# print("data n3=",data.getHyper().axes[2].n)
+
+		# print("Born adjoint before data max = ", data.max())
+		# print("Born adjoint before data min = ", data.min())
+
+		#Checking if getCpp is present
+		# if("getCpp" in dir(model)):
+		# 	model = model.getCpp()
+		if("getCpp" in dir(data)):
+			data = data.getCpp()
+		with pyAcoustic_iso_float_Born_3D.ostream_redirect():
+			# print("Just before")
+			# print("Before")
+			self.pyOp.adjoint(add,model.getCpp(),data)
+			# print("Born adjoint after model max = ", model.max())
+			# print("Born adjoint after model min = ", model.min())
+		return
+
+	def setVel_3D(self,vel):
+		#Checking if getCpp is present
+		if("getCpp" in dir(vel)):
+			vel = vel.getCpp()
+		with pyAcoustic_iso_float_Born_3D.ostream_redirect():
+			self.pyOp.setVel_3D(vel)
+		return
+
+	def dotTestCpp(self,verb=False,maxError=.00001):
+		"""Method to call the Cpp class dot-product test"""
+		with pyAcoustic_iso_float_Born_3D.ostream_redirect():
+			result=self.pyOp.dotTest(verb,maxError)
+		return result
+
+	def getSrcWavefield_3D(self,iWavefield):
+		with pyAcoustic_iso_float_Born_3D.ostream_redirect():
+			wfld = self.pyOp.getSrcWavefield_3D(iWavefield)
+			wfld = SepVector.floatVector(fromCpp=wfld)
+		return wfld
+
+################################################################################
+################################# FWI ##########################################
+################################################################################
+def nonlinearFwiOpInitFloat_3D(args):
+
+	"""Function to correctly initialize a nonlinear operator where the model is velocity
+	   The function will return the necessary variables for operator construction
+	"""
+	# IO object
+	parObject=genericIO.io(params=args)
+
+	# Read flag to display information
+	info = parObject.getInt("info",0)
+	if (info == 1):
+		print("**** [nonlinearOpInitDouble_3D]: User has requested to display information ****\n")
+
+	# Read velocity and convert to double
+	modelStartFile=parObject.getString("vel","noVelFile")
+	modelStartFloat=genericIO.defaultIO.getVector(modelStartFile)
+
+	# Determine if the source time signature is constant over shots
+	constantWavelet = parObject.getInt("constantWavelet",-1)
+	if (info == 1 and constantWavelet == 1):
+		print("**** [nonlinearOpInitDouble_3D]: Using the same seismic source time signature for all shots ****\n")
+	if (info == 1 and constantWavelet == 0):
+		print("**** [nonlinearOpInitDouble_3D]: Using different seismic source time signatures for each shot ****\n")
+	if (constantWavelet != 0 and constantWavelet != 1):
+		raise ValueError("**** ERROR [nonlinearOpInitDouble_3D]: User did not specify an acceptable value for tag constantWavelet (must be 0 or 1) ****\n")
+
+	# Build sources/receivers geometry
+	sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,modelStartFloat)
+	receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,modelStartFloat)
+
+	# Compute the number of shots
+	if (shotHyper.getNdim() > 1):
+		# Case where we have a regular source geometry (the hypercube has 3 axes)
+		nShot=shotHyper.axes[0].n*shotHyper.axes[1].n*shotHyper.axes[2].n
+		zShotAxis=shotHyper.axes[0]
+		xShotAxis=shotHyper.axes[1]
+		yShotAxis=shotHyper.axes[2]
+	else:
+		# Case where we have an irregular geometry (the shot hypercube has one axis)
+		nShot=shotHyper.axes[0].n
+
+	# Create shot axis for the modeling
+	shotAxis=Hypercube.axis(n=nShot)
+
+	# Compute the number of receivers per shot (the number is constant for all shots)
+	if (receiverHyper.getNdim() > 1):
+		# Regular geometry
+		nReceiver=receiverHyper.axes[0].n*receiverHyper.axes[1].n*receiverHyper.axes[2].n
+		zReceiverAxis=receiverHyper.axes[0]
+		xReceiverAxis=receiverHyper.axes[1]
+		yReceiverAxis=receiverHyper.axes[2]
+	else:
+		# Irregular geometry
+		nReceiver=receiverHyper.axes[0].n
+
+	# Create receiver axis for the modeling
+	receiverAxis=Hypercube.axis(n=nReceiver)
+
+	# Time axis
+	nts=parObject.getInt("nts",-1)
+	ots=parObject.getFloat("ots",0.0)
+	dts=parObject.getFloat("dts",-1.0)
+	timeAxis=Hypercube.axis(n=nts,o=ots,d=dts)
+
+	# Read sources' signals into temp array
+	sourcesSignalsFile=parObject.getString("sources")
+	sourcesSignalsTemp=genericIO.defaultIO.getVector(sourcesSignalsFile)
+	sourcesSignalsTempNp=sourcesSignalsTemp.getNdArray()
+
+	# If we use a constant wavelet => allocate a 2D array where the second axis has a length of 1
+	if (constantWavelet == 1):
+		# Allocate array in double precision
+		dummyAxis=Hypercube.axis(n=1)
+		sourcesSignalsHyper=Hypercube.hypercube(axes=[timeAxis,dummyAxis])
+		sourcesSignalsFloat=SepVector.getSepVector(sourcesSignalsHyper,storage="dataDouble")
+
+	else:
+		# If we do not use a constant wavelet
+		# Allocate a 2D array where the second axis has a length of the total number of shots
+		sourcesSignalsHyper=Hypercube.hypercube(axes=[timeAxis,shotAxis])
+		sourcesSignalsFloat=SepVector.getSepVector(sourcesSignalsHyper,storage="dataDouble")
+
+	# Copy float into double
+	sourcesSignalsFloatNp=sourcesSignalsFloat.getNdArray()
+	sourcesSignalsFloatNp[:]=sourcesSignalsTemp
+
+	# Allocate data
+	dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
+	dataFloat=SepVector.getSepVector(dataHyper)
+
+	# Create data hypercube for writing the data to disk
+	# Regular geometry for both the sources and receivers
+	if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
+		dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
+	# Irregular geometry for both the sources and receivers
+	if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
+		dataHyperForOutput=dataHyper
+
+	# Outputs
+	return modelStartFloat,dataFloat,sourcesSignalsFloat,parObject,sourcesVector,receiversVector,dataHyperForOutput

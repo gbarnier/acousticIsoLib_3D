@@ -1013,7 +1013,7 @@ void propShotsAdjGpu_3D(double *modelRegDtw, double *dataRegDts, long long *sour
 	}
 
 	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
-	std::cout << "duration: " << duration << std::endl;
+	// std::cout << "duration: " << duration << std::endl;
 
 	// Copy data back to host
 	cuda_call(cudaMemcpy(modelRegDtw, dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(double), cudaMemcpyDeviceToHost));

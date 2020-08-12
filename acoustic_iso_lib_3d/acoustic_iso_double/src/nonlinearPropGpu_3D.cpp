@@ -77,17 +77,17 @@ void nonlinearPropGpu_3D::forward(const bool add, const std::shared_ptr<double2D
 			}
 	} else {
 		if (_ginsu == 0){
-			std::cout << "Normal model max val model before = " << modelRegDtw->max() << std::endl;
-			std::cout << "Normal model min val model before = " << modelRegDtw->min() << std::endl;
+			// std::cout << "Normal model max val model before = " << modelRegDtw->max() << std::endl;
+			// std::cout << "Normal model min val model before = " << modelRegDtw->min() << std::endl;
 			propShotsFwdFreeSurfaceGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-			std::cout << "Normal data max val after = " << dataRegDts->max() << std::endl;
-			std::cout << "Normal data min val after = " << dataRegDts->min() << std::endl;
+			// std::cout << "Normal data max val after = " << dataRegDts->max() << std::endl;
+			// std::cout << "Normal data min val after = " << dataRegDts->min() << std::endl;
 		} else {
-			std::cout << "Ginsu model max val model before = " << modelRegDtw->max() << std::endl;
-			std::cout << "Ginsu model min val model before = " << modelRegDtw->min() << std::endl;
+			// std::cout << "Ginsu model max val model before = " << modelRegDtw->max() << std::endl;
+			// std::cout << "Ginsu model min val model before = " << modelRegDtw->min() << std::endl;
 			propShotsFwdFreeSurfaceGinsuGpu_3D(modelRegDtw->getVals(), dataRegDts->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-			std::cout << "Ginsu data max val after = " << dataRegDts->max() << std::endl;
-			std::cout << "Ginsu data min val after = " << dataRegDts->min() << std::endl;
+			// std::cout << "Ginsu data max val after = " << dataRegDts->max() << std::endl;
+			// std::cout << "Ginsu data min val after = " << dataRegDts->min() << std::endl;
 		}
 	}
 

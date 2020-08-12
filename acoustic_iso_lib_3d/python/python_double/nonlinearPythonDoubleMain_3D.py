@@ -40,6 +40,8 @@ if __name__ == '__main__':
 	if (parObject.getInt("ginsu", 0) == 0):
 		nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector)
 	else:
+		print("Nonlinear main, ixVectorGinsu = ", ixVectorGinsu)
+		print("Nonlinear main, iyVectorGinsu = ", iyVectorGinsu)
 		nonlinearOp=Acoustic_iso_double_3D.nonlinearPropShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,ixVectorGinsu,iyVectorGinsu)
 
 		print("ixVectorGinsu = ", ixVectorGinsu)
@@ -80,6 +82,7 @@ if __name__ == '__main__':
 		modelSMat=modelFloat.getNdArray()
 		modelDMat[:]=modelSMat
 
+		print("Here 1")
 		# Apply forward
 		t0 = time.time()
 		nonlinearOp.forward(False,modelDouble,dataDouble)
@@ -121,16 +124,6 @@ if __name__ == '__main__':
 		else:
 			genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
-		# Saving damping volumes
-		if (parObject.getInt("saveDampCpu", 0) == 1):
-			dampCpuDouble = nonlinearOp.getDampVolumeShots_3D()
-			dampCpuFloat=SepVector.getSepVector(dampCpuDouble.getHyper())
-			dampCpuDoubleNp=dampCpuDouble.getNdArray()
-			dampCpuFloatNp=dampCpuFloat.getNdArray()
-			dampCpuFloatNp[:]=dampCpuDoubleNp
-			dampCpuFile=parObject.getString("dampCpuFile")
-			genericIO.defaultIO.writeVector(dampCpuFile,dampCpuFloat)
-
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
 		print("-------------------------------------------------------------------\n")
@@ -152,13 +145,18 @@ if __name__ == '__main__':
 		if (dataFile == "noDataFile"):
 		    print("**** ERROR: User did not provide data file ****\n")
 		    quit()
-
+		print("Here 1")
 		# Read data
-		dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
+		# dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
+		dataFloat=genericIO.defaultIO.getVector(dataFile)
+		print("Here 1.5")
 		dataFloatNp=dataFloat.getNdArray()
 		dataDoubleNp=dataDouble.getNdArray()
-		dataDoubleNp[:]=dataFloatNp
-
+		print("Here 2")
+		# Check if we have a regular acquisition geometry
+		# if (dataHyperForOutput.getNdim() > 3):
+		dataDoubleNp.flat[:]=dataFloatNp
+		print("Here 3")
 		# Apply adjoint
 		nonlinearOp.adjoint(False,modelDouble,dataDouble)
 		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
@@ -168,7 +166,7 @@ if __name__ == '__main__':
 		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
 		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
 		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
-
+		print("Here 4")
 		# Write model
 		modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")
 		modelFloatNp=modelFloat.getNdArray()

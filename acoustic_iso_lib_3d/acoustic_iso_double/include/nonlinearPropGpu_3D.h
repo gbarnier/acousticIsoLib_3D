@@ -14,7 +14,6 @@
 #include "seismicOperator_3D.h"
 #include "interpTimeLinTbb_3D.h"
 #include "nonlinearShotsGpuFunctions_3D.h"
-#include "freeSurfaceDebugOp.h"
 
 using namespace SEP;
 

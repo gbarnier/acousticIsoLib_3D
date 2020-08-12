@@ -34,18 +34,25 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 	_splitTopBody = _par->getInt("splitTopBody", 0);
 	_zPadPlus = _par->getInt("zPadPlus");
 	_zPadMinus = _par->getInt("zPadMinus");
-	if (_freeSurface == 1){_zPad = _zPadPlus;}
-	else {_zPad = std::min(_zPadMinus, _zPadPlus);}
+	if (_freeSurface == 1){
+		_zPad = _zPadPlus;
+	} else {
+		_zPad = std::min(_zPadMinus, _zPadPlus);
+	}
 	_dz = _par->getFloat("dz",-1.0);
 	_oz = _vel->getHyper()->getAxis(1).o;
 	_zAxis = axis(_nz, _oz, _dz);
-
 	// Make sure the user (me) didn't forget to set the freeSurface flag to 1
 	if ( (_zPadMinus == 0 &&  _freeSurface !=1) || (_zPadMinus > 0 &&  _freeSurface == 1) ){
 		std::cout << "**** ERROR [fdParam_3D]: zPadMinus and freeSurface flag are inconsistent ****" << std::endl;
-		assert(1==2);
+		throw std::runtime_error("");
 	}
 
+	// Check that nz is the same from _vel and from parfile (otherwise _vel2Dtw2 can go out of bounds)
+	if (_nz != _vel->getHyper()->getAxis(1).n) {
+		std::cout << "**** ERROR [fdParam_3D]: nz from vel tag not consistent with nz from parfile ****" << std::endl;
+		throw std::runtime_error("");
+	}
 	/***** Horizontal x-axis *****/
 	_nx = _par->getInt("nx");
 	_xPadPlus = _par->getInt("xPadPlus");
@@ -55,6 +62,11 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 	_ox = _vel->getHyper()->getAxis(2).o;
 	_xAxis = axis(_nx, _ox, _dx);
 
+	// Check that nx is the same from _vel and from parfile (otherwise _vel2Dtw2 can go out of bounds)
+	if (_nx != _vel->getHyper()->getAxis(2).n) {
+		std::cout << "**** ERROR [fdParam_3D]: nx from vel tag not consistent with nx from parfile ****" << std::endl;
+		throw std::runtime_error("");
+	}
     /***** Horizontal y-axis *****/
     _ny = _par->getInt("ny");
 	_yPad = _par->getInt("yPad");
@@ -62,11 +74,16 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 	_oy = _vel->getHyper()->getAxis(3).o;
 	_yAxis = axis(_ny, _oy, _dy);
 
+	// Check that ny is the same from _vel and from parfile (otherwise _vel2Dtw2 can go out of bounds)
+	if (_ny != _vel->getHyper()->getAxis(3).n) {
+		std::cout << "**** ERROR [fdParam_3D]: ny from vel tag not consistent with ny from parfile ****" << std::endl;
+		throw std::runtime_error("");
+	}
 	/***** Extended axes *********/
 	_nExt1 = _par->getInt("nExt1", 1);
     _nExt2 = _par->getInt("nExt2", 1);
-	if (_nExt1 % 2 == 0) {std::cout << "**** ERROR [fdParam_3D]: Length of extended axis #1 must be an uneven number ****" << std::endl; assert(1==2); }
-    if (_nExt2 % 2 == 0) {std::cout << "**** ERROR [fdParam_3D]: Length of extended axis #2 must be an uneven number ****" << std::endl; assert(1==2); }
+	if (_nExt1 % 2 == 0) {std::cout << "**** ERROR [fdParam_3D]: Length of extended axis #1 must be an uneven number ****" << std::endl; throw std::runtime_error(""); }
+    if (_nExt2 % 2 == 0) {std::cout << "**** ERROR [fdParam_3D]: Length of extended axis #2 must be an uneven number ****" << std::endl; throw std::runtime_error(""); }
 	_hExt1 = (_nExt1-1)/2;
     _hExt2 = (_nExt2-1)/2;
 	_extension = par->getString("extension", "none");
@@ -80,12 +97,12 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
         _extAxis1 = axis(_nExt1, _oExt1, _dExt1);
 		if (4*_hExt1 >= _nts){
 			std::cout << "**** ERROR [fdParam_3D]: Make sure that 4*hExt1 < nts ****" << std::endl;
-			assert(1==2);
+			throw std::runtime_error("");
 		}
         // Axis #2
 		if(_nExt2 != 1){
 			std::cout << "**** ERROR [fdParam_3D]: User requested time-lag extension, nExt2 should be set to 1 ****" << std::endl;
-			assert(1==2);
+			throw std::runtime_error("");
 		}
         _oExt2 = -_dts*_hExt2;
         _dExt2 = _dts;
@@ -122,6 +139,9 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 	_saveWavefield = _par->getInt("saveWavefield", 0);
 	_alphaCos = par->getFloat("alphaCos", 0.99);
 	_errorTolerance = par->getFloat("errorTolerance", 0.000001);
+	_nzSmall = _nz - 2*_fat - _zPadMinus - _zPadPlus;
+	_nxSmall = _nx - 2*_fat - _xPadMinus - _xPadPlus;
+	_nySmall = _ny - 2*_fat - 2*_yPad;
 
 	/*********** Damping volume ***********/
 	_dampVolume = std::make_shared<float3DReg>(_zAxis, _xAxis, _yAxis);
@@ -183,7 +203,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 	// 			(*_dampVolume->_mat)[iy][ix][iz] = dampingValue;
 	// 			(*_dampVolume->_mat)[iy][ixRight][iz] = dampingValue;
 	// 		}
-	// 	}
+// 	}
 	// }
 
 	for (int iy = _fat; iy < _ny-_fat; iy++){
@@ -226,7 +246,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 	// std::cout << "Done top/bottom" << std::endl;
 
 	/***** QC *****/
-	assert(checkParfileConsistencySpace_3D(_vel, "Velocity file")); // Parfile - velocity file consistency
+	if (not checkParfileConsistencySpace_3D(_vel, "Velocity file")){throw std::runtime_error("");}
 	axis nzSmallAxis(_nz-2*_fat, 0.0, _dz);
 	axis nxSmallAxis(_nx-2*_fat, 0.0, _dx);
 	axis nySmallAxis(_ny-2*_fat, 0.0, _dy);
@@ -241,9 +261,10 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 			}
 		}
 	}
-	assert(checkFdStability_3D());
-	assert(checkFdDispersion_3D());
-	assert(checkModelSize_3D());
+
+	if (not checkFdStability_3D()){throw std::runtime_error("");}
+	if (not checkFdDispersion_3D()){throw std::runtime_error("");}
+	if (not checkModelSize_3D()){throw std::runtime_error("");}
 
 	// Deallocate small velocity
 	_smallVel.reset();
@@ -270,6 +291,137 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
             for (int iz = 0; iz < _nz; iz++) {
                 int i1 = iy * _nz * _nx + ix * _nz + iz;
                 _reflectivityScale[i1] = 2.0 / ( (*_vel->_mat)[iy][ix][iz] * (*_vel->_mat)[iy][ix][iz] * (*_vel->_mat)[iy][ix][iz] );
+            }
+        }
+    }
+
+	/*********** Allocate a dummy vel and reflectivityScale for Ginsu an*******/
+	_vel2Dtw2Ginsu = new float[sizeof(float)];
+	_reflectivityScaleGinsu = new float[sizeof(float)];
+
+}
+
+void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu) {
+
+	// Clean-up the scaled velocity and reflectity arrays
+	delete [] _vel2Dtw2Ginsu;
+	_vel2Dtw2Ginsu = NULL;
+	delete [] _reflectivityScaleGinsu;
+	_reflectivityScaleGinsu = NULL;
+
+	_nzGinsu = velHyperGinsu->getAxis(1).n;
+	_dzGinsu = velHyperGinsu->getAxis(1).d;
+	_ozGinsu = velHyperGinsu->getAxis(1).o;
+	_nxGinsu = velHyperGinsu->getAxis(2).n;
+	_dxGinsu = velHyperGinsu->getAxis(2).d;
+	_oxGinsu = velHyperGinsu->getAxis(2).o;
+	_nyGinsu = velHyperGinsu->getAxis(3).n;
+	_dyGinsu = velHyperGinsu->getAxis(3).d;
+	_oyGinsu = velHyperGinsu->getAxis(3).o;
+	_zPadMinusGinsu = _zPadMinus;
+	_zPadPlusGinsu = _zPadPlus;
+	if (_freeSurface == 1){
+		_zPadGinsu = _zPadPlus;
+	} else{
+		_zPadGinsu = std::min(_zPadMinusGinsu, _zPadPlusGinsu);
+	}
+	_xPadMinusGinsu = xPadMinusGinsu;
+	_xPadPlusGinsu = xPadPlusGinsu;
+	_xPadGinsu = std::min(_xPadMinusGinsu, _xPadPlusGinsu);
+	_yPadMinusGinsu = _yPad;
+	_yPadPlusGinsu = _yPad;
+	_yPadGinsu = _yPad;
+	_minPadGinsu = std::min(_zPadGinsu, std::min(_xPadGinsu, _yPadGinsu));
+
+	_izGinsu = (_ozGinsu - _oz)/_dz;
+	_ixGinsu = (_oxGinsu - _ox)/_dx;
+	_iyGinsu = (int) ((_oyGinsu - _oy)/_dy);
+	// std::cout << "fdParam before izGinsu = " << _izGinsu << std::endl;
+	// std::cout << "fdParam before ixGinsu = " << _ixGinsu << std::endl;
+	// std::cout << "fdParam before iyGinsu = " << _iyGinsu << std::endl;
+	//
+	// std::cout << "fdParam, ozGinsu before = " << _ozGinsu << std::endl;
+	// std::cout << "fdParam, oxGinsu before = " << _oxGinsu << std::endl;
+	// std::cout << "fdParam, oyGinsu before = " << _oyGinsu << std::endl;
+
+	// Check that izGinsu is always at the origin of the big FD grid
+	_izGinsu = (_ozGinsu - _oz)/_dz;
+	if (_izGinsu != 0){
+		std::cout << "**** ERROR [fdParam_3D]: izGinsu does not coincide with the origin of the full finite-difference grid **** " << std::endl;
+		throw std::runtime_error("");
+	}
+
+	_ixGinsu = ixGinsu;
+	_iyGinsu = iyGinsu;
+
+	_ozGinsu = _vel->getHyper()->getAxis(1).o + _izGinsu*_dzGinsu;
+	_oxGinsu = _vel->getHyper()->getAxis(2).o + _ixGinsu*_dxGinsu;
+	_oyGinsu = _vel->getHyper()->getAxis(3).o + _iyGinsu*_dyGinsu;
+
+	// std::cout << "fdParam, ozGinsu after = " << _ozGinsu << std::endl;
+	// std::cout << "fdParam, oxGinsu after = " << _oxGinsu << std::endl;
+	// std::cout << "fdParam, oyGinsu after = " << _oyGinsu << std::endl;
+
+	float izTest = (_ozGinsu - _oz)/_dz;
+	float ixTest = (_oxGinsu - _ox)/_dx;
+	float iyTest = (_oyGinsu - _oy)/_dy;
+	// _iyGinsu = 33;
+	// std::cout << "fdParaizGinsu = " << _izGinsu << std::endl;
+	// std::cout << "fdParam after izGinsu = " << _izGinsu << std::endl;
+	// std::cout << "fdParam after ixGinsu = " << _ixGinsu << std::endl;
+	// std::cout << "fdParam after iyGinsu = " << _iyGinsu << std::endl;
+	//
+	// std::cout << "fdParam, izGinsu float = " << izTest << std::endl;
+	// std::cout << "fdParam, ixGinsu float = " << ixTest << std::endl;
+	// std::cout << "fdParam, iyGinsu float = " << iyTest << std::endl;
+
+	// std::cout << "ozGinsu = " << _ozGinsu << std::endl;
+	// std::cout << "dzGinsu = " << _dzGinsu << std::endl;
+	// std::cout << "nyGinsu = " << _nzGinsu << std::endl;
+	//
+	// std::cout << "oxGinsu = " << _oxGinsu << std::endl;
+	// std::cout << "dxGinsu = " << _dxGinsu << std::endl;
+	// std::cout << "nxGinsu = " << _nxGinsu << std::endl;
+	//
+	// std::cout << "oyGinsu = " << _oyGinsu << std::endl;
+	// std::cout << "dyGinsu = " << _dyGinsu << std::endl;
+	// std::cout << "nyGinsu = " << _nyGinsu << std::endl;
+
+	// Deallocate small velocity
+	// _smallVel.reset();
+
+	/***** Scaling for propagation *****/
+	// v^2 * dtw^2
+	_vel2Dtw2Ginsu = new float[_nzGinsu * _nxGinsu * _nyGinsu * sizeof(float)];
+	long long sizeVel = sizeof(_vel2Dtw2Ginsu);
+	// std::cout << "sizeVel = " << sizeof(_vel2Dtw2Ginsu) << std::endl;
+	// long long nElementVel = _nzGinsu * _nxGinsu * _nyGinsu;
+	long long nElementVel = _nzGinsu * _nxGinsu;
+	nElementVel *= _nyGinsu;
+	// std::cout << "nElementVel = " << nElementVel << std::endl;
+	memset(_vel2Dtw2Ginsu, 0, nElementVel*sizeof(float)); // Reset values to zero
+	// std::cout << "Min value vel = " << *std::min_element(_vel2Dtw2Ginsu,_vel2Dtw2Ginsu+nElementVel) << std::endl;
+	// std::cout << "Max value vel = " << *std::max_element(_vel2Dtw2Ginsu,_vel2Dtw2Ginsu+nElementVel) << std::endl;
+	#pragma omp parallel for collapse(3)
+    for (long long iy = _fat; iy < _nyGinsu-_fat; iy++){
+        for (long long ix = _fat; ix < _nxGinsu-_fat; ix++){
+            for (long long iz = _fat; iz < _nzGinsu-_fat; iz++) {
+                long long i1 = iy * _nzGinsu * _nxGinsu + ix * _nzGinsu + iz;
+                _vel2Dtw2Ginsu[i1] = (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * _dtw * _dtw;
+            }
+        }
+    }
+
+	/*********** Maybe put an "if" statement for nonlinear propagation *********/
+	// Compute reflectivity scaling
+	_reflectivityScaleGinsu = new float[_nzGinsu * _nxGinsu * _nyGinsu * sizeof(float)];
+	memset(_reflectivityScaleGinsu, 0, nElementVel*sizeVel); // Reset values to zero
+	#pragma omp parallel for collapse(3)
+    for (int iy = _fat; iy < _nyGinsu-_fat; iy++){
+        for (int ix = _fat; ix < _nxGinsu-_fat; ix++){
+            for (int iz = _fat; iz < _nzGinsu-_fat; iz++) {
+                long long i1 = iy * _nzGinsu * _nxGinsu + ix * _nzGinsu + iz;
+                _reflectivityScaleGinsu[i1] = 2.0 / ( (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] );
             }
         }
     }
@@ -414,7 +566,9 @@ bool fdParam_3D::checkFdDispersion_3D(float dispersionRatioMin){
 }
 
 bool fdParam_3D::checkModelSize_3D(){
-	if ( (_nz-2*_fat) % _blockSize != 0) {
+
+
+	if ( (_nz-2*_fat) % _blockSize != 0 ) {
 		std::cout << "**** ERROR [fdParam_3D]: nz-2xFAT not a multiple of block size ****" << std::endl;
 		return false;
 	}

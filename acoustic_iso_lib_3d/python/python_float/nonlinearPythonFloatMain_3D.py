@@ -10,10 +10,17 @@ import sys
 if __name__ == '__main__':
 
 	# Initialize operator
-	model,data,vel,parObject,sourcesVector,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.nonlinearOpInitFloat_3D(sys.argv)
+	modelFloat,dataFloat,velFloat,parObject,sourcesVector,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.nonlinearOpInitFloat_3D(sys.argv)
+
+	# Initialize Ginsu
+	if (parObject.getInt("ginsu", 0) == 1):
+		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,_,_ = Acoustic_iso_float_3D.buildGeometryGinsu_3D(parObject,velFloat,sourcesVector,receiversVector)
 
 	# Construct nonlinear operator object
-	nonlinearOp=Acoustic_iso_float_3D.nonlinearPropShotsGpu_3D(model,data,vel,parObject,sourcesVector,receiversVector)
+	if (parObject.getInt("ginsu", 0) == 0):
+		nonlinearOp=Acoustic_iso_float_3D.nonlinearPropShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,receiversVector)
+	else:
+		nonlinearOp=Acoustic_iso_float_3D.nonlinearPropShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,ixVectorGinsu,iyVectorGinsu)
 
 	#Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
@@ -36,23 +43,34 @@ if __name__ == '__main__':
 		# Check that model was provided
 		modelFile=parObject.getString("model","noModelFile")
 		if (modelFile == "noModelFile"):
-		    raise ValueError("**** ERROR [nonlinearPythonFloatMain_3D]: User did not provide model file ****\n")
+		    raise ValueError("**** ERROR [nonlinearPythonSingleMain_3D]: User did not provide model file ****\n")
 		dataFile=parObject.getString("data","noDataFile")
 		if (dataFile == "noDataFile"):
-		    raise ValueError("**** ERROR [nonlinearPythonFloatMain_3D]: User did not provide data file name ****\n")
+		    raise ValueError("**** ERROR [nonlinearPythonSingleMain_3D]: User did not provide data file name ****\n")
 
 		# Read model
-		modelFloat=genericIO.defaultIO.getVector(modelFile,ndims=2)
+		modelFloatTemp=genericIO.defaultIO.getVector(modelFile,ndims=2)
+
 		# Check that the length of the second axis of the model are consistent
-		if (modelFloat.getHyper().axes[1].n != model.getHyper().axes[1].n):
-			raise ValueError("**** ERROR [nonlinearPythonFloatMain_3D]: Length of axis#2 for model file (n2=%d) is not consistent with length from parameter file (n2=%d) ****\n" %(modelFloat.getHyper().axes[1].n,model.getHyper().axes[1].n))
+		if (modelFloatTemp.getHyper().axes[1].n != modelFloat.getHyper().axes[1].n):
+			raise ValueError("**** ERROR [nonlinearPythonSingleMain_3D]: Length of axis #2 for model file (n2=%d) is not consistent with length from parameter file (n2=%d) ****\n" %(modelFloatTemp.getHyper().axes[1].n,modelFloat.getHyper().axes[1].n))
+		modelFloatTempNp=modelFloatTemp.getNdArray()
+		modelFloatNp=modelFloat.getNdArray()
+		modelFloatNp[:]=modelFloatTempNp
 
 		# Apply forward
-		nonlinearOp.forward(False,modelFloat,data)
+		t0 = time.time()
+		nonlinearOp.forward(False,modelFloat,dataFloat)
+		t1 = time.time()
+		total = t1-t0
+		print("Time for nonlinear forward = ", total)
 
-		# Write data
-		genericIO.defaultIO.writeVector(dataFile,data)
-
+		if dataHyperForOutput.getNdim() == 7:
+			ioMod=genericIO.defaultIO.cppMode
+			fileObj=genericIO.regFile(ioM=ioMod,tag=dataFile,fromHyper=dataHyperForOutput,usage="output")
+			fileObj.writeWindow(dataFloat)
+		else:
+			genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
@@ -73,21 +91,29 @@ if __name__ == '__main__':
 		# Check that data was provided
 		dataFile=parObject.getString("data","noDataFile")
 		if (dataFile == "noDataFile"):
-		    print("**** ERROR: User did not provide data file ****\n")
+		    print("**** ERROR [nonlinearPythonSingleMain_3D]: User did not provide data file ****\n")
 		    quit()
 
-		# Read data
-		data=genericIO.defaultIO.getVector(dataFile,ndims=3)
+		# Read data for irregular geometry
+		if (dataHyperForOutput.getNdim() == 3):
+			dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
+		else:
+			print("here 1")
+			dataFloatTemp=genericIO.defaultIO.getVector(dataFile,ndims=7)
+			print("here 2")
+			dataFloatTempNp=dataFloatTemp.getNdArray()
+			dataFloatNp=dataFloat.getNdArray()
+			dataFloatNp.flat[:]=dataFloatTempNp
 
 		# Apply adjoint
-		nonlinearOp.adjoint(False,model,data)
+		nonlinearOp.adjoint(False,modelFloat,dataFloat)
 
 		# Write model
 		modelFile=parObject.getString("model","noModelFile")
 		if (modelFile == "noModelFile"):
-		    print("**** ERROR: User did not provide model file name ****\n")
+		    print("**** ERROR [nonlinearPythonSingleMain_3D]: User did not provide model file name ****\n")
 		    quit()
-		genericIO.defaultIO.writeVector(modelFile,model)
+		genericIO.defaultIO.writeVector(modelFile,modelFloat)
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")

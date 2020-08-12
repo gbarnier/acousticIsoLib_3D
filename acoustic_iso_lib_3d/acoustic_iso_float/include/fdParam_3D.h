@@ -17,7 +17,11 @@ class fdParam_3D{
 
 		// Constructor
   		fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_ptr<paramObj> par);
-		// Destructor
+
+        // Ginsu mutator
+  		void setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu);
+
+        // Destructor
   		~fdParam_3D();
 
 		// QC stuff
@@ -45,12 +49,19 @@ class fdParam_3D{
 		int _nts, _sub, _ntw;
 		float _ots, _dts, _otw, _dtw, _oExt1, _oExt2, _dExt1, _dExt2;
 		float _Courant, _dispersionRatio;
-		int _nz, _nx, _ny, _nExt1, _nExt2, _hExt1, _hExt2;
+		int _nz, _nx, _ny, _nExt1, _nExt2, _hExt1, _hExt2, _nzSmall, _nxSmall, _nySmall;
 		int _zPadMinus, _zPadPlus, _xPadMinus, _xPadPlus, _yPadMinus, _yPadPlus, _zPad, _xPad, _yPad, _minPad;
 		float _dz, _dx, _dy, _oz, _ox, _oy, _fMax;
 		int _saveWavefield, _blockSize, _fat, _freeSurface, _splitTopBody;
 		float _alphaCos;
 		std::string _extension, _offsetType;
+
+        // Ginsu parameters
+        float *_vel2Dtw2Ginsu, *_reflectivityScaleGinsu;
+        int _nzGinsu, _nxGinsu, _nyGinsu;
+        int _zPadMinusGinsu, _zPadPlusGinsu, _xPadMinusGinsu, _xPadPlusGinsu, _yPadMinusGinsu, _yPadPlusGinsu, _zPadGinsu, _xPadGinsu, _yPadGinsu, _minPadGinsu;
+        float _ozGinsu, _dzGinsu, _oxGinsu, _dxGinsu, _oyGinsu, _dyGinsu;
+        int _izGinsu, _ixGinsu, _iyGinsu;
 
 };
 

@@ -4,7 +4,7 @@
 #include "BornGpu_3D.h"
 #include <time.h>
 
-BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector){
+BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector){
 
 	// Setup parameters
 	_par = par;
@@ -35,7 +35,7 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	// axis yAxis = _vel->getHyper()->getAxis(3);
 	// axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
 	// _srcWavefieldHyper = std::make_shared<hypercube>(zAxis, xAxis, yAxis, timeAxis);
-	// double sizeWavefield = zAxis.n * xAxis.n * yAxis.n * timeAxis.n * 8.0 / (1024*1024*1024);
+	// float sizeWavefield = zAxis.n * xAxis.n * yAxis.n * timeAxis.n * 8.0 / (1024*1024*1024);
 	// std::cout << "Size of wavefield = " << sizeWavefield << " [GB]" << std::endl;
 
 	// std::cout << "Constructor nz = " << zAxis.n << std::endl;
@@ -49,8 +49,8 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	// printf("Very Large Number: %lld \n", testNumber);
 	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
 	// 	std::cout << "iGpu 1 = " << iGpu << std::endl;
-	// 	// wavefieldTemp = std::make_shared<SEP::double4DReg>(_srcWavefieldHyper);
-	// 	std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
+	// 	// wavefieldTemp = std::make_shared<SEP::float4DReg>(_srcWavefieldHyper);
+	// 	std::shared_ptr<float4DReg> wavefieldTemp(new float4DReg(_srcWavefieldHyper));
 	// 	std::cout << "iGpu 2 = " << iGpu << std::endl;
 	// 	_srcWavefieldVector.push_back(wavefieldTemp);
 	// 	_srcWavefieldVector[iGpu]->scale(0.0);
@@ -58,7 +58,7 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	// }
 }
 
-BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu){
+BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu){
 
 	// Setup parameters
 	_par = par;
@@ -111,11 +111,11 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	// For each GPU we are going to use
 	// Allocate the wavefield on the CPU
 	// No need to allocate the wavefield for the full model, just nz x nxMax x nyMax x nts
-	// double sizeWavefield = zAxisWavefield.n * xAxisWavefield.n * yAxisWavefield.n * timeAxis.n * 8 / (1024*1024*1024);
+	// float sizeWavefield = zAxisWavefield.n * xAxisWavefield.n * yAxisWavefield.n * timeAxis.n * 8 / (1024*1024*1024);
 	// std::cout << "Size of wavefield = " << sizeWavefield << " [GB]" << std::endl;
 	// std::cout << "Starting wavefields allocation" << std::endl;
 	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	// std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
+	// 	// std::shared_ptr<float4DReg> wavefieldTemp(new float4DReg(_srcWavefieldHyper));
 	// 	_srcWavefieldVector.push_back(wavefieldTemp);
 	// 	_srcWavefieldVector[iGpu]->scale(0.0);
 	// }
@@ -173,7 +173,7 @@ void BornShotsGpu_3D::deallocatePinnedBornGpu_3D(){
 }
 
 // Forward
-void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> model, std::shared_ptr<double3DReg> data) const {
+void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const {
 
 	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
 	// 	std::cout << "[BornShotGpu]: Forward source wavefield [" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
@@ -199,12 +199,12 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 
 	// Create vectors for each GPU
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
-	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
+	std::vector<std::shared_ptr<float2DReg>> dataSliceVector;
 	std::vector<std::shared_ptr<BornGpu_3D>> BornObjectVector;
 	// std::cout << "Here 1" << std::endl;
 
 	std::clock_t start;
-	double duration;
+	float duration;
 	// start = std::clock();
 	// Loop over GPUs
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
@@ -224,11 +224,11 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 		}
 		// std::cout << "Here 1d" << std::endl;
 		// Create data slice for this GPU number
-		std::shared_ptr<SEP::double2DReg> dataSlice(new SEP::double2DReg(hyperDataSlice));
+		std::shared_ptr<SEP::float2DReg> dataSlice(new SEP::float2DReg(hyperDataSlice));
 		dataSliceVector.push_back(dataSlice);
 		// std::cout << "Here 1e" << std::endl;
 	}
-	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
+	duration = (std::clock() - start) / (float) CLOCKS_PER_SEC;
 	// std::cout << "Duration for allocation: " << duration << std::endl;
 	// std::cout << "Here 2" << std::endl;
 	// Launch Born forward
@@ -240,11 +240,11 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 		int iGpuId = _gpuList[iGpu];
 
 		// Case where the source signature is not constant over shots
-		std::shared_ptr<SEP::double2DReg> sourcesSignalsTemp;
+		std::shared_ptr<SEP::float2DReg> sourcesSignalsTemp;
 		axis dummyAxis(1);
 
 		// Temporary arrays/hypercube for the Ginsu
-		std::shared_ptr<SEP::double3DReg> modelTemp;
+		std::shared_ptr<SEP::float3DReg> modelTemp;
 		std::shared_ptr<SEP::hypercube> hyperTemp;
 		// std::cout << "Here 3" << std::endl;
 		// If no ginsu is used, use the full model
@@ -258,7 +258,7 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
 			// std::cout << "Here 3b" << std::endl;
 			// Allocate Ginsu model
-			modelTemp = std::make_shared<SEP::double3DReg>(_velHyperVectorGinsu[iShot]);
+			modelTemp = std::make_shared<SEP::float3DReg>(_velHyperVectorGinsu[iShot]);
 			// std::cout << "Here 3c" << std::endl;
 			// Temporary variables (for clarity purpose)
 			int fat = BornObjectVector[iGpu]->getFdParam_3D()->_fat;
@@ -287,8 +287,8 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 		}
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
-			sourcesSignalsTemp = std::make_shared<double2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
-    		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
+			sourcesSignalsTemp = std::make_shared<float2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
+    		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(float)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
@@ -299,8 +299,8 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 		}
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
-			sourcesSignalsTemp = std::make_shared<double2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
-    		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
+			sourcesSignalsTemp = std::make_shared<float2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
+    		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(float)*_sourcesSignals->getHyper()->getAxis(1).n);
 			// Set the acquisition geometry (shot+receiver) for this specific shot
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
@@ -341,7 +341,7 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 }
 
 // Adjoint
-void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model, const std::shared_ptr<double3DReg> data) const {
+void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model, const std::shared_ptr<float3DReg> data) const {
 
 	if (!add) model->scale(0.0);
 
@@ -364,8 +364,8 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 	// Create vectors for each GPU
 	std::shared_ptr<SEP::hypercube> hyperModelSlice(new hypercube(model->getHyper()->getAxis(1), model->getHyper()->getAxis(2), model->getHyper()->getAxis(3)));
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
-	std::vector<std::shared_ptr<double3DReg>> modelSliceVector;
-	std::vector<std::shared_ptr<double2DReg>> dataSliceVector;
+	std::vector<std::shared_ptr<float3DReg>> modelSliceVector;
+	std::vector<std::shared_ptr<float2DReg>> dataSliceVector;
 	std::vector<std::shared_ptr<BornGpu_3D>> BornObjectVector;
 
 	// Loop over GPUs
@@ -386,12 +386,12 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 		}
 
 		// Model slice
-		std::shared_ptr<SEP::double3DReg> modelSlice(new SEP::double3DReg(hyperModelSlice));
+		std::shared_ptr<SEP::float3DReg> modelSlice(new SEP::float3DReg(hyperModelSlice));
 		modelSlice->scale(0.0); // Check that
 		modelSliceVector.push_back(modelSlice);
 
 		// Create data slice for this GPU number
-		std::shared_ptr<SEP::double2DReg> dataSlice(new SEP::double2DReg(hyperDataSlice));
+		std::shared_ptr<SEP::float2DReg> dataSlice(new SEP::float2DReg(hyperDataSlice));
 		dataSliceVector.push_back(dataSlice);
 	}
 
@@ -407,14 +407,14 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 		int iGpuId = _gpuList[iGpu];
 
 		// Case where the source signature is not constant over shots
-		std::shared_ptr<SEP::double2DReg> sourcesSignalsTemp;
+		std::shared_ptr<SEP::float2DReg> sourcesSignalsTemp;
 		axis dummyAxis(1);
 
 		// Copy data slice
-		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[iShot*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n]), sizeof(double)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
+		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[iShot*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n]), sizeof(float)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
 
 		// Temporary arrays/hypercube for the Ginsu
-		std::shared_ptr<SEP::double3DReg> modelTemp;
+		std::shared_ptr<SEP::float3DReg> modelTemp;
 		std::shared_ptr<SEP::hypercube> hyperTemp;
 
 		// If no ginsu is used, use the full model
@@ -429,7 +429,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
 
 			// Allocate Ginsu model
-			modelTemp = std::make_shared<SEP::double3DReg>(_velHyperVectorGinsu[iShot]);
+			modelTemp = std::make_shared<SEP::float3DReg>(_velHyperVectorGinsu[iShot]);
 
 			// Copy values into Ginsu model
 			modelTemp->scale(0.0);
@@ -442,8 +442,8 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 
 			// Create a 2D-temporary array where you store the wavelet for this shot
-			sourcesSignalsTemp = std::make_shared<double2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
-    		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
+			sourcesSignalsTemp = std::make_shared<float2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
+    		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(float)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
@@ -454,8 +454,8 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {
 
 			// Create a 2D-temporary array where you store the wavelet for this shot
-			sourcesSignalsTemp = std::make_shared<double2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
-    		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(double)*_sourcesSignals->getHyper()->getAxis(1).n);
+			sourcesSignalsTemp = std::make_shared<float2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
+    		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(float)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);

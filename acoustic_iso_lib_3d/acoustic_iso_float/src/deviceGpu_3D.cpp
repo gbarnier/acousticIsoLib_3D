@@ -9,6 +9,7 @@
 #include <math.h>
 #include <vector>
 
+
 // Constructor #1 -- Only for irregular geometry
 deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<float1DReg> zCoord, const std::shared_ptr<float1DReg> xCoord, const std::shared_ptr<float1DReg> yCoord, const std::shared_ptr<float3DReg> vel, int &nt, std::shared_ptr<paramObj> par, int dipole, float zDipoleShift, float xDipoleShift, float yDipoleShift, std::string interpMethod, int hFilter1d){
 
@@ -30,6 +31,7 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<float1DReg> zCoord, const std::
 	_xPadMinus = _par->getInt("xPadMinus");
 	_xPadPlus = _par->getInt("xPadPlus");
 	_yPad = _par->getInt("yPad");
+	_errorTolerance = par->getFloat("errorTolerance", 1e-6);
 
 	// Get positions of aquisition devices + other parameters
 	_zCoord = zCoord;
@@ -39,16 +41,16 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<float1DReg> zCoord, const std::
 	_zDipoleShift = zDipoleShift; // Default value is 0
 	_xDipoleShift = xDipoleShift; // Default value is 0
 	_yDipoleShift = yDipoleShift; // Default value is 0
-	checkOutOfBounds(_zCoord, _xCoord, _yCoord, _vel); // Check that none of the acquisition devices are out of bounds
+	checkOutOfBounds(_zCoord, _xCoord, _yCoord); // Check that none of the acquisition devices are out of bounds
 	_hFilter1d = hFilter1d; // Half-length of the filter for each dimension. For sinc, the filter in each direction z, x, y has the same length
 	_interpMethod = interpMethod; // Default is linear
 	_nDeviceIrreg = _zCoord->getHyper()->getAxis(1).n; // Nb of devices on irregular grid
 	_nt = nt;
 
 	// Check that for the linear interpolation case, the filter half-length is 1
-	if (interpMethod == "linear" && _hFilter1d != 1){
+	if (_interpMethod == "linear" && _hFilter1d != 1){
 		std::cout << "**** ERROR [deviceGpu_3D]: Half-length of interpolation filter should be set to 1 for linear interpolation ****" << std::endl;
-		assert (1==2);
+		throw std::runtime_error("");
 	}
 
 	// Compute the total number of points on the grid for each axis that will be involved in the interpolation
@@ -65,9 +67,9 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<float1DReg> zCoord, const std::
 	_weight = new float[_nFilter3d*_nDeviceIrreg]; // Weights corresponding to the points on the grid stored in _gridPointIndex
 
 	// Compute list of all grid points used in the interpolation
-	if (interpMethod == "linear"){
+	if (_interpMethod == "linear"){
 		calcLinearWeights();
-	} else if (interpMethod == "sinc"){
+	} else if (_interpMethod == "sinc"){
 		calcSincWeights();
 	} else {
 		std::cerr << "**** ERROR [deviceGpu_3D]: Space interpolation method not supported ****" << std::endl;
@@ -94,8 +96,14 @@ deviceGpu_3D::deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &
 	// std::cout << "Before check out of bounds" << std::endl;
 	// std::cout << "After check out of bounds" << std::endl;
 	_nDeviceIrreg = nzDevice * nxDevice * nyDevice; // Nb of devices on irregular grid
+	_oz = vel->getHyper()->getAxis(1).o;
+	_dz = vel->getHyper()->getAxis(1).d;
 	_nz = vel->getHyper()->getAxis(1).n;
-    _nx = vel->getHyper()->getAxis(2).n;
+	_ox = vel->getHyper()->getAxis(2).o;
+	_dx = vel->getHyper()->getAxis(2).d;
+	_nx = vel->getHyper()->getAxis(2).n;
+	_oy = vel->getHyper()->getAxis(3).o;
+	_dy = vel->getHyper()->getAxis(3).d;
 	_ny = vel->getHyper()->getAxis(3).n;
 	_fat = _par->getInt("fat");
 	_zPadMinus = _par->getInt("zPadMinus");
@@ -103,16 +111,17 @@ deviceGpu_3D::deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &
 	_xPadMinus = _par->getInt("xPadMinus");
 	_xPadPlus = _par->getInt("xPadPlus");
 	_yPad = _par->getInt("yPad");
-	checkOutOfBounds(nzDevice, ozDevice, dzDevice, nxDevice, oxDevice, dxDevice, nyDevice, oyDevice, dyDevice, vel);
+
+	checkOutOfBounds(nzDevice, ozDevice, dzDevice, nxDevice, oxDevice, dxDevice, nyDevice, oyDevice, dyDevice);
 	// Check that the user is not asking for sinc interpolation
-	if (interpMethod != "linear"){
+	if (_interpMethod != "linear"){
 		std::cout << "**** ERROR [deviceGpu_3D]: The constructor used only supports linear spatial interpolation ****" << std::endl;
-		assert (1==2);
+		throw std::runtime_error("");
 	}
 	// Check that for the linear interpolation case, the filter half-length is 1
 	if (_hFilter1d != 1){
 		std::cout << "**** ERROR [deviceGpu_3D]: Half-length of interpolation filter should be 1 for linear interpolation ****" << std::endl;
-		assert (1==2);
+		throw std::runtime_error("");
 	}
 
 	// Compute the total number of points on the grid for each axis that will be involved in the interpolation
@@ -221,6 +230,62 @@ deviceGpu_3D::deviceGpu_3D(const int &nzDevice, const int &ozDevice, const int &
 
 }
 
+// Update spatial interpolation parameters for Ginsu
+void deviceGpu_3D::setDeviceGpuGinsu_3D(const std::shared_ptr<SEP::hypercube> velHyperGinsu, const int xPadMinusGinsu, const int xPadPlusGinsu){
+
+	// Get domain dimensions
+	_oz = velHyperGinsu->getAxis(1).o;
+	_dz = velHyperGinsu->getAxis(1).d;
+	_nz = velHyperGinsu->getAxis(1).n;
+	_ox = velHyperGinsu->getAxis(2).o;
+	_dx = velHyperGinsu->getAxis(2).d;
+	_nx = velHyperGinsu->getAxis(2).n;
+	_oy = velHyperGinsu->getAxis(3).o;
+	_dy = velHyperGinsu->getAxis(3).d;
+	_ny = velHyperGinsu->getAxis(3).n;
+	_xPadMinus = xPadMinusGinsu;
+	_xPadPlus = xPadPlusGinsu;
+
+	std::cout << "Device Ginsu, _oz = " << _oz << std::endl;
+	std::cout << "Device Ginsu, _dz = " << _dz << std::endl;
+	std::cout << "Device Ginsu, _nz = " << _nz << std::endl;
+	std::cout << "Device Ginsu, _ox = " << _ox << std::endl;
+	std::cout << "Device Ginsu, _dx = " << _dx << std::endl;
+	std::cout << "Device Ginsu, _nx = " << _nx << std::endl;
+	std::cout << "Device Ginsu, _oy = " << _oy << std::endl;
+	std::cout << "Device Ginsu, _dy = " << _dy << std::endl;
+	std::cout << "Device Ginsu, _ny = " << _ny << std::endl;
+
+	// std::cout << "_xPadMinus = " << _xPadMinus << std::endl;
+	// std::cout << "_xPadPlus = " << _xPadPlus << std::endl;
+	// std::cout << "_nz = " << _nz << std::endl;
+	// std::cout << "_nx = " << _nx << std::endl;
+	// std::cout << "_ny = " << _ny << std::endl;
+	// std::cout << "_nDeviceIrreg = " << _nDeviceIrreg << std::endl;
+	// std::cout << "_nDeviceReg = " << _nDeviceReg << std::endl;
+
+	checkOutOfBounds(_zCoord, _xCoord, _yCoord); // Check that none of the acquisition devices are out of bounds
+
+	// Compute list of all grid points used in the interpolation
+	if (_interpMethod == "linear"){
+		calcLinearWeights();
+	} else if (_interpMethod == "sinc"){
+		calcSincWeights();
+	} else {
+		std::cerr << "**** ERROR [deviceGpu_3D]: Space interpolation method not supported ****" << std::endl;
+	}
+
+	// std::cout << "_nDeviceIrreg before = " << _nDeviceIrreg << std::endl;
+	// std::cout << "_nDeviceReg before = " << _nDeviceReg << std::endl;
+
+	// Convert the list -> Create a new list with unique indices of the regular grid points involved in the interpolation
+	convertIrregToReg();
+
+	// std::cout << "_nDeviceIrreg after = " << _nDeviceIrreg << std::endl;
+	// std::cout << "_nDeviceReg after = " << _nDeviceReg << std::endl;
+
+}
+
 void deviceGpu_3D::convertIrregToReg() {
 
 	/* (1) Create map where:
@@ -231,6 +296,7 @@ void deviceGpu_3D::convertIrregToReg() {
 
 	_nDeviceReg = 0; // Initialize the number of regular devices to zero
 	_gridPointIndexUnique.clear(); // Initialize to empty vector
+	_indexMap.clear(); // Clear the map to reinitialize the unique device positions array
 
 	for (long long iDevice = 0; iDevice < _nDeviceIrreg; iDevice++){ // Loop over gridPointIndex array
 		for (long long iFilter = 0; iFilter < _nFilter3d; iFilter++){
@@ -238,6 +304,7 @@ void deviceGpu_3D::convertIrregToReg() {
 
 			// If the grid point is not already in the list
 			if (_indexMap.count(_gridPointIndex[i1]) == 0) {
+				// std::cout << "Adding" << std::endl;
 				_nDeviceReg++; // Increment the number of (unique) grid points excited by the signal
 				_indexMap[_gridPointIndex[i1]] = _nDeviceReg - 1; // Add the pair to the map
 				_gridPointIndexUnique.push_back(_gridPointIndex[i1]); // Append vector containing all unique grid point index
@@ -283,7 +350,7 @@ void deviceGpu_3D::adjoint(const bool add, std::shared_ptr<float2DReg> signalReg
 	}
 }
 
-void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<float1DReg> zCoord, const std::shared_ptr<float1DReg> xCoord, const std::shared_ptr<float1DReg> yCoord, const std::shared_ptr<float3DReg> vel){
+void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<float1DReg> zCoord, const std::shared_ptr<float1DReg> xCoord, const std::shared_ptr<float1DReg> yCoord){
 
 	int nDevice = zCoord->getHyper()->getAxis(1).n;
 	_nzSmall = _nz - 2 * _fat - _zPadMinus - _zPadPlus;
@@ -299,20 +366,33 @@ void deviceGpu_3D::checkOutOfBounds(const std::shared_ptr<float1DReg> zCoord, co
     float yMax = yMin + (_nySmall - 1) * _dy;
 
 	for (int iDevice = 0; iDevice < nDevice; iDevice++){
-		if ( (*zCoord->_mat)[iDevice] > zMax || (*zCoord->_mat)[iDevice] < zMin || (*xCoord->_mat)[iDevice] > xMax || (*xCoord->_mat)[iDevice] < xMin || (*yCoord->_mat)[iDevice] > yMax || (*yCoord->_mat)[iDevice] < yMin ){
+		if ( (*zCoord->_mat)[iDevice] - zMax > _errorTolerance || (*zCoord->_mat)[iDevice] - zMin < -_errorTolerance || (*xCoord->_mat)[iDevice] - xMax > _errorTolerance || (*xCoord->_mat)[iDevice] - xMin < -_errorTolerance || (*yCoord->_mat)[iDevice] - yMax > _errorTolerance || (*yCoord->_mat)[iDevice] - yMin < -_errorTolerance ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of the acquisition devices is out of bounds ****" << std::endl;
-			assert (1==2);
+			std::cout << "iDevice = " << iDevice << std::endl;
+			std::cout << "zMin = " << zMin << std::endl;
+			std::cout << "zMax = " << zMax << std::endl;
+			std::cout << "xMin = " << xMin << std::endl;
+			std::cout << "xMax = " << xMax << std::endl;
+			std::cout << "yMin = " << yMin << std::endl;
+			std::cout << "yMax = " << yMax << std::endl;
+			std::cout << "zCoord = " << (*zCoord->_mat)[iDevice] << std::endl;
+			std::cout << "xCoord = " << (*xCoord->_mat)[iDevice] << std::endl;
+			std::cout << "yCoord = " << (*yCoord->_mat)[iDevice] << std::endl;
+			std::cout << "(*zCoord->_mat)[iDevice] - zMin = " << (*zCoord->_mat)[iDevice] - zMin << std::endl;
+			std::cout << "-_errorTolerance = " << -_errorTolerance << std::endl;
+			std::cout << "-------------------------------" << std::endl;
+			throw std::runtime_error("");
 		}
 	}
 }
 
-void deviceGpu_3D::checkOutOfBounds(const int &nzDevice, const int &ozDevice, const int &dzDevice , const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice, const std::shared_ptr<float3DReg> vel){
+void deviceGpu_3D::checkOutOfBounds(const int &nzDevice, const int &ozDevice, const int &dzDevice , const int &nxDevice, const int &oxDevice, const int &dxDevice, const int &nyDevice, const int &oyDevice, const int &dyDevice){
 
 	_nzSmall = _nz - 2 * _fat - _zPadMinus - _zPadPlus;
 	_nxSmall = _nx - 2 * _fat - _xPadMinus - _xPadPlus;
 	_nySmall = _ny - 2 * _fat - 2 * _yPad;
 
-	// ozDevice, oxDevice and oyDevice are the indices on the grid (already shifted by fat + padMinus)
+	// ozDevice, oxDevice and oyDevice are the indices on the grid (laready shifted by fat + padMinus)
 	int ozDeviceNoShift = ozDevice - _fat - _zPadMinus + 1;
 	int oxDeviceNoShift = oxDevice - _fat - _xPadMinus + 1;
 	int oyDeviceNoShift = oyDevice - _fat - _yPad + 1;
@@ -333,22 +413,28 @@ void deviceGpu_3D::checkOutOfBounds(const int &nzDevice, const int &ozDevice, co
 
 	// if ( (zIntMax > _nzSmall) || (xIntMax > _nxSmall) || (yIntMax > _nySmall) || (ozDevice < 0) || (oxDevice < 0) || (oyDevice < 0) ){
 	// 	std::cout << "**** ERROR [deviceGpu_3D]: One of the acquisition devices is out of bounds ****" << std::endl;
-	// 	assert (1==2);
+	// 	throw std::runtime_error("");
 	// }
 
 	if ( (zIntMax > _nzSmall) || (ozDevice < 0) ){
+		std::cout << "zIntMax = " << zIntMax << std::endl;
+		std::cout << "_nzSmall = " << _nzSmall << std::endl;
+		std::cout << "ozDevice = " << ozDevice << std::endl;
 		std::cout << "**** ERROR [deviceGpu_3D]: One of the acquisition devices is out of bounds in the z-direction ****" << std::endl;
-		assert (1==2);
+		throw std::runtime_error("");
 	}
 
 	if ( (xIntMax > _nxSmall) || (oxDevice < 0) ){
 		std::cout << "**** ERROR [deviceGpu_3D]: One of the acquisition devices is out of bounds in the x-direction ****" << std::endl;
-		assert (1==2);
+		std::cout << "xIntMax = " << xIntMax << std::endl;
+		std::cout << "_nxSmall = " << _nxSmall << std::endl;
+		std::cout << "oxDevice = " << oxDevice << std::endl;
+		throw std::runtime_error("");
 	}
 
 	if ( (yIntMax > _nySmall) || (oyDevice < 0) ){
 		std::cout << "**** ERROR [deviceGpu_3D]: One of the acquisition devices is out of bounds in the y-direction ****" << std::endl;
-		assert (1==2);
+		throw std::runtime_error("");
 	}
 
 }
@@ -360,9 +446,9 @@ void deviceGpu_3D::calcLinearWeights(){
 
 		// Find the 8 neighboring points for all devices and compute the weights for the spatial interpolation
 		int i1 = iDevice * _nFilter3d;
-		float wz = ( (*_zCoord->_mat)[iDevice] - _vel->getHyper()->getAxis(1).o ) / _vel->getHyper()->getAxis(1).d;
-		float wx = ( (*_xCoord->_mat)[iDevice] - _vel->getHyper()->getAxis(2).o ) / _vel->getHyper()->getAxis(2).d;
-        float wy = ( (*_yCoord->_mat)[iDevice] - _vel->getHyper()->getAxis(3).o ) / _vel->getHyper()->getAxis(3).d;
+		float wz = ( (*_zCoord->_mat)[iDevice] - _oz ) / _dz;
+		float wx = ( (*_xCoord->_mat)[iDevice] - _ox ) / _dx;
+        float wy = ( (*_yCoord->_mat)[iDevice] - _oy ) / _dy;
 		int zReg = wz; // z-coordinate on regular grid
 		wz = wz - zReg;
 		wz = 1.0 - wz;
@@ -374,19 +460,30 @@ void deviceGpu_3D::calcLinearWeights(){
         wy = 1.0 - wy;
 
 		// Check for the y-axis
-		if ( (yReg < _fat + _yPad) || (yReg + 1 >= _ny - _fat - _yPad) ){
+		if ( (yReg < _fat + _yPad) || ( (yReg + 1 >= _ny - _fat - _yPad) && (wy < 1.0) ) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the y-axis is out of bounds ****" << std::endl;
-			assert (1==2);
+			throw std::runtime_error("");
 		}
 		// Check for the x-axis
-		if ( (xReg < _fat + _xPadMinus) || (xReg + 1 >= _nx - _fat - _xPadPlus) ){
+		if ( (xReg < _fat + _xPadMinus) || ( (xReg + 1 >= _nx - _fat - _xPadPlus) && (wx < 1.0) ) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the x-axis is out of bounds ****" << std::endl;
-			assert (1==2);
+			std::cout << "(*_xCoord->_mat)[iDevice] = " << (*_xCoord->_mat)[iDevice] << std::endl;
+			std::cout << "wx before = " << ( (*_xCoord->_mat)[iDevice] - _ox ) / _dx << std::endl;
+			std::cout << "wx = " << wx << std::endl;
+			std::cout << "iDevice = " << iDevice << std::endl;
+			std::cout << "xReg = " << xReg << std::endl;
+			std::cout << "_fat = " << _fat << std::endl;
+			std::cout << "_xPadMinus = " << _xPadMinus << std::endl;
+			std::cout << "xReg = " << xReg << std::endl;
+			std::cout << "_nx = " << _nx << std::endl;
+			std::cout << "_xPadPlus = " << _xPadPlus << std::endl;
+			std::cout << "_nx - _fat - _xPadPlus = " << _nx - _fat - _xPadPlus << std::endl;
+			throw std::runtime_error("");
 		}
 		// Check for the z-axis
-		if ( (zReg < _fat + _zPadMinus) || (zReg + 1 >= _nz - _fat - _zPadPlus) ){
+		if ( (zReg < _fat + _zPadMinus) || ( (zReg + 1 >= _nz - _fat - _zPadPlus) && (wz < 1.0) ) ) {
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the z-axis is out of bounds ****" << std::endl;
-			assert (1==2);
+			throw std::runtime_error("");
 		}
 
 		// Top front left
@@ -425,9 +522,9 @@ void deviceGpu_3D::calcLinearWeights(){
 		if (_dipole == 1){
 
 			// Find the 8 neighboring points for all devices dipole points and compute the weights for the spatial interpolation
-			float wzDipole = ( (*_zCoord->_mat)[iDevice] + _zDipoleShift - _vel->getHyper()->getAxis(1).o ) / _vel->getHyper()->getAxis(1).d;
-			float wxDipole = ( (*_xCoord->_mat)[iDevice] + _xDipoleShift - _vel->getHyper()->getAxis(2).o ) / _vel->getHyper()->getAxis(2).d;
-            float wyDipole = ( (*_yCoord->_mat)[iDevice] + _yDipoleShift - _vel->getHyper()->getAxis(3).o ) / _vel->getHyper()->getAxis(3).d;
+			float wzDipole = ( (*_zCoord->_mat)[iDevice] + _zDipoleShift - _oz ) / _dz;
+			float wxDipole = ( (*_xCoord->_mat)[iDevice] + _xDipoleShift - _ox ) / _dx;
+            float wyDipole = ( (*_yCoord->_mat)[iDevice] + _yDipoleShift - _oy ) / _dz;
 			int zRegDipole = wzDipole; // z-coordinate on regular grid
 			wzDipole = wzDipole - zRegDipole;
 			wzDipole = 1.0 - wzDipole;
@@ -441,17 +538,17 @@ void deviceGpu_3D::calcLinearWeights(){
 			// Check for the y-axis
 			if ( (yRegDipole < _fat + _yPad) || (yRegDipole + 1 >= _ny - _fat - _yPad) ){
 				std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the y-axis is out of bounds ****" << std::endl;
-				assert (1==2);
+				throw std::runtime_error("");
 			}
 			// Check for the x-axis
 			if ( (xRegDipole < _fat + _xPadMinus) || (xRegDipole + 1 >= _nx - _fat - _xPadPlus) ){
 				std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the x-axis is out of bounds ****" << std::endl;
-				assert (1==2);
+				throw std::runtime_error("");
 			}
 			// Check for the z-axis
 			if ( (zRegDipole < _fat + _zPadMinus) || (zRegDipole + 1 >= _nz - _fat - _zPadPlus) ){
 				std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the z-axis is out of bounds ****" << std::endl;
-				assert (1==2);
+				throw std::runtime_error("");
 			}
 
 			// Top front left (dipole point)
@@ -513,15 +610,15 @@ void deviceGpu_3D::calcSincWeights(){
 		// Check that none of the points used in the interpolation are out of bounds
 		if ( (yRegInt-_hFilter1d+1 < 0) || (yRegInt+_hFilter1d+1 < _ny) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the sinc interpolation on the y-axis is out of bounds ****" << std::endl;
-			assert (1==2);
+			throw std::runtime_error("");
 		}
 		if ( (xRegInt-_hFilter1d+1 < 0) || (xRegInt+_hFilter1d+1 < _nx) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the sinc interpolation on the x-axis is out of bounds ****" << std::endl;
-			assert (1==2);
+			throw std::runtime_error("");
 		}
 		if ( (zRegInt-_hFilter1d+1 < 0) || (zRegInt+_hFilter1d+1 < _nz) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the sinc interpolation on the z-axis is out of bounds ****" << std::endl;
-			assert (1==2);
+			throw std::runtime_error("");
 		}
 
 		// Loop over grid points involved in the interpolation
@@ -575,15 +672,15 @@ void deviceGpu_3D::calcSincWeights(){
 			// Check that none of the points used in the interpolation are out of bounds
 			if ( (yRegDipoleInt-_hFilter1d+1 < 0) || (yRegDipoleInt+_hFilter1d+1 < _ny) ){
 				std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the sinc interpolation for the negative dipole on the y-axis is out of bounds ****" << std::endl;
-				assert (1==2);
+				throw std::runtime_error("");
 			}
 			if ( (xRegDipoleInt-_hFilter1d+1 < 0) || (xRegDipoleInt+_hFilter1d+1 < _nx) ){
 				std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the sinc interpolation for the negative dipole on the x-axis is out of bounds ****" << std::endl;
-				assert (1==2);
+				throw std::runtime_error("");
 			}
 			if ( (zRegDipoleInt-_hFilter1d+1 < 0) || (zRegDipoleInt+_hFilter1d+1 < _nz) ){
 				std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the sinc interpolation for the negative dipole on the z-axis is out of bounds ****" << std::endl;
-				assert (1==2);
+				throw std::runtime_error("");
 			}
 
 			// Loop over grid points involved in the interpolation
@@ -619,5 +716,14 @@ void deviceGpu_3D::calcSincWeights(){
 
 		}
 
+	}
+}
+
+void deviceGpu_3D::printRegPosUnique(){
+	std::cout << "Size unique = " << getSizePosUnique() << std::endl;
+	std::cout << "getNDeviceIrreg = " << getNDeviceIrreg() << std::endl;
+	std::cout << "getSizePosUnique = " << getSizePosUnique() << std::endl;
+	for (int iDevice=0; iDevice<getSizePosUnique(); iDevice++){
+		std::cout << "Position for device #" << iDevice << " = " << _gridPointIndexUnique[iDevice] << std::endl;
 	}
 }

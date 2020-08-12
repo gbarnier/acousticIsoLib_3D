@@ -26,6 +26,7 @@ class nonlinearPropGpu_3D : public seismicOperator_3D<SEP::float2DReg, SEP::floa
 
 		/* Mutators */
 		void setAllWavefields_3D(int wavefieldFlag);
+		void setNonlinearPropGinsuGpu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu, int iGpu, int iGpuId);
 
 		/* QC */
 		bool checkParfileConsistency_3D(const std::shared_ptr<SEP::float2DReg> model, const std::shared_ptr<SEP::float2DReg> data) const;

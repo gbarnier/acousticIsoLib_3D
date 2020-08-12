@@ -52,6 +52,7 @@ if (pybind11_FOUND)
   install( FILES Acoustic_iso_double_3D.py DESTINATION lib/python)
   install( TARGETS pyAcoustic_iso_double_tomoExt_3D DESTINATION lib/python) # Module for Born extended operator
   install( FILES Acoustic_iso_double_3D.py DESTINATION lib/python)
+  install( FILES inversionUtilsDouble_3D.py DESTINATION lib/python)
 
   # Installing Python executables
   install( FILES nonlinearPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
@@ -59,7 +60,7 @@ if (pybind11_FOUND)
   install( FILES BornExtPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
   install( FILES tomoExtPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
   install( FILES makeIrregGeometry_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
-  install( FILES lsrtmDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin) 
+  install( FILES lsrtmDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 
 else(pybind11_FOUND)
   MESSAGE("WARNING!Did not find pybid11. Not compiling ${PROJECT-NAME}")

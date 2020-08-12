@@ -261,6 +261,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 			}
 		}
 	}
+
 	if (not checkFdStability_3D()){throw std::runtime_error("");}
 	if (not checkFdDispersion_3D()){throw std::runtime_error("");}
 	if (not checkModelSize_3D()){throw std::runtime_error("");}

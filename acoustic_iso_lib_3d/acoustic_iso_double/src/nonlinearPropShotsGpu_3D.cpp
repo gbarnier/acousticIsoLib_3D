@@ -44,12 +44,12 @@ nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::double3D
 	_ixVectorGinsu = ixVectorGinsu;
 	_iyVectorGinsu = iyVectorGinsu;
 
-	std::cout << "Inside shot constructor" << std::endl;
-	for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
-		std::cout << "i = " << iVec << std::endl;
-		std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
-		std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
-	}
+	// std::cout << "Inside shot constructor" << std::endl;
+	// for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
+	// 	std::cout << "i = " << iVec << std::endl;
+	// 	std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
+	// 	std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
+	// }
 
 	// Print pad vector
 	// for (int i=0; i < _xPadMinusVectorGinsu->getHyper()->getAxis(1).n; i++){
@@ -117,6 +117,8 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 	int omp_get_thread_num();
 	int constantSrcSignal, constantRecGeom;
 
+	// std::cout << "Shot1" << std::endl;
+
 	// Check whether we use the same source signals for all shots
 	if (model->getHyper()->getAxis(2).n == 1) {
 			constantSrcSignal = 1; }
@@ -139,6 +141,8 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 
     // Create a vector that will contain copies nonlinearPropGpu_3D that will be sent to each GPU
 	std::vector<std::shared_ptr<nonlinearPropGpu_3D>> propObjectVector;
+
+	// std::cout << "Shot3" << std::endl;
 
 	// Initialization for each GPU:
 	// (1) Creation of vector of objects, model, and data
@@ -173,18 +177,18 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 
 	}
 	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
-	std::cout << "Duration for allocation: " << duration << std::endl;
+	// std::cout << "Duration for allocation: " << duration << std::endl;
 	// std::cout << "Done instanciation shots nonlinear" << std::endl;
 	// Launch nonlinear forward
 	// #pragma omp parallel for num_threads(2)
 	// #pragma omp parallel for
 
-	std::cout << "Inside shot fwd" << std::endl;
-	for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
-		std::cout << "i = " << iVec << std::endl;
-		std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
-		std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
-	}
+	// std::cout << "Inside shot fwd" << std::endl;
+	// for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
+	// 	std::cout << "i = " << iVec << std::endl;
+	// 	// std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
+	// 	// std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
+	// }
 
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
@@ -238,12 +242,16 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<dou
 		}
     }
 
+	std::cout << "Nonlinear forward, min data = " << data->min() << std::endl;
+	std::cout << "Nonlinear forward, max data = " << data->max() << std::endl;
+
 	// Deallocate memory on device
 	if (_ginsu == 0){
 		for (int iGpu=0; iGpu<_nGpu; iGpu++){
 			deallocateNonlinearGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
+
 }
 
 // Adjoint
@@ -356,10 +364,14 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 		}
 	}
 
+	std::cout << "Nonlinear adjoint, min model = " << model->min() << std::endl;
+	std::cout << "Nonlinear adjoint, max model = " << model->max() << std::endl;
+
 	if (_ginsu == 0){
 		// Deallocate memory on device
 		for (int iGpu=0; iGpu<_nGpu; iGpu++){
 			deallocateNonlinearGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
+
 }

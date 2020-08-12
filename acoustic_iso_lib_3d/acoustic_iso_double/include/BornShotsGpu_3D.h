@@ -27,8 +27,6 @@ class BornShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 		std::shared_ptr<SEP::double2DReg> _sourcesSignals;
 		std::shared_ptr<paramObj> _par;
 		std::vector<std::shared_ptr<deviceGpu_3D>> _sourcesVector, _receiversVector;
-		// std::vector<std::shared_ptr<SEP::double4DReg>> _srcWavefieldVector;
-		// std::vector<double *> _srcWavefieldArray;
 		std::vector<int> _gpuList;
 		std::shared_ptr <hypercube> _srcWavefieldHyper;
 		std::vector<std::shared_ptr<SEP::hypercube>> _velHyperVectorGinsu;
@@ -56,16 +54,6 @@ class BornShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 		/* Mutators */
 		void setVel_3D(std::shared_ptr<SEP::double3DReg> vel){ _vel = vel; }
 		void deallocatePinnedBornGpu_3D();
-
-		/* Accessor */
-		// iSrcWavefield corresponds to the wavefield for iGpu #iWavefield
-		// std::shared_ptr<double4DReg> getSrcWavefield_3D(int iSrcWavefield) {
-		// 	if ( iSrcWavefield < 0 || iSrcWavefield > _nGpu-1){
-		// 		std::cout << "**** ERROR [BornShotsGpu_3D]: Please provide a valid ID for the wavefield to be saved ****" << std::endl;
-		// 		assert(1==2);
-		// 	}
-		// 	return _srcWavefieldVector[iSrcWavefield];
-		// }
 
 };
 
