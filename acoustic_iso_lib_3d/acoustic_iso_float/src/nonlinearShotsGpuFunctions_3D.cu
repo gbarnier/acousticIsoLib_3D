@@ -136,7 +136,8 @@ void initNonlinearGpu_3D(float dz, float dx, float dy, int nz, int nx, int ny, i
 
 	/********************* COMPUTE LAPLACIAN COEFFICIENTS *********************/
 	// Compute coefficients for 8th order central finite difference Laplacian
-	float host_coeff[COEFF_SIZE] = get_coeffs((float)dz,(float)dx,(float)dy); // Stored on host
+	// float host_coeff[COEFF_SIZE] = get_coeffs((float)dz,(float)dx,(float)dy); // Stored on host
+	float host_coeff[COEFF_SIZE] = get_coeffs((float)dz, (float)dx, (float)dy); // Stored on host
 
 	/**************************** COMPUTE TIME-INTERPOLATION FILTER *********************/
 	// Time interpolation filter length / half length
@@ -1013,7 +1014,7 @@ void propShotsAdjGpu_3D(float *modelRegDtw, float *dataRegDts, long long *source
 	}
 
 	duration = (std::clock() - start) / (float) CLOCKS_PER_SEC;
-	std::cout << "duration: " << duration << std::endl;
+	// std::cout << "duration: " << duration << std::endl;
 
 	// Copy data back to host
 	cuda_call(cudaMemcpy(modelRegDtw, dev_modelRegDtw[iGpu], nSourcesReg*host_ntw*sizeof(float), cudaMemcpyDeviceToHost));

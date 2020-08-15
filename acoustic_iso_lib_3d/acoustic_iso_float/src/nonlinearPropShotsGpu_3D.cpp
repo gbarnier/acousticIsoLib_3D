@@ -242,9 +242,6 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<flo
 		}
     }
 
-	std::cout << "Nonlinear forward, min data = " << data->min() << std::endl;
-	std::cout << "Nonlinear forward, max data = " << data->max() << std::endl;
-
 	// Deallocate memory on device
 	if (_ginsu == 0){
 		for (int iGpu=0; iGpu<_nGpu; iGpu++){
@@ -363,9 +360,6 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float2DRe
 			}
 		}
 	}
-
-	std::cout << "Nonlinear adjoint, min model = " << model->min() << std::endl;
-	std::cout << "Nonlinear adjoint, max model = " << model->max() << std::endl;
 
 	if (_ginsu == 0){
 		// Deallocate memory on device

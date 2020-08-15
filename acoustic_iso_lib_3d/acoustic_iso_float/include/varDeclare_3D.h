@@ -34,8 +34,9 @@
 #define CZ4 10
 #define CX4 11
 #define CY4 12
-#define C_C00(d) (8.0/(5.0*(d)*(d)))
-#define get_coeffs(d1,d2,d3) {-1025.0/576.0*(C_C00(d1)+C_C00(d2)+C_C00(d3)), C_C00(d1), C_C00(d2), C_C00(d3),-C_C00(d1)/8.0,-C_C00(d2)/8.0,-C_C00(d3)/8.0,C_C00(d1)/63.0,C_C00(d2)/63.0,C_C00(d3)/63.0,-C_C00(d1)/896.0,-C_C00(d2)/896.0,-C_C00(d3)/896.0}
+// Check that using float does not affect precision (maybe we should use double, compute the coefficients, and then convert to float?) - Ask Bob
+#define C_C00(d) (8.f/(5.f*(d)*(d)))
+#define get_coeffs(d1,d2,d3) {-1025.f/576.f*(C_C00(d1)+C_C00(d2)+C_C00(d3)), C_C00(d1), C_C00(d2), C_C00(d3),-C_C00(d1)/8.f,-C_C00(d2)/8.f,-C_C00(d3)/8.f,C_C00(d1)/63.f,C_C00(d2)/63.f,C_C00(d3)/63.f,-C_C00(d1)/896.f,-C_C00(d2)/896.f,-C_C00(d3)/896.f}
 
 /******************************************************************************/
 /*************************** Declaration on device ****************************/

@@ -61,6 +61,9 @@ if __name__ == '__main__':
 		# Read model
 		modelFloat=genericIO.defaultIO.getVector(modelFile)
 
+		print("model max = ", modelFloat.max())
+		print("model min = ", modelFloat.min())
+
 		# Apply forward
 		t0 = time.time()
 		BornOp.forward(False,modelFloat,dataFloat)

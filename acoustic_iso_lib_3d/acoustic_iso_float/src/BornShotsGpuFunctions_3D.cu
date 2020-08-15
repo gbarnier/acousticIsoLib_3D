@@ -153,6 +153,7 @@ void initBornGpu_3D(float dz, float dx, float dy, int nz, int nx, int ny, int nt
 
 	/**************************** COMPUTE LAPLACIAN COEFFICIENTS ************************/
 	float host_coeff[COEFF_SIZE] = get_coeffs((float)dz,(float)dx,(float)dy); // Stored on host
+	// float host_coeff[COEFF_SIZE] = get_coeffs(dz,dx,dy); // Stored on host
 
 	/**************************** COMPUTE TIME-INTERPOLATION FILTER *********************/
 	// Time interpolation filter length / half length

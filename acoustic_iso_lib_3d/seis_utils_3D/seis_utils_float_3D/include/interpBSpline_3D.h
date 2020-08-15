@@ -8,7 +8,7 @@
 
 using namespace SEP;
 
-class interpBSpline3d : public Operator<SEP::float3DReg, SEP::float3DReg> {
+class interpBSpline_3D : public Operator<SEP::float3DReg, SEP::float3DReg> {
 
 	private:
 
@@ -22,7 +22,7 @@ class interpBSpline3d : public Operator<SEP::float3DReg, SEP::float3DReg> {
 	public:
 
 		// Overloaded constructors
-		interpBSpline3d(int zOrder, int xOrder, int yOrder, std::shared_ptr<float1DReg> zControlPoints, std::shared_ptr<float1DReg> xControlPoints, std::shared_ptr<float1DReg> yControlPoints, axis zDataAxis, axis xDataAxis, axis yDataAxis, int nzParamVector, int nxParamVector, int nyParamVector, int scaling, float zTolerance, float xTolerance, float yTolerance, int zFat, int xFat, int yFat);
+		interpBSpline_3D(int zOrder, int xOrder, int yOrder, std::shared_ptr<float1DReg> zControlPoints, std::shared_ptr<float1DReg> xControlPoints, std::shared_ptr<float1DReg> yControlPoints, axis zDataAxis, axis xDataAxis, axis yDataAxis, int nzParamVector, int nxParamVector, int nyParamVector, int scaling, float zTolerance, float xTolerance, float yTolerance, int zFat, int xFat, int yFat);
 
 		// Knot vector
         void buildKnotVectors3d();

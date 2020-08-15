@@ -41,8 +41,6 @@ if __name__ == '__main__':
 
 	# Initialize Born
 	modelInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.BornOpInitFloat_3D(sys.argv)
-	print("dataHyperForOutput = ", dataHyperForOutput)
-	print("data shape 1 = ",dataFloat.shape)
 
 	# Check if Ginsu is required
 	if (parObject.getInt("ginsu",0) == 1):
@@ -67,17 +65,21 @@ if __name__ == '__main__':
 		modelInitFloat=genericIO.defaultIO.getVector(modelInitFile,ndims=3)
 
 	# Data
-	if dataHyperForOutput.getNdim() == 7:
-		dataFile=parObject.getString("data")
-		dataFloatTemp=genericIO.defaultIO.getVector(dataFile,ndim=7)
-		dataFloatTempNp=dataFloatTemp.getNdArray()
-		dataFloat.getNdArray()[:]=dataFloatTempNp
+	dataFile=parObject.getString("data")
 
-	else:
-		dataFile=parObject.getString("data")
+	# Regular acquisition geometry
+	if (dataHyperForOutput.getNdim() == 7):
 		dataFloatTemp=genericIO.defaultIO.getVector(dataFile,ndim=7)
 		dataFloatTempNp=dataFloatTemp.getNdArray()
-		dataFloat.getNdArray()[:]=dataFloatTempNp
+		dataFloatNp=dataFloat.getNdArray()
+		dataFloatNp.flat[:]=dataFloatTempNp
+
+    # User provided a source/receiver geometry file
+	else:
+		dataFloat=genericIO.defaultIO.getVector(dataFile)
+
+	print("dataFloat max = ", dataFloat.max())
+	print("dataFloat min = ", dataFloat.min())
 
 	# No regularization
 	invProb=Prblm.ProblemL2Linear(modelInitFloat,dataFloat,invOp)

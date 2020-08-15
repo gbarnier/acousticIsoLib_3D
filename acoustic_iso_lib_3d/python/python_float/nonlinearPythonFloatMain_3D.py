@@ -95,15 +95,16 @@ if __name__ == '__main__':
 		    quit()
 
 		# Read data for irregular geometry
-		if (dataHyperForOutput.getNdim() == 3):
-			dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
-		else:
-			print("here 1")
-			dataFloatTemp=genericIO.defaultIO.getVector(dataFile,ndims=7)
-			print("here 2")
+		dataFile=parObject.getString("data")
+		if (dataHyperForOutput.getNdim() == 7):
+			dataFloatTemp=genericIO.defaultIO.getVector(dataFile,ndim=7)
 			dataFloatTempNp=dataFloatTemp.getNdArray()
 			dataFloatNp=dataFloat.getNdArray()
 			dataFloatNp.flat[:]=dataFloatTempNp
+			print("dataFloatTemp = ", dataFloatTemp)
+			print("dataFloat = ", dataFloat)
+		else:
+			dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
 
 		# Apply adjoint
 		nonlinearOp.adjoint(False,modelFloat,dataFloat)

@@ -1,12 +1,12 @@
 #include <string>
 #include <float3DReg.h>
 #include <iostream>
-#include "interpBSpline3d.h"
+#include "interpBSpline_3D.h"
 #include <omp.h>
 #include <vector>
 
 // Contructor
-interpBSpline3d::interpBSpline3d(int zOrder, int xOrder, int yOrder, std::shared_ptr<float1DReg> zControlPoints, std::shared_ptr<float1DReg> xControlPoints, std::shared_ptr<float1DReg> yControlPoints, axis zDataAxis, axis xDataAxis, axis yDataAxis, int nzParamVector, int nxParamVector, int nyParamVector, int scaling, float zTolerance, float xTolerance, float yTolerance, int zFat, int xFat, int yFat){
+interpBSpline_3D::interpBSpline_3D(int zOrder, int xOrder, int yOrder, std::shared_ptr<float1DReg> zControlPoints, std::shared_ptr<float1DReg> xControlPoints, std::shared_ptr<float1DReg> yControlPoints, axis zDataAxis, axis xDataAxis, axis yDataAxis, int nzParamVector, int nxParamVector, int nyParamVector, int scaling, float zTolerance, float xTolerance, float yTolerance, int zFat, int xFat, int yFat){
 
     // B-spline parameters
     _zOrder = zOrder; // Order of interpolation in the z-direction
@@ -91,7 +91,7 @@ interpBSpline3d::interpBSpline3d(int zOrder, int xOrder, int yOrder, std::shared
 }
 
 // Model mesh
-std::shared_ptr<float1DReg> interpBSpline3d::getZMeshModel(){
+std::shared_ptr<float1DReg> interpBSpline_3D::getZMeshModel(){
 
     _zMeshModelVector = std::make_shared<float1DReg>(_nModel);
 
@@ -106,7 +106,7 @@ std::shared_ptr<float1DReg> interpBSpline3d::getZMeshModel(){
 	}
     return _zMeshModelVector;
 }
-std::shared_ptr<float1DReg> interpBSpline3d::getXMeshModel(){
+std::shared_ptr<float1DReg> interpBSpline_3D::getXMeshModel(){
     _xMeshModelVector = std::make_shared<float1DReg>(_nModel);
 
     #pragma omp parallel for collapse(3)
@@ -120,7 +120,7 @@ std::shared_ptr<float1DReg> interpBSpline3d::getXMeshModel(){
 	}
     return _xMeshModelVector;
 }
-std::shared_ptr<float1DReg> interpBSpline3d::getYMeshModel(){
+std::shared_ptr<float1DReg> interpBSpline_3D::getYMeshModel(){
     _yMeshModelVector = std::make_shared<float1DReg>(_nModel);
 
     #pragma omp parallel for collapse(3)
@@ -136,7 +136,7 @@ std::shared_ptr<float1DReg> interpBSpline3d::getYMeshModel(){
 }
 
 // Data mesh
-std::shared_ptr<float1DReg> interpBSpline3d::getZMeshData(){
+std::shared_ptr<float1DReg> interpBSpline_3D::getZMeshData(){
     _zMeshDataVector = std::make_shared<float1DReg>(_nData);
     // Build mesh vectors (1D array) for the fine grid
 	for (int iy=0; iy<_nyData; iy++){
@@ -149,7 +149,7 @@ std::shared_ptr<float1DReg> interpBSpline3d::getZMeshData(){
 	}
     return _zMeshDataVector;
 }
-std::shared_ptr<float1DReg> interpBSpline3d::getXMeshData(){
+std::shared_ptr<float1DReg> interpBSpline_3D::getXMeshData(){
     _xMeshDataVector = std::make_shared<float1DReg>(_nData);
     // Build mesh vectors (1D array) for the fine grid
 	for (int iy=0; iy<_nyData; iy++){
@@ -163,7 +163,7 @@ std::shared_ptr<float1DReg> interpBSpline3d::getXMeshData(){
 	}
     return _xMeshDataVector;
 }
-std::shared_ptr<float1DReg> interpBSpline3d::getYMeshData(){
+std::shared_ptr<float1DReg> interpBSpline_3D::getYMeshData(){
     _yMeshDataVector = std::make_shared<float1DReg>(_nData);
     // Build mesh vectors (1D array) for the fine grid
 	for (int iy=0; iy<_nyData; iy++){
@@ -179,7 +179,7 @@ std::shared_ptr<float1DReg> interpBSpline3d::getYMeshData(){
 }
 
 // Compute model index
-void interpBSpline3d::computeZDataIndex(){
+void interpBSpline_3D::computeZDataIndex(){
     _zDataIndex.resize(_nzData);
     #pragma omp parallel for
     for (int izData=_zFat; izData<_nzData-_zFat; izData++){
@@ -192,7 +192,7 @@ void interpBSpline3d::computeZDataIndex(){
         }
     }
 }
-void interpBSpline3d::computeXDataIndex(){
+void interpBSpline_3D::computeXDataIndex(){
     _xDataIndex.resize(_nxData);
     #pragma omp parallel for
     for (int ixData=_xFat; ixData<_nxData-_xFat; ixData++){
@@ -205,7 +205,7 @@ void interpBSpline3d::computeXDataIndex(){
         }
     }
 }
-void interpBSpline3d::computeYDataIndex(){
+void interpBSpline_3D::computeYDataIndex(){
     _yDataIndex.resize(_nyData);
     #pragma omp parallel for
     for (int iyData=_yFat; iyData<_nyData-_yFat; iyData++){
@@ -219,7 +219,7 @@ void interpBSpline3d::computeYDataIndex(){
     }
 }
 
-void interpBSpline3d::computeZModelIndex(){
+void interpBSpline_3D::computeZModelIndex(){
     _zModelIndex.resize(_nzModel);
     #pragma omp parallel for
     for (int izModel=0; izModel<_nzModel; izModel++){
@@ -232,7 +232,7 @@ void interpBSpline3d::computeZModelIndex(){
         }
     }
 }
-void interpBSpline3d::computeXModelIndex(){
+void interpBSpline_3D::computeXModelIndex(){
     _xModelIndex.resize(_nxModel);
     #pragma omp parallel for
     for (int ixModel=0; ixModel<_nxModel; ixModel++){
@@ -245,7 +245,7 @@ void interpBSpline3d::computeXModelIndex(){
         }
     }
 }
-void interpBSpline3d::computeYModelIndex(){
+void interpBSpline_3D::computeYModelIndex(){
     _yModelIndex.resize(_nyModel);
     #pragma omp parallel for
     for (int iyModel=0; iyModel<_nyModel; iyModel++){
@@ -259,8 +259,8 @@ void interpBSpline3d::computeYModelIndex(){
     }
 }
 
-// // Knot vectors for both directions
-void interpBSpline3d::buildKnotVectors3d(){
+// Knot vectors for both directions
+void interpBSpline_3D::buildKnotVectors3d(){
 
     // Knots for the z-axis
     _nkz=_nzModel+_zOrder+1; // Number of knots
@@ -336,7 +336,7 @@ void interpBSpline3d::buildKnotVectors3d(){
 }
 
 // Compute parameter vector containing optimal parameters
-std::shared_ptr<float1DReg> interpBSpline3d::computeParamVectorZ(){
+std::shared_ptr<float1DReg> interpBSpline_3D::computeParamVectorZ(){
 
     // Generate u (z-direction)
     int nu = _nzParamVector;
@@ -442,7 +442,7 @@ std::shared_ptr<float1DReg> interpBSpline3d::computeParamVectorZ(){
     }
     return paramVector;
 }
-std::shared_ptr<float1DReg> interpBSpline3d::computeParamVectorX(){
+std::shared_ptr<float1DReg> interpBSpline_3D::computeParamVectorX(){
 
     // Generate u (z-direction)
     int nv = _nxParamVector;
@@ -550,7 +550,7 @@ std::shared_ptr<float1DReg> interpBSpline3d::computeParamVectorX(){
     }
     return paramVector;
 }
-std::shared_ptr<float1DReg> interpBSpline3d::computeParamVectorY(){
+std::shared_ptr<float1DReg> interpBSpline_3D::computeParamVectorY(){
 
     // Generate u (z-direction)
     int nw = _nyParamVector;
@@ -663,7 +663,7 @@ std::shared_ptr<float1DReg> interpBSpline3d::computeParamVectorY(){
 }
 
 // Scaling vector
-std::shared_ptr<float3DReg> interpBSpline3d::computeScaleVector(){
+std::shared_ptr<float3DReg> interpBSpline_3D::computeScaleVector(){
 
 	// Variables declaration
     float uValue, vValue, wValue, zWeight, xWeight, yWeight;
@@ -694,222 +694,7 @@ std::shared_ptr<float3DReg> interpBSpline3d::computeScaleVector(){
 }
 
 // Forward
-// void interpBSpline3d::forward(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const {
-//
-//     // Forward: Coarse grid to fine grid
-//     // Model can be on an irregular grid
-// 	if (!add) data->scale(0.0);
-//
-//     // Loop over data (fine sampling grid)
-// 	#pragma omp parallel for collapse(3)
-// 	for (int iyData=_yFat; iyData<_nyData-_yFat; iyData++){
-//     	for (int ixData=_xFat; ixData<_nxData-_xFat; ixData++){
-//         	for (int izData=_zFat; izData<_nzData-_zFat; izData++){
-//
-//             	float uValue = (*_zParamVector->_mat)[izData];
-//             	float vValue = (*_xParamVector->_mat)[ixData];
-// 				float wValue = (*_yParamVector->_mat)[iyData];
-//
-//             	for (int iyModel=0; iyModel<_nyModel; iyModel++){
-// 					float sy=wValue-(*_yKnots->_mat)[iyModel];
-// 					float sy3=sy*sy*sy;
-// 					float sy2=sy*sy;
-// 					float yWeight=0.0;
-//
-//                 	if( sy>=0.0 && sy<4.0*_dky ){
-//
-// 						///////////// Compute weight in y-direction ////////////
-//
-// 						if (iyModel==0){
-// 	                        if (sy>=0 && sy<_dky){
-// 	                            yWeight=-sy*sy*sy/(_dky*_dky*_dky)+3.0*sy*sy/(_dky*_dky)-3.0*sy/_dky+1.0;
-// 	                        }
-// 	                    } else if (iyModel==1){
-// 	                        if (sy>=0 && sy<_dky){
-// 	                            yWeight=7.0*sy*sy*sy/(4.0*_dky*_dky*_dky)-9.0*sy*sy/(2.0*_dky*_dky)+3.0*sy/_dky;
-// 	                        } else if (sy>=_dky && sy<(2.0*_dky)){
-// 	                            yWeight=-sy*sy*sy/(4.0*_dky*_dky*_dky)+3.0*sy*sy/(2.0*_dky*_dky)-3.0*sy/_dky+2.0;
-// 	                        }
-// 	                    } else if (iyModel==2){
-// 	                        if (sy>=0 && sy<_dky){
-// 	                            yWeight=-11.0*sy*sy*sy/(12.0*_dky*_dky*_dky)+3.0*sy*sy/(2.0*_dky*_dky);
-// 	                        } else if (sy>=_dky && sy<(2.0*_dky)){
-// 	                            yWeight=7.0*sy*sy*sy/(12.0*_dky*_dky*_dky)-3*sy*sy/(_dky*_dky)+9.0*sy/(2.0*_dky)-3.0/2.0;
-// 	                        } else if (sy>=(2.0*_dky) && sy<(3.0*_dky)){
-// 	                            yWeight=-sy*sy*sy/(6.0*_dky*_dky*_dky)+3.0*sy*sy/(2.0*_dky*_dky)-9.0*sy/(2.0*_dky)+9.0/2.0;
-// 	                        }
-// 	                    } else if (iyModel>=3 && iyModel<_nyModel-3){
-// 	                        if (sy>=0.0 && sy<_dky){
-// 	                            yWeight=sy3/(6.0*_dky3);
-// 	                        } else if (sy>=_dky && sy<(2.0*_dky)){
-// 	                            yWeight = -sy3/(2.0*_dky3) + 2.0*sy2/(_dky2) - 2.0*sy/_dky + 2.0/3.0;
-// 	                        } else if (sy>=(2.0*_dky) && sy<(3.0*_dky)){
-// 	                            yWeight = 1/(2.0*_dky3)*sy3 - 4.0/_dky2*sy2 + 10.0*sy/_dky -22.0/3.0;
-// 	                        } else if (sy>=(3.0*_dky) && sy<(4.0*_dky)){
-// 	                            yWeight = -sy3/(6.0*_dky3) + 2.0*sy2/_dky2 - 8.0*sy/_dky + 32.0/3.0;
-// 	                        }
-// 	                    } else if (iyModel==_nyModel-3){
-// 	                        if (sy>=0.0 && sy<_dky){
-// 	                            yWeight=sy*sy*sy/(6.0*_dky*_dky*_dky);
-// 	                        } else if(sy>=_dky && sy<(2.0*_dky)) {
-// 	                            yWeight=-sy*sy*sy/(3.0*_dky*_dky*_dky)+sy*sy/(_dky*_dky)-sy/(2*_dky)+(3.0/2.0-sy/(2.0*_dky))*(sy-_dky)*(sy-_dky)/(2.0*_dky*_dky);
-// 	                        } else if(sy>=(2.0*_dky) && sy<=(3.0*_dky)) {
-// 	                            yWeight=sy/(3.0*_dky)*(sy*sy/(2.0*_dky*_dky)-3*sy/_dky+9.0/2.0);
-// 	                            yWeight+=(3.0/2.0-sy/(2.0*_dky))*(-3*(sy-_dky)*(sy-_dky)/(2.0*_dky*_dky)+4*(sy-_dky)/_dky-2.0);
-// 	                        }
-// 	                    } else if (iyModel==_nyModel-2){
-// 	                        if (sy>=0.0 && sy<_dky){
-// 	                            yWeight=sy*sy*sy/(4.0*_dky*_dky*_dky);
-// 	                        } else if(sy>=_dky && sy<=(2.0*_dky)) {
-// 	                            yWeight=sy/(2.0*_dky)*(-3.0*sy*sy/(2.0*_dky*_dky)+4.0*sy/_dky-2.0);
-// 	                            yWeight+=(2.0-sy/_dky)*(sy-_dky)*(sy-_dky)/(_dky*_dky);
-// 	                        }
-// 	                    } else if (iyModel==_nyModel-1){
-// 	                        if (sy>=0.0 && sy<=_dky){
-// 	                            yWeight=sy*sy*sy/(_dky*_dky*_dky);
-// 	                        }
-// 	                    }
-// 						////////////////////////////////////////////////////////
-//
-// 						///////////// Compute weight in x-direction ////////////
-// 						for (int ixModel=0; ixModel<_nxModel; ixModel++){
-//
-// 		                	float sx=vValue-(*_xKnots->_mat)[ixModel];
-// 		                	float sx3=sx*sx*sx;
-// 		                	float sx2=sx*sx;
-// 		                	float xWeight=0.0;
-//
-//                 			if( sx>=0.0 && sx<4.0*_dkx ){
-//
-// 			                    if (ixModel==0){
-// 			                        if (sx>=0 && sx<_dkx){
-// 			                            xWeight=-sx*sx*sx/(_dkx*_dkx*_dkx)+3.0*sx*sx/(_dkx*_dkx)-3.0*sx/_dkx+1.0;
-// 			                        }
-// 			                    } else if (ixModel==1){
-// 			                        if (sx>=0 && sx<_dkx){
-// 			                            xWeight=7.0*sx*sx*sx/(4.0*_dkx*_dkx*_dkx)-9.0*sx*sx/(2.0*_dkx*_dkx)+3.0*sx/_dkx;
-// 			                        } else if (sx>=_dkx && sx<(2.0*_dkx)){
-// 			                            xWeight=-sx*sx*sx/(4.0*_dkx*_dkx*_dkx)+3.0*sx*sx/(2.0*_dkx*_dkx)-3.0*sx/_dkx+2.0;
-// 			                        }
-// 			                    } else if (ixModel==2){
-// 			                        if (sx>=0 && sx<_dkx){
-// 			                            xWeight=-11.0*sx*sx*sx/(12.0*_dkx*_dkx*_dkx)+3.0*sx*sx/(2.0*_dkx*_dkx);
-// 			                        } else if (sx>=_dkx && sx<(2.0*_dkx)){
-// 			                            xWeight=7.0*sx*sx*sx/(12.0*_dkx*_dkx*_dkx)-3*sx*sx/(_dkx*_dkx)+9.0*sx/(2.0*_dkx)-3.0/2.0;
-// 			                        } else if (sx>=(2.0*_dkx) && sx<(3.0*_dkx)){
-// 			                            xWeight=-sx*sx*sx/(6.0*_dkx*_dkx*_dkx)+3.0*sx*sx/(2.0*_dkx*_dkx)-9.0*sx/(2.0*_dkx)+9.0/2.0;
-// 			                        }
-// 			                    } else if (ixModel>=3 && ixModel<_nxModel-3){
-// 			                        if (sx>=0.0 && sx<_dkx){
-// 			                            xWeight=sx3/(6.0*_dkx3);
-// 			                        } else if (sx>=_dkx && sx<(2.0*_dkx)){
-// 			                            xWeight = -sx3/(2.0*_dkx3) + 2.0*sx2/(_dkx2) - 2.0*sx/_dkx + 2.0/3.0;
-// 			                        } else if (sx>=(2.0*_dkx) && sx<(3.0*_dkx)){
-// 			                            xWeight = 1/(2.0*_dkx3)*sx3 - 4.0/_dkx2*sx2 + 10.0*sx/_dkx -22.0/3.0;
-// 			                        } else if (sx>=(3.0*_dkx) && sx<(4.0*_dkx)){
-// 			                            xWeight = -sx3/(6.0*_dkx3) + 2.0*sx2/_dkx2 - 8.0*sx/_dkx + 32.0/3.0;
-// 			                        }
-// 			                    } else if (ixModel==_nxModel-3){
-// 			                        if (sx>=0.0 && sx<_dkx){
-// 			                            xWeight=sx*sx*sx/(6.0*_dkx*_dkx*_dkx);
-// 			                        } else if(sx>=_dkx && sx<(2.0*_dkx)) {
-// 			                            xWeight=-sx*sx*sx/(3.0*_dkx*_dkx*_dkx)+sx*sx/(_dkx*_dkx)-sx/(2*_dkx)+(3.0/2.0-sx/(2.0*_dkx))*(sx-_dkx)*(sx-_dkx)/(2.0*_dkx*_dkx);
-// 			                        } else if(sx>=(2.0*_dkx) && sx<=(3.0*_dkx)) {
-// 			                            xWeight=sx/(3.0*_dkx)*(sx*sx/(2.0*_dkx*_dkx)-3*sx/_dkx+9.0/2.0);
-// 			                            xWeight+=(3.0/2.0-sx/(2.0*_dkx))*(-3*(sx-_dkx)*(sx-_dkx)/(2.0*_dkx*_dkx)+4*(sx-_dkx)/_dkx-2.0);
-// 			                        }
-// 			                    } else if (ixModel==_nxModel-2){
-// 			                        if (sx>=0.0 && sx<_dkx){
-// 			                            xWeight=sx*sx*sx/(4.0*_dkx*_dkx*_dkx);
-// 			                        } else if(sx>=_dkx && sx<=(2.0*_dkx)) {
-// 			                            xWeight=sx/(2.0*_dkx)*(-3.0*sx*sx/(2.0*_dkx*_dkx)+4.0*sx/_dkx-2.0);
-// 			                            xWeight+=(2.0-sx/_dkx)*(sx-_dkx)*(sx-_dkx)/(_dkx*_dkx);
-// 			                        }
-// 			                    } else if (ixModel==_nxModel-1){
-// 			                        if (sx>=0.0 && sx<=_dkx){
-// 			                            xWeight=sx*sx*sx/(_dkx*_dkx*_dkx);
-// 			                        }
-// 			                    }
-// 							////////////////////////////////////////////////////////
-//
-// 								///////////// Compute weight in z-direction ////////////
-//                     			for (int izModel=0; izModel<_nzModel; izModel++){
-//
-//                         			float sz=uValue-(*_zKnots->_mat)[izModel];
-// 			                        float sz3=sz*sz*sz;
-// 			                        float sz2=sz*sz;
-// 			                        float zWeight=0.0;
-//
-//                 			        if( sz>=0.0 && sz<4.0*_dkz ){
-//
-//     			                        if (izModel==0){
-//     			                            if (sz>=0 && sz<_dkz){
-//     			                                zWeight=-sz*sz*sz/(_dkz*_dkz*_dkz)+3.0*sz*sz/(_dkz*_dkz)-3.0*sz/_dkz+1.0;
-//     			                            }
-//     			                        } else if (izModel==1){
-//     			                            if (sz>=0 && sz<_dkz){
-//     			                                zWeight=7.0*sz*sz*sz/(4.0*_dkz*_dkz*_dkz)-9.0*sz*sz/(2.0*_dkz*_dkz)+3.0*sz/_dkz;
-//     			                            } else if (sz>=_dkz && sz<(2.0*_dkz)){
-//     			                                zWeight=-sz*sz*sz/(4.0*_dkz*_dkz*_dkz)+3.0*sz*sz/(2.0*_dkz*_dkz)-3.0*sz/_dkz+2.0;
-//     			                            }
-//     			                        } else if (izModel==2){
-//     			                            if (sz>=0 && sz<_dkz){
-//     			                                zWeight=-11.0*sz*sz*sz/(12.0*_dkz*_dkz*_dkz)+3.0*sz*sz/(2.0*_dkz*_dkz);
-//     			                            } else if (sz>=_dkz && sz<(2.0*_dkz)){
-//     			                                zWeight=7.0*sz*sz*sz/(12.0*_dkz*_dkz*_dkz)-3*sz*sz/(_dkz*_dkz)+9.0*sz/(2.0*_dkz)-3.0/2.0;
-//     			                            } else if (sz>=(2.0*_dkz) && sz<(3.0*_dkz)){
-//     			                                zWeight=-sz*sz*sz/(6.0*_dkz*_dkz*_dkz)+3.0*sz*sz/(2.0*_dkz*_dkz)-9.0*sz/(2.0*_dkz)+9.0/2.0;
-//     			                            }
-//     			                        } else if (izModel>=3 && izModel<_nzModel-3){
-//     			                            if (sz>=0.0 && sz<_dkz){
-//     			                                // zWeight=sz*sz*sz/(6.0*_dkz*_dkz*_dkz);
-//     			                                zWeight=sz3/(6.0*_dkz3);
-//     			                            } else if (sz>=_dkz && sz<(2.0*_dkz)){
-//     			                                // zWeight = -sz*sz*sz/(2.0*_dkz*_dkz*_dkz) + 2.0*sz*sz/(_dkz*_dkz) - 2.0*sz/_dkz + 2.0/3.0;
-//     			                                zWeight = -sz3/(2.0*_dkz3) + 2.0*sz2/_dkz2 - 2.0*sz/_dkz + 2.0/3.0;
-//     			                            } else if (sz>=(2.0*_dkz) && sz<(3.0*_dkz)){
-//     			                                // zWeight = 1/(2.0*_dkz*_dkz*_dkz)*sz*sz*sz - 4.0/(_dkz*_dkz)*sz*sz + 10.0*sz/_dkz -22.0/3.0;
-//     			                                zWeight = 1/(2.0*_dkz3)*sz3 - 4.0/_dkz2*sz2 + 10.0*sz/_dkz -22.0/3.0;
-//     			                            } else if (sz>=(3.0*_dkz) && sz<(4.0*_dkz)){
-//     			                                // zWeight = -sz*sz*sz/(6.0*_dkz*_dkz*_dkz) + 2.0*sz*sz/(_dkz*_dkz) - 8.0*sz/_dkz + 32.0/3.0;
-//     			                                zWeight = -sz3/(6.0*_dkz3) + 2.0*sz2/_dkz2 - 8.0*sz/_dkz + 32.0/3.0;
-//     			                            }
-//
-//     			                        } else if (izModel==_nzModel-3){
-//     			                            if (sz>=0.0 && sz<_dkz){
-//     			                                zWeight=sz*sz*sz/(6.0*_dkz*_dkz*_dkz);
-//     			                            } else if(sz>=_dkz && sz<(2.0*_dkz)) {
-//     			                                zWeight=-sz*sz*sz/(3.0*_dkz*_dkz*_dkz)+sz*sz/(_dkz*_dkz)-sz/(2*_dkz)+(3.0/2.0-sz/(2.0*_dkz))*(sz-_dkz)*(sz-_dkz)/(2.0*_dkz*_dkz);
-//     			                            } else if(sz>=(2.0*_dkz) && sz<=(3.0*_dkz)) {
-//     			                                zWeight=sz/(3.0*_dkz)*(sz*sz/(2.0*_dkz*_dkz)-3*sz/_dkz+9.0/2.0);
-//     			                                zWeight+=(3.0/2.0-sz/(2.0*_dkz))*(-3*(sz-_dkz)*(sz-_dkz)/(2.0*_dkz*_dkz)+4*(sz-_dkz)/_dkz-2.0);
-//     			                            }
-//     			                        } else if (izModel==_nzModel-2){
-//     			                            if (sz>=0.0 && sz<_dkz){
-//     			                                zWeight=sz*sz*sz/(4.0*_dkz*_dkz*_dkz);
-//     			                            } else if(sz>=_dkz && sz<=(2.0*_dkz)) {
-//     			                                zWeight=sz/(2.0*_dkz)*(-3.0*sz*sz/(2.0*_dkz*_dkz)+4.0*sz/_dkz-2.0);
-//     			                                zWeight+=(2.0-sz/_dkz)*(sz-_dkz)*(sz-_dkz)/(_dkz*_dkz);
-//     			                            }
-//     			                        } else if (izModel==_nzModel-1){
-//     			                            if (sz>=0.0 && sz<=_dkz){
-//     			                                zWeight=sz*sz*sz/(_dkz*_dkz*_dkz);
-//     			                            }
-//     			                        }
-//                                         // Add contribution to interpolated value (data)
-//                             			(*data->_mat)[iyData][ixData][izData] += yWeight*xWeight*zWeight*(*_scaleVector->_mat)[iyModel][ixModel][izModel]*(*model->_mat)[iyModel][ixModel][izModel];
-//                                     }
-// 								}
-// 							}
-// 						}
-// 	                }
-//                 }
-//             }
-//         }
-//     }
-// }
-
-void interpBSpline3d::forward(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const {
+void interpBSpline_3D::forward(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const {
 
     // Forward: Coarse grid to fine grid
     // Model can be on an irregular grid
@@ -1126,220 +911,7 @@ void interpBSpline3d::forward(const bool add, const std::shared_ptr<float3DReg> 
 }
 
 // Adjoint
-// void interpBSpline3d::adjoint(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const {
-//
-//     // Forward: Coarse grid to fine grid
-//     // Model can be on an irregular grid
-// 	if (!add) model->scale(0.0);
-//
-//     // Loop over data (fine sampling grid)
-// 	#pragma omp parallel for collapse(3)
-//     for (int iyModel=0; iyModel<_nyModel; iyModel++){
-//         for (int ixModel=0; ixModel<_nxModel; ixModel++){
-//             for (int izModel=0; izModel<_nzModel; izModel++){
-//
-//                 for (int iyData=_yFat; iyData<_nyData-_yFat; iyData++){
-//                     float wValue = (*_yParamVector->_mat)[iyData];
-//                     float sy=wValue-(*_yKnots->_mat)[iyModel];
-//                     float sy3=sy*sy*sy;
-//                     float sy2=sy*sy;
-//                     float yWeight=0.0;
-//
-//                     if( sy>=0.0 && sy<4.0*_dky ){
-//
-//                     	///////////// Compute weight in y-direction ////////////
-//
-//                     	if (iyModel==0){
-//                             if (sy>=0 && sy<_dky){
-//                                 yWeight=-sy*sy*sy/(_dky*_dky*_dky)+3.0*sy*sy/(_dky*_dky)-3.0*sy/_dky+1.0;
-//                             }
-//                         } else if (iyModel==1){
-//                             if (sy>=0 && sy<_dky){
-//                                 yWeight=7.0*sy*sy*sy/(4.0*_dky*_dky*_dky)-9.0*sy*sy/(2.0*_dky*_dky)+3.0*sy/_dky;
-//                             } else if (sy>=_dky && sy<(2.0*_dky)){
-//                                 yWeight=-sy*sy*sy/(4.0*_dky*_dky*_dky)+3.0*sy*sy/(2.0*_dky*_dky)-3.0*sy/_dky+2.0;
-//                             }
-//                         } else if (iyModel==2){
-//                             if (sy>=0 && sy<_dky){
-//                                 yWeight=-11.0*sy*sy*sy/(12.0*_dky*_dky*_dky)+3.0*sy*sy/(2.0*_dky*_dky);
-//                             } else if (sy>=_dky && sy<(2.0*_dky)){
-//                                 yWeight=7.0*sy*sy*sy/(12.0*_dky*_dky*_dky)-3*sy*sy/(_dky*_dky)+9.0*sy/(2.0*_dky)-3.0/2.0;
-//                             } else if (sy>=(2.0*_dky) && sy<(3.0*_dky)){
-//                                 yWeight=-sy*sy*sy/(6.0*_dky*_dky*_dky)+3.0*sy*sy/(2.0*_dky*_dky)-9.0*sy/(2.0*_dky)+9.0/2.0;
-//                             }
-//                         } else if (iyModel>=3 && iyModel<_nyModel-3){
-//                             if (sy>=0.0 && sy<_dky){
-//                                 yWeight=sy3/(6.0*_dky3);
-//                             } else if (sy>=_dky && sy<(2.0*_dky)){
-//                                 yWeight = -sy3/(2.0*_dky3) + 2.0*sy2/(_dky2) - 2.0*sy/_dky + 2.0/3.0;
-//                             } else if (sy>=(2.0*_dky) && sy<(3.0*_dky)){
-//                                 yWeight = 1/(2.0*_dky3)*sy3 - 4.0/_dky2*sy2 + 10.0*sy/_dky -22.0/3.0;
-//                             } else if (sy>=(3.0*_dky) && sy<(4.0*_dky)){
-//                                 yWeight = -sy3/(6.0*_dky3) + 2.0*sy2/_dky2 - 8.0*sy/_dky + 32.0/3.0;
-//                             }
-//                         } else if (iyModel==_nyModel-3){
-//                             if (sy>=0.0 && sy<_dky){
-//                                 yWeight=sy*sy*sy/(6.0*_dky*_dky*_dky);
-//                             } else if(sy>=_dky && sy<(2.0*_dky)) {
-//                                 yWeight=-sy*sy*sy/(3.0*_dky*_dky*_dky)+sy*sy/(_dky*_dky)-sy/(2*_dky)+(3.0/2.0-sy/(2.0*_dky))*(sy-_dky)*(sy-_dky)/(2.0*_dky*_dky);
-//                             } else if(sy>=(2.0*_dky) && sy<=(3.0*_dky)) {
-//                                 yWeight=sy/(3.0*_dky)*(sy*sy/(2.0*_dky*_dky)-3*sy/_dky+9.0/2.0);
-//                                 yWeight+=(3.0/2.0-sy/(2.0*_dky))*(-3*(sy-_dky)*(sy-_dky)/(2.0*_dky*_dky)+4*(sy-_dky)/_dky-2.0);
-//                             }
-//                         } else if (iyModel==_nyModel-2){
-//                             if (sy>=0.0 && sy<_dky){
-//                                 yWeight=sy*sy*sy/(4.0*_dky*_dky*_dky);
-//                             } else if(sy>=_dky && sy<=(2.0*_dky)) {
-//                                 yWeight=sy/(2.0*_dky)*(-3.0*sy*sy/(2.0*_dky*_dky)+4.0*sy/_dky-2.0);
-//                                 yWeight+=(2.0-sy/_dky)*(sy-_dky)*(sy-_dky)/(_dky*_dky);
-//                             }
-//                         } else if (iyModel==_nyModel-1){
-//                             if (sy>=0.0 && sy<=_dky){
-//                                 yWeight=sy*sy*sy/(_dky*_dky*_dky);
-//                             }
-//                         }
-//                     	////////////////////////////////////////////////////////
-//
-//                     	///////////// Compute weight in x-direction ////////////
-//                     	for (int ixData=_xFat; ixData<_nxData-_xFat; ixData++){
-//                             float vValue = (*_xParamVector->_mat)[ixData];
-//                             float sx=vValue-(*_xKnots->_mat)[ixModel];
-//                             float sx3=sx*sx*sx;
-//                             float sx2=sx*sx;
-//                             float xWeight=0.0;
-//
-//                     		if( sx>=0.0 && sx<4.0*_dkx ){
-//
-//                                 if (ixModel==0){
-//                                     if (sx>=0 && sx<_dkx){
-//                                         xWeight=-sx*sx*sx/(_dkx*_dkx*_dkx)+3.0*sx*sx/(_dkx*_dkx)-3.0*sx/_dkx+1.0;
-//                                     }
-//                                 } else if (ixModel==1){
-//                                     if (sx>=0 && sx<_dkx){
-//                                         xWeight=7.0*sx*sx*sx/(4.0*_dkx*_dkx*_dkx)-9.0*sx*sx/(2.0*_dkx*_dkx)+3.0*sx/_dkx;
-//                                     } else if (sx>=_dkx && sx<(2.0*_dkx)){
-//                                         xWeight=-sx*sx*sx/(4.0*_dkx*_dkx*_dkx)+3.0*sx*sx/(2.0*_dkx*_dkx)-3.0*sx/_dkx+2.0;
-//                                     }
-//                                 } else if (ixModel==2){
-//                                     if (sx>=0 && sx<_dkx){
-//                                         xWeight=-11.0*sx*sx*sx/(12.0*_dkx*_dkx*_dkx)+3.0*sx*sx/(2.0*_dkx*_dkx);
-//                                     } else if (sx>=_dkx && sx<(2.0*_dkx)){
-//                                         xWeight=7.0*sx*sx*sx/(12.0*_dkx*_dkx*_dkx)-3*sx*sx/(_dkx*_dkx)+9.0*sx/(2.0*_dkx)-3.0/2.0;
-//                                     } else if (sx>=(2.0*_dkx) && sx<(3.0*_dkx)){
-//                                         xWeight=-sx*sx*sx/(6.0*_dkx*_dkx*_dkx)+3.0*sx*sx/(2.0*_dkx*_dkx)-9.0*sx/(2.0*_dkx)+9.0/2.0;
-//                                     }
-//                                 } else if (ixModel>=3 && ixModel<_nxModel-3){
-//                                     if (sx>=0.0 && sx<_dkx){
-//                                         xWeight=sx3/(6.0*_dkx3);
-//                                     } else if (sx>=_dkx && sx<(2.0*_dkx)){
-//                                         xWeight = -sx3/(2.0*_dkx3) + 2.0*sx2/(_dkx2) - 2.0*sx/_dkx + 2.0/3.0;
-//                                     } else if (sx>=(2.0*_dkx) && sx<(3.0*_dkx)){
-//                                         xWeight = 1/(2.0*_dkx3)*sx3 - 4.0/_dkx2*sx2 + 10.0*sx/_dkx -22.0/3.0;
-//                                     } else if (sx>=(3.0*_dkx) && sx<(4.0*_dkx)){
-//                                         xWeight = -sx3/(6.0*_dkx3) + 2.0*sx2/_dkx2 - 8.0*sx/_dkx + 32.0/3.0;
-//                                     }
-//                                 } else if (ixModel==_nxModel-3){
-//                                     if (sx>=0.0 && sx<_dkx){
-//                                         xWeight=sx*sx*sx/(6.0*_dkx*_dkx*_dkx);
-//                                     } else if(sx>=_dkx && sx<(2.0*_dkx)) {
-//                                         xWeight=-sx*sx*sx/(3.0*_dkx*_dkx*_dkx)+sx*sx/(_dkx*_dkx)-sx/(2*_dkx)+(3.0/2.0-sx/(2.0*_dkx))*(sx-_dkx)*(sx-_dkx)/(2.0*_dkx*_dkx);
-//                                     } else if(sx>=(2.0*_dkx) && sx<=(3.0*_dkx)) {
-//                                         xWeight=sx/(3.0*_dkx)*(sx*sx/(2.0*_dkx*_dkx)-3*sx/_dkx+9.0/2.0);
-//                                         xWeight+=(3.0/2.0-sx/(2.0*_dkx))*(-3*(sx-_dkx)*(sx-_dkx)/(2.0*_dkx*_dkx)+4*(sx-_dkx)/_dkx-2.0);
-//                                     }
-//                                 } else if (ixModel==_nxModel-2){
-//                                     if (sx>=0.0 && sx<_dkx){
-//                                         xWeight=sx*sx*sx/(4.0*_dkx*_dkx*_dkx);
-//                                     } else if(sx>=_dkx && sx<=(2.0*_dkx)) {
-//                                         xWeight=sx/(2.0*_dkx)*(-3.0*sx*sx/(2.0*_dkx*_dkx)+4.0*sx/_dkx-2.0);
-//                                         xWeight+=(2.0-sx/_dkx)*(sx-_dkx)*(sx-_dkx)/(_dkx*_dkx);
-//                                     }
-//                                 } else if (ixModel==_nxModel-1){
-//                                     if (sx>=0.0 && sx<=_dkx){
-//                                         xWeight=sx*sx*sx/(_dkx*_dkx*_dkx);
-//                                     }
-//                                 }
-//
-//
-//                     		    /////////// Compute weight in z-direction ////////////
-//                     		    for (int izData=_zFat; izData<_nzData-_zFat; izData++){
-//                                     float uValue = (*_zParamVector->_mat)[izData];
-//                             		float sz=uValue-(*_zKnots->_mat)[izModel];
-//                                     float sz3=sz*sz*sz;
-//                                     float sz2=sz*sz;
-//                                     float zWeight=0.0;
-//
-//                     			    if( sz>=0.0 && sz<4.0*_dkz ){
-//
-//                                         if (izModel==0){
-//                                             if (sz>=0 && sz<_dkz){
-//                                                 zWeight=-sz*sz*sz/(_dkz*_dkz*_dkz)+3.0*sz*sz/(_dkz*_dkz)-3.0*sz/_dkz+1.0;
-//                                             }
-//                                         } else if (izModel==1){
-//                                             if (sz>=0 && sz<_dkz){
-//                                                 zWeight=7.0*sz*sz*sz/(4.0*_dkz*_dkz*_dkz)-9.0*sz*sz/(2.0*_dkz*_dkz)+3.0*sz/_dkz;
-//                                             } else if (sz>=_dkz && sz<(2.0*_dkz)){
-//                                                 zWeight=-sz*sz*sz/(4.0*_dkz*_dkz*_dkz)+3.0*sz*sz/(2.0*_dkz*_dkz)-3.0*sz/_dkz+2.0;
-//                                             }
-//                                         } else if (izModel==2){
-//                                             if (sz>=0 && sz<_dkz){
-//                                                 zWeight=-11.0*sz*sz*sz/(12.0*_dkz*_dkz*_dkz)+3.0*sz*sz/(2.0*_dkz*_dkz);
-//                                             } else if (sz>=_dkz && sz<(2.0*_dkz)){
-//                                                 zWeight=7.0*sz*sz*sz/(12.0*_dkz*_dkz*_dkz)-3*sz*sz/(_dkz*_dkz)+9.0*sz/(2.0*_dkz)-3.0/2.0;
-//                                             } else if (sz>=(2.0*_dkz) && sz<(3.0*_dkz)){
-//                                                 zWeight=-sz*sz*sz/(6.0*_dkz*_dkz*_dkz)+3.0*sz*sz/(2.0*_dkz*_dkz)-9.0*sz/(2.0*_dkz)+9.0/2.0;
-//                                             }
-//                                         } else if (izModel>=3 && izModel<_nzModel-3){
-//                                             if (sz>=0.0 && sz<_dkz){
-//                                                 // zWeight=sz*sz*sz/(6.0*_dkz*_dkz*_dkz);
-//                                                 zWeight=sz3/(6.0*_dkz3);
-//                                             } else if (sz>=_dkz && sz<(2.0*_dkz)){
-//                                                 // zWeight = -sz*sz*sz/(2.0*_dkz*_dkz*_dkz) + 2.0*sz*sz/(_dkz*_dkz) - 2.0*sz/_dkz + 2.0/3.0;
-//                                                 zWeight = -sz3/(2.0*_dkz3) + 2.0*sz2/_dkz2 - 2.0*sz/_dkz + 2.0/3.0;
-//                                             } else if (sz>=(2.0*_dkz) && sz<(3.0*_dkz)){
-//                                                 // zWeight = 1/(2.0*_dkz*_dkz*_dkz)*sz*sz*sz - 4.0/(_dkz*_dkz)*sz*sz + 10.0*sz/_dkz -22.0/3.0;
-//                                                 zWeight = 1/(2.0*_dkz3)*sz3 - 4.0/_dkz2*sz2 + 10.0*sz/_dkz -22.0/3.0;
-//                                             } else if (sz>=(3.0*_dkz) && sz<(4.0*_dkz)){
-//                                                 // zWeight = -sz*sz*sz/(6.0*_dkz*_dkz*_dkz) + 2.0*sz*sz/(_dkz*_dkz) - 8.0*sz/_dkz + 32.0/3.0;
-//                                                 zWeight = -sz3/(6.0*_dkz3) + 2.0*sz2/_dkz2 - 8.0*sz/_dkz + 32.0/3.0;
-//                                             }
-//
-//                                         } else if (izModel==_nzModel-3){
-//                                             if (sz>=0.0 && sz<_dkz){
-//                                                 zWeight=sz*sz*sz/(6.0*_dkz*_dkz*_dkz);
-//                                             } else if(sz>=_dkz && sz<(2.0*_dkz)) {
-//                                                 zWeight=-sz*sz*sz/(3.0*_dkz*_dkz*_dkz)+sz*sz/(_dkz*_dkz)-sz/(2*_dkz)+(3.0/2.0-sz/(2.0*_dkz))*(sz-_dkz)*(sz-_dkz)/(2.0*_dkz*_dkz);
-//                                             } else if(sz>=(2.0*_dkz) && sz<=(3.0*_dkz)) {
-//                                                 zWeight=sz/(3.0*_dkz)*(sz*sz/(2.0*_dkz*_dkz)-3*sz/_dkz+9.0/2.0);
-//                                                 zWeight+=(3.0/2.0-sz/(2.0*_dkz))*(-3*(sz-_dkz)*(sz-_dkz)/(2.0*_dkz*_dkz)+4*(sz-_dkz)/_dkz-2.0);
-//                                             }
-//                                         } else if (izModel==_nzModel-2){
-//                                             if (sz>=0.0 && sz<_dkz){
-//                                                 zWeight=sz*sz*sz/(4.0*_dkz*_dkz*_dkz);
-//                                             } else if(sz>=_dkz && sz<=(2.0*_dkz)) {
-//                                                 zWeight=sz/(2.0*_dkz)*(-3.0*sz*sz/(2.0*_dkz*_dkz)+4.0*sz/_dkz-2.0);
-//                                                 zWeight+=(2.0-sz/_dkz)*(sz-_dkz)*(sz-_dkz)/(_dkz*_dkz);
-//                                             }
-//                                         } else if (izModel==_nzModel-1){
-//                                             if (sz>=0.0 && sz<=_dkz){
-//                                                 zWeight=sz*sz*sz/(_dkz*_dkz*_dkz);
-//                                             }
-//                                         }
-//
-//                                 		// Add contribution to interpolated value (data)
-//                                 		(*model->_mat)[iyModel][ixModel][izModel] += yWeight*xWeight*zWeight*(*_scaleVector->_mat)[iyModel][ixModel][izModel]*(*data->_mat)[iyData][ixData][izData];
-//                     				}
-//                     			}
-//                     		}
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
-
-void interpBSpline3d::adjoint(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const {
+void interpBSpline_3D::adjoint(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const {
 
     // Forward: Coarse grid to fine grid
     // Model can be on an irregular grid

@@ -335,9 +335,6 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> 
 		}
 	}
 
-	std::cout << "Born forward, min data = " << data->min() << std::endl;
-	std::cout << "Born forward, max data = " << data->max() << std::endl;
-
 }
 
 // Adjoint
@@ -517,8 +514,5 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
-
-	std::cout << "Born adjoint, min model = " << model->min() << std::endl;
-	std::cout << "Born adjoint, max model = " << model->max() << std::endl;
 
 }

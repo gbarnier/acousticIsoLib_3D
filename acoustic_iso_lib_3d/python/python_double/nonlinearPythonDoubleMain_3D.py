@@ -145,18 +145,16 @@ if __name__ == '__main__':
 		if (dataFile == "noDataFile"):
 		    print("**** ERROR: User did not provide data file ****\n")
 		    quit()
-		print("Here 1")
+
 		# Read data
 		# dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
 		dataFloat=genericIO.defaultIO.getVector(dataFile)
-		print("Here 1.5")
 		dataFloatNp=dataFloat.getNdArray()
 		dataDoubleNp=dataDouble.getNdArray()
-		print("Here 2")
 		# Check if we have a regular acquisition geometry
 		# if (dataHyperForOutput.getNdim() > 3):
 		dataDoubleNp.flat[:]=dataFloatNp
-		print("Here 3")
+
 		# Apply adjoint
 		nonlinearOp.adjoint(False,modelDouble,dataDouble)
 		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
@@ -166,7 +164,7 @@ if __name__ == '__main__':
 		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
 		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
 		# nonlinearOp.adjoint(False,modelDouble,dataDouble)
-		print("Here 4")
+
 		# Write model
 		modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")
 		modelFloatNp=modelFloat.getNdArray()
