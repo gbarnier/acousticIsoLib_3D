@@ -22,20 +22,24 @@ using namespace SEP;
 class BornExtShotsGpu_3D : public Operator<SEP::double5DReg, SEP::double3DReg> {
 
 	private:
-		int _nShot, _nGpu, _iGpuAlloc;
+		int _nShot, _nGpu, _iGpuAlloc, _ginsu;
 		int _info, _deviceNumberInfo;
 		std::shared_ptr<SEP::double3DReg> _vel;
 		std::shared_ptr<SEP::double2DReg> _sourcesSignals;
 		std::shared_ptr<paramObj> _par;
 		std::vector<std::shared_ptr<deviceGpu_3D>> _sourcesVector, _receiversVector;
-		std::vector<std::shared_ptr<SEP::double4DReg>> _srcWavefieldVector;
 		std::vector<int> _gpuList;
 		std::shared_ptr <hypercube> _srcWavefieldHyper;
+		std::vector<std::shared_ptr<SEP::hypercube>> _velHyperVectorGinsu;
+		std::shared_ptr<SEP::int1DReg> _xPadMinusVectorGinsu, _xPadPlusVectorGinsu;
+		std::vector<int> _ixVectorGinsu, _iyVectorGinsu;
 
 	public:
 
 		/* Overloaded constructors */
 		BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector);
+
+		BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu);;
 
 		/* Destructor */
 		~BornExtShotsGpu_3D(){};
@@ -49,17 +53,7 @@ class BornExtShotsGpu_3D : public Operator<SEP::double5DReg, SEP::double3DReg> {
 
 		/* Mutators */
 		void setVel_3D(std::shared_ptr<SEP::double3DReg> vel){ _vel = vel; }
-
-		/* Accessor */
-		// iSrcWavefield corresponds to the wavefield for iGpu #iWavefield
-		std::shared_ptr<double4DReg> getSrcWavefield_3D(int iSrcWavefield) {
-			if ( iSrcWavefield < 0 || iSrcWavefield > _nGpu-1){
-				std::cout << "**** ERROR [BornExtShotsGpu_3D]: Please provide a valid ID for the wavefield to be saved ****" << std::endl;
-				assert(1==2);
-			}
-			return _srcWavefieldVector[iSrcWavefield];
-		}
-
+		void deallocatePinnedBornExtGpu_3D();
 };
 
 #endif

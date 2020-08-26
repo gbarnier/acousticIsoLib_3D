@@ -37,7 +37,7 @@ if __name__ == '__main__':
 
 	############################### Sources ####################################
 	# Manual inputs
-	nShot = 6
+	nShot = 1
 	zSource = 0.1
 
 	# Source geometry
@@ -53,24 +53,24 @@ if __name__ == '__main__':
 	sourceGeomNp[1, 0] = 3.0 # y-position
 
 	# Second shot
-	sourceGeomNp[0, 1] = 2.0 # x-position
-	sourceGeomNp[1, 1] = 3.4 # y-position
-
-	# Third shot
-	sourceGeomNp[0, 2] = 1.3 # x-position
-	sourceGeomNp[1, 2] = 2.8 # y-position
-
-	# Fourth shot
-	sourceGeomNp[0, 3] = 2.5 # x-position
-	sourceGeomNp[1, 3] = 2.2 # y-position
-
-	# Fifth shot
-	sourceGeomNp[0, 4] = 1.5 # x-position
-	sourceGeomNp[1, 4] = 1.8 # y-position
-
-	# Sixth shot
-	sourceGeomNp[0, 5] = 3.1 # x-position
-	sourceGeomNp[1, 5] = 1.5 # y-position
+	# sourceGeomNp[0, 1] = 2.0 # x-position
+	# sourceGeomNp[1, 1] = 3.4 # y-position
+	#
+	# # Third shot
+	# sourceGeomNp[0, 2] = 1.3 # x-position
+	# sourceGeomNp[1, 2] = 2.8 # y-position
+	#
+	# # Fourth shot
+	# sourceGeomNp[0, 3] = 2.5 # x-position
+	# sourceGeomNp[1, 3] = 2.2 # y-position
+	#
+	# # Fifth shot
+	# sourceGeomNp[0, 4] = 1.5 # x-position
+	# sourceGeomNp[1, 4] = 1.8 # y-position
+	#
+	# # Sixth shot
+	# sourceGeomNp[0, 5] = 3.1 # x-position
+	# sourceGeomNp[1, 5] = 1.5 # y-position
 
 	print("SourceGeom = ", sourceGeomNp.shape)
 	print("sourceGeom axis 0 = ", sourceGeom.getHyper().axes[0].n)

@@ -1,9 +1,10 @@
-#ifndef DATA_TAPER_H
-#define DATA_TAPER_H 1
+#ifndef DATA_TAPER_3D_H
+#define DATA_TAPER_3D_H 1
 
-#include "operator.h"
 #include "float1DReg.h"
+#include "float2DReg.h"
 #include "float3DReg.h"
+#include "operator.h"
 #include <string>
 
 using namespace SEP;
@@ -17,50 +18,71 @@ class dataTaper_3D : public Operator<SEP::float3DReg, SEP::float3DReg> {
 		float _xMinRec, _xMaxRec, _dRec;
 		float _xMinShot, _xMaxShot, _dShot;
 		float _ots, _dts, _tMax;
-		int _nts, _nRec, _nShot;
-		int _reverseTime, _reverseOffset;
-		int _streamers;
-		std::string _moveout;
-		std::shared_ptr<float3DReg> _taperMask, _taperMaskTime, _taperMaskOffset;
+		int _nts, _nReceiverPerShot, _nShot;
+		std::string _moveout, _offsetMuting, _timeMuting;
+		int _taperOffsetFlag, _taperEndTraceFlag, _taperTimeFlag; // Flags for type of muting
+
+		// Arrays for tapering/muting
+		std::shared_ptr<float2DReg> _taperMaskOffset;
+		std::shared_ptr<float1DReg> _taperMaskEndTrace;
+		std::shared_ptr<float3DReg> _taperMaskTime;
+
+		// Data + acquisition geometry
+		std::shared_ptr<float2DReg> _sourceGeometry;
+		std::shared_ptr<float3DReg> _receiverGeometry;
 		std::shared_ptr<SEP::hypercube> _dataHyper;
-		std::shared_ptr<float1DReg> _taperEndTrace;
 
 	public:
 
-		// Constructor for both time and offset tapering
-		dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, int reverseTime, float maxOffset, float expOffset, float taperWidthOffset, int reverseOffset, std::shared_ptr<SEP::hypercube> dataHyper, float taperEndTraceWidth, int streamers);
-
-		// Constructor for time only tapering only
-		dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::shared_ptr<SEP::hypercube> dataHyper, std::string moveout, int reverseTime, float taperEndTraceWidth);
-
 		// Constructor for offset tapering only
-		dataTaper_3D(float maxOffset, float _expOffset, float _taperWidthOffset, std::shared_ptr<SEP::hypercube> dataHyper, int _reverseOffset, float taperEndTraceWidth, int streamers);
+		dataTaper_3D(float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry);
 
-		// Constructor for no tapering
-		dataTaper_3D(std::shared_ptr<SEP::hypercube> dataHyper, float taperEndTraceWidth);
+		// Constructor for time tapering only
+		dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry);
+
+		// Constructor for time and offset tapering
+		dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry);
+
+		// Constructor for end of trace tapering only
+		dataTaper_3D(float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper);
 
 		/* Destructor */
 		~dataTaper_3D(){};
 
-		/* Masks computation */
-		void computeTaperMaskTime();
+		/* Mask computation */
 		void computeTaperMaskOffset();
-		void computeTaperMaskOffsetStreamers();
+		void computeTaperMaskTime();
 		void computeTaperEndTrace();
 
   		/* Forward / Adjoint */
   		virtual void forward(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const;
  		virtual void adjoint(const bool add, std::shared_ptr<float3DReg> model, const std::shared_ptr<float3DReg> data) const;
 
-		/* Mutator */
-		void setTaperMask_3D(std::shared_ptr<float3DReg> taperMask) {_taperMask = taperMask;}
-
 		/* Accessor */
-		std::shared_ptr<float3DReg> getTaperMask_3D() {return _taperMask;}
-		std::shared_ptr<float3DReg> getTaperMaskTime_3D() {return _taperMaskTime;}
-		std::shared_ptr<float3DReg> getTaperMaskOffset_3D() {return _taperMaskOffset;}
-		std::shared_ptr<float1DReg> getTaperEndTrace_3D() {return _taperEndTrace;}
-
+		// Offset mask
+		std::shared_ptr<float2DReg> getTaperMaskOffset_3D() {
+			if (_taperOffsetFlag == 0) {
+				std::cout << "**** ERROR [dataTaper_3D]: User requested tapering mask for offset which has not been used nor allocated (please set offset=1) ****" << std::endl;
+				throw std::runtime_error("");
+			}
+			return _taperMaskOffset;
+		}
+		// Time mask
+		std::shared_ptr<float3DReg> getTaperMaskTime_3D() {
+			if (_taperTimeFlag == 0) {
+				std::cout << "**** ERROR [dataTaper_3D]: User requested tapering mask for offset which has not been used nor allocated (please set offset=1) ****" << std::endl;
+				throw std::runtime_error("");
+			}
+			return _taperMaskTime;
+		}
+		// End of trace mask
+		std::shared_ptr<float1DReg> getTaperMaskEndTrace_3D() {
+			if (_taperEndTraceFlag == 0) {
+				std::cout << "**** ERROR [dataTaper_3D]: User requested for end of trace tapering mask which has not been used nor allocated (please set taperEndTraceWidth > 0.0) ****" << std::endl;
+				throw std::runtime_error("");
+			}
+			return _taperMaskEndTrace;
+		}
 };
 
 #endif

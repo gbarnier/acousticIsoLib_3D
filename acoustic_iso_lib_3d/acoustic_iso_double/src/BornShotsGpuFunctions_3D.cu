@@ -393,7 +393,7 @@ void allocateSetBornGinsuGpu_3D(int nz, int nx, int ny, int minPad, int blockSiz
 
 	/******************** COMPUTE COSINE DAMPING COEFFICIENTS *****************/
 	if (minPad>=PAD_MAX){
-		std::cout << "**** ERROR [nonlinearShotsGpuFunctions_3D]: Padding value is too high ****" << std::endl;
+		std::cout << "**** ERROR [BornShotsGpuFunctions_3D]: Padding value is too high ****" << std::endl;
 		throw std::runtime_error("");
 	}
 
@@ -409,7 +409,7 @@ void allocateSetBornGinsuGpu_3D(int nz, int nx, int ny, int minPad, int blockSiz
 
 	// Check that the block size is consistent between parfile and "varDeclare_3D.h"
 	if (blockSize != BLOCK_SIZE) {
-		std::cout << "**** ERROR [nonlinearShotsGpuFunctions_3D]: Blocksize value from parfile does not match value from varDeclare.h file ****" << std::endl;
+		std::cout << "**** ERROR [BornShotsGpuFunctions_3D]: Blocksize value from parfile does not match value from varDeclare.h file ****" << std::endl;
 		throw std::runtime_error("");
 	}
 
@@ -441,9 +441,6 @@ void allocateSetBornGinsuGpu_3D(int nz, int nx, int ny, int minPad, int blockSiz
 
     // Reflectivity model
     cuda_call(cudaMalloc((void**) &dev_modelBorn[iGpu], host_nModel_ginsu[iGpu]*sizeof(double)));
-
-	// Allocate pinned memory on host
-	// cuda_call(cudaHostAlloc((void**) &pin_wavefieldSlice[iGpu], host_nModel_ginsu[iGpu]*sizeof(double), cudaHostAllocDefault));
 
 	// Allocate the slice where we store the wavefield slice before transfering it to the host's pinned memory
 	cuda_call(cudaMalloc((void**) &dev_pStream[iGpu], host_nModel_ginsu[iGpu]*sizeof(double)));
@@ -509,9 +506,6 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 
 	// Initialize time-slices for transfer to host's pinned memory
   	cuda_call(cudaMemset(dev_pStream[iGpu], 0, host_nModel*sizeof(double)));
-
-	// Initialize pinned memory
-	// cudaMemset(pin_wavefieldSlice[iGpu], 0, host_nModel*sizeof(double));
 
 	// Blocks for Laplacian
 	int nblockx = (host_nz-2*FAT) / BLOCK_SIZE_Z;
@@ -679,30 +673,20 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 	cuda_call(cudaMemcpy(pin_wavefieldSlice[iGpu]+(host_nts-1)*host_nModel, dev_pLeft[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
 	// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu]+its*host_nModel, dev_pStream[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost, transferStream[iGpu]));
 
-	// Copy pinned -> RAM
-	// std::memcpy(srcWavefieldDts+(host_nts-1)*host_nModel,pin_wavefieldSlice[iGpu], host_nModel*sizeof(double)); // Copy pinned array to wavefield array for the last sample [nts-1] [host]
-	// std::cout << "its = " << host_nts-1 << std::endl;
-	// std::memcpy(dummySliceLeft, pin_wavefieldSlice[iGpu], host_nModel*sizeof(double));
-	// std::cout << "Min value = " << *std::min_element(dummySliceLeft,dummySliceLeft+host_nModel) << std::endl;
-	// std::cout << "Max value = " << *std::max_element(dummySliceLeft,dummySliceLeft+host_nModel) << std::endl;
-
-	// cuda_call(cudaMemcpyAsync(srcWavefieldDts+(host_nts-1)*host_nz*host_nx*host_ny, pin_wavefieldSlice[iGpu], host_nz*host_nx*host_ny*sizeof(double), cudaMemcpyHostToHost, transferStream[iGpu]));
-	// std::cout << "Done source wavefield" << std::endl;
-
-	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
+	// duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
 	// std::cout << "duration source fwd: " << duration << std::endl;
 
 	/********************** Scattered wavefield computation *******************/
-	std::clock_t start1;
-	double duration1;
-	start1 = std::clock();
-	// Reset the time slices to zero
+	// std::clock_t start1;
+	// double duration1;
+	// start1 = std::clock();
+	// // Reset the time slices to zero
 	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nModel*sizeof(double)));
   	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nModel*sizeof(double)));
 	cuda_call(cudaMemset(dev_pLeft[iGpu], 0, host_nModel*sizeof(double)));
 	cuda_call(cudaMemset(dev_pRight[iGpu], 0, host_nModel*sizeof(double)));
   	cuda_call(cudaMemset(dev_pStream[iGpu], 0, host_nModel*sizeof(double)));
-	// cudaMemset(pin_wavefieldSlice[iGpu], 0, host_nModel*sizeof(double));
+
 
 	// Copy model to device
 	cuda_call(cudaMemcpy(dev_modelBorn[iGpu], model, host_nModel*sizeof(double), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
@@ -717,37 +701,21 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 
 	/************************ Streaming stuff starts **************************/
 
-	// Copy wavefield time-slice its = 0: RAM -> pinned -> dev_pStream -> dev_pSourceWavefield
-	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nModel*sizeof(double));
-	// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nModel*sizeof(double), cudaMemcpyHostToHost, transferStream[iGpu]));
-	// cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nModel*sizeof(double), cudaMemcpyHostToDevice, transferStream[iGpu]));
+	// Copy wavefield time-slice its = 0: pinned -> dev_pStream -> dev_pSourceWavefield
 	cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], pin_wavefieldSlice[iGpu], host_nModel*sizeof(double), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
-
-	// double *dummyModel;
-	// dummyModel = new double[host_nModel];
-
-	// double *dummyData;
-	// dummyData = new double[nReceiversReg*host_nts*sizeof(double)];
 
 	// Do first fwd imaging condition for its = 0 (after that, secondary source at its = 0 is done)
 	imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBorn[iGpu], dev_pLeft[iGpu], dev_pSourceWavefield[iGpu]);
 
-	// QC
-	// cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefield[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
-	// std::cout << "its = 0" << std::endl;
-	// std::cout << "Min value pLeft = " << *std::min_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
-	// std::cout << "Max value pLeft = " << *std::max_element(dummySliceRight,dummySliceRight+host_nModel) << std::endl;
-
 	// Copy new slice from RAM -> pinned for time its = 1 -> transfer to pStream
-	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+host_nModel, host_nModel*sizeof(double));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu]+host_nModel, host_nModel*sizeof(double), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
 
-	// At that point:
-	// dev_pSourceWavefield contains wavefield at its=1
-	// pin_wavefieldSlice and dev_pStream are free to be used
-	// dev_pLeft (secondary source at its = 0) is computed
+	// // At that point:
+	// // dev_pSourceWavefield contains wavefield at its=1
+	// // pin_wavefieldSlice and dev_pStream are free to be used
+	// // dev_pLeft (secondary source at its = 0) is computed
 	// std::cout << "Starting scattered wavefield" << std::endl;
 	// Start propagating scattered wavefield
 	for (int its = 0; its < host_nts-1; its++){
@@ -803,11 +771,6 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 
 		}
 
-		// cudaMemcpy(dummyData, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost);
-		// std::cout << "Dummy data min = " << *std::min_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
-		// std::cout << "Dummy data max = " << *std::max_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
-		// std::cout << "---------------------" << std::endl;
-
 		// Switch pointers for secondary source
 		dev_pTemp[iGpu] = dev_pLeft[iGpu];
 		dev_pLeft[iGpu] = dev_pRight[iGpu];
@@ -819,9 +782,11 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 		cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
 
 	}
-	duration1 = (std::clock() - start1) / (double) CLOCKS_PER_SEC;
+
+	// duration1 = (std::clock() - start1) / (double) CLOCKS_PER_SEC;
 	// std::cout << "duration scatterd: " << duration1 << std::endl;
 	// Copy data back to host
+
 	cuda_call(cudaMemcpy(dataRegDts, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double), cudaMemcpyDeviceToHost));
 
 	/*************************** Memory deallocation **************************/
@@ -1751,7 +1716,6 @@ void BornShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 
 			// Damp wavefields
 			dampCosineEdge_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
-			// dampCosineEdge_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
 			// Spread energy to dev_pLeft and dev_pRight
 			// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
@@ -1838,7 +1802,6 @@ void BornShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 	cuda_call(cudaMemset(dev_pLeft[iGpu], 0, host_nModel*sizeof(double)));
 	cuda_call(cudaMemset(dev_pRight[iGpu], 0, host_nModel*sizeof(double)));
   	cuda_call(cudaMemset(dev_pStream[iGpu], 0, host_nModel*sizeof(double)));
-	// cuda_call(cudaMemset(pin_wavefieldSlice[iGpu], 0, host_nModel*sizeof(double)));
 
 	// Set model to zero
 	cuda_call(cudaMemset(dev_modelBorn[iGpu], 0, host_nModel*sizeof(double)));

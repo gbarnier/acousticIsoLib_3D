@@ -12,19 +12,20 @@ if __name__ == '__main__':
 	parObject=genericIO.io(params=sys.argv)
 
 	# Initialize operator
-	vel,bufferUp,bufferDown,taperExp,fat,wbShift,gradientMaskFile=maskGradientModule_3D.maskGradientInit_3D(sys.argv)
+	vel,bufferUp,bufferDown,taperExp,fat,wbShift,gradientMaskFile,bathymetryFile=maskGradientModule_3D.maskGradientInit_3D(sys.argv)
 
 	# Read model
 	modelFile=parObject.getString("model")
 	model=genericIO.defaultIO.getVector(modelFile,ndims=3)
 
 	# Instanciate operator
-	maskGradientOp=maskGradientModule_3D.maskGradient(vel,vel,vel,bufferUp,bufferDown,taperExp,fat,wbShift,gradientMaskFile)
+	maskGradientOp=maskGradientModule_3D.maskGradient_3D(vel,vel,vel,bufferUp,bufferDown,taperExp,fat,wbShift,gradientMaskFile,bathymetryFile)
 
 	# Get tapering mask and write to output
-	maskFile=parObject.getString("mask")
+	maskFile=parObject.getString("mask","noMaskForOutput")
 	mask=maskGradientOp.getMask()
-	genericIO.defaultIO.writeVector(maskFile,mask)
+	if (maskFile != "noMaskForOutput"):
+		genericIO.defaultIO.writeVector(maskFile,mask)
 
 	# Apply forward operator and write output data
 	data=SepVector.getSepVector(model.getHyper())

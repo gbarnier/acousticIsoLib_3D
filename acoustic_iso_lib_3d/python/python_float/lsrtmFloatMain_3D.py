@@ -9,6 +9,7 @@ import os
 
 # Modeling operators
 import Acoustic_iso_float_3D
+import dataTaperModule_3D
 
 # Solver library
 import pyOperator as pyOp
@@ -23,6 +24,8 @@ if __name__ == '__main__':
 
 	# IO object
 	parObject=genericIO.io(params=sys.argv)
+	dataTaper=parObject.getInt("dataTaper",0)
+	rawData=parObject.getString("rawData",1)
 	pyinfo=parObject.getInt("pyinfo",1)
 	solver=parObject.getString("solver","LCG")
 
@@ -36,25 +39,47 @@ if __name__ == '__main__':
 	if(pyinfo): print("------------------ Linearized waveform inversion ------------------")
 	if(pyinfo): print("-------------------------------------------------------------------\n")
 	inv_log.addToLog("------------------ Linearized waveform inversion --------------")
+
 	if (parObject.getInt("freeSurface",0) == 1):
-		print("---------- Using a free surface condition for modeling ------------")
+		print("---- [lsrtmFloatMain_3D]: User has requestd to use a free surface modeling ----")
+		inv_log.addToLog("---- [lsrtmFloatMain_3D]: User has requestd to use a free surface modeling ----")
+
+	# Data tapering
+	if (dataTaper==1):
+		print("--- [lsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
+		inv_log.addToLog("--- [lsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
+		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,sourceGeometry,receiverGeometry=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# Initialize Born
 	modelInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.BornOpInitFloat_3D(sys.argv)
 
 	# Check if Ginsu is required
 	if (parObject.getInt("ginsu",0) == 1):
+		print("---- [lsrtmFloatMain_3D]: User has requestd to use a Ginsu modeling ----")
+		inv_log.addToLog("---- [lsrtmFloatMain_3D]: User has requestd to use a Ginsu modeling ----")
 		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu=Acoustic_iso_float_3D.buildGeometryGinsu_3D(parObject,velFloat,sourcesVector,receiversVector)
 
 	# Construct Born operator object - No Ginsu
 	if (parObject.getInt("ginsu",0) == 0):
 		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector)
+
 	# With Ginsu
 	else:
 		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
 
 	# Create inversion operator
 	invOp=BornOp
+
+	# Data tapering
+	if (dataTaper==1):
+		# Instantiate operator
+		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry)
+		# If input data have not been tapered yet -> taper them
+		if (rawData==1):
+			dataTapered = dataFloat.clone()
+			dataTaperOp.forward(False,dataFloat,dataTapered) # Apply tapering to the data
+			dataFloat=dataTapered
+		invOp=pyOp.ChainOperator(invOp,dataTaperOp)
 
 	############################# Read files ###################################
 	# Read initial model
@@ -67,19 +92,8 @@ if __name__ == '__main__':
 	# Data
 	dataFile=parObject.getString("data")
 
-	# Regular acquisition geometry
-	if (dataHyperForOutput.getNdim() == 7):
-		dataFloatTemp=genericIO.defaultIO.getVector(dataFile,ndim=7)
-		dataFloatTempNp=dataFloatTemp.getNdArray()
-		dataFloatNp=dataFloat.getNdArray()
-		dataFloatNp.flat[:]=dataFloatTempNp
-
     # User provided a source/receiver geometry file
-	else:
-		dataFloat=genericIO.defaultIO.getVector(dataFile)
-
-	print("dataFloat max = ", dataFloat.max())
-	print("dataFloat min = ", dataFloat.min())
+	dataFloat=genericIO.defaultIO.getVector(dataFile)
 
 	# No regularization
 	invProb=Prblm.ProblemL2Linear(modelInitFloat,dataFloat,invOp)

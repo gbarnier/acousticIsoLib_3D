@@ -87,7 +87,6 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 	_hExt1 = (_nExt1-1)/2;
     _hExt2 = (_nExt2-1)/2;
 	_extension = par->getString("extension", "none");
-	_offsetType = par->getString("offsetType", "none");
 
     // Time-lag extension
     if (_extension=="time"){

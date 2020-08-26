@@ -20,7 +20,6 @@ if __name__ == '__main__':
 	if (parObject.getInt("ginsu", 0) == 0):
 		BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector)
 	else:
-		print("Ginsu main")
 		BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
 
 	# Testing dot-product test of the operator
@@ -30,14 +29,6 @@ if __name__ == '__main__':
 		BornOp.dotTest(True)
 		BornOp.dotTest(True)
 		quit(0)
-
-	if (parObject.getInt("saveSrcWavefield",0) == 1):
-		srcWavefieldFile=parObject.getString("srcWavefieldFile","noSrcWavefieldFile")
-		if (srcWavefieldFile == "noSrcWavefieldFile"):
-			raise ValueError("**** ERROR [BornPythonDoubleMain_3D]: User asked to save source wavefield but did not provide a file name ****\n")
-
-		iSrcWavefield=parObject.getInt("iSrcWavefield",0)
-		print("**** [BornPythonDoubleMain_3D]: User has requested to save source wavefield #%d ****\n"%(iSrcWavefield))
 
 	# Forward
 	if (parObject.getInt("adj",0) == 0):
@@ -84,14 +75,6 @@ if __name__ == '__main__':
 		else:
 			genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
-		# Saving source wavefield
-		if (parObject.getInt("saveSrcWavefield",0) == 1):
-			srcWavefieldDouble = BornOp.getSrcWavefield_3D(iSrcWavefield)
-			srcWavefieldFloat=SepVector.getSepVector(srcWavefieldDouble.getHyper())
-			srcWavefieldDoubleNp=srcWavefieldDouble.getNdArray()
-			srcWavefieldFloatNp=srcWavefieldFloat.getNdArray()
-			srcWavefieldFloatNp[:]=srcWavefieldDoubleNp
-			genericIO.defaultIO.writeVector(srcWavefieldFile,srcWavefieldFloat)
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
@@ -137,15 +120,6 @@ if __name__ == '__main__':
 		    print("**** ERROR: User did not provide model file name ****\n")
 		    quit()
 		genericIO.defaultIO.writeVector(modelFile,modelFloat)
-
-		# Saving source wavefield
-		if (parObject.getInt("saveSrcWavefield",0) == 1):
-			srcWavefieldDouble = BornOp.getSrcWavefield_3D(iSrcWavefield)
-			srcWavefieldFloat=SepVector.getSepVector(srcWavefieldDouble.getHyper())
-			srcWavefieldDoubleNp=srcWavefieldDouble.getNdArray()
-			srcWavefieldFloatNp=srcWavefieldFloat.getNdArray()
-			srcWavefieldFloatNp[:]=srcWavefieldDoubleNp
-			genericIO.defaultIO.writeVector(srcWavefieldFile,srcWavefieldFloat)
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")

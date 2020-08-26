@@ -2,7 +2,7 @@
 import pyAcoustic_iso_double_nl_3D
 import pyAcoustic_iso_double_Born_3D
 import pyAcoustic_iso_double_BornExt_3D
-import pyAcoustic_iso_double_tomoExt_3D
+# import pyAcoustic_iso_double_tomoExt_3D
 import pyOperator as Op
 import genericIO
 import SepVector
@@ -339,11 +339,11 @@ def buildGeometryGinsu_3D(parObject, vel, sourcesVector, receiversVector):
 
 	"""Function that creates a propagation geometry for each shot for Ginsu modeling
 	   Input:
-	   		- Parameter object
+			- Parameter object
 			- Full velocity model
 			- Sources' and receivers' geometry vectors
 	   Output:
-	   		- Vector of hypercubes containing the Ginsu velocity models for each shot
+			- Vector of hypercubes containing the Ginsu velocity models for each shot
 			- 2 integer arrays containing the values of xPadMinusGinsu and xPadPlusGinsu for each shot
 		Other:
 			- Updates the sources' and receivers' geometry vectors for Ginsu parameters
@@ -1011,8 +1011,6 @@ class BornShotsGpu_3D(Op.Operator):
 		# Ginsu
 		if (len(args) > 7):
 
-			print("Ginsu constructor Iso")
-
 			# Vel hypercube for Ginsu
 			velHyperVectorGinsu = args[7]
 			if("getCpp" in dir(velHyperVectorGinsu)):
@@ -1034,7 +1032,6 @@ class BornShotsGpu_3D(Op.Operator):
 			xAxisWavefield = Hypercube.axis(n=nxMaxGinsu, o=0.0, d=1.0)
 			yAxisWavefield = Hypercube.axis(n=nyMaxGinsu, o=0.0, d=1.0)
 			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
-			print("Allocating Ginsu wavefields")
 			nzWav = zAxisWavefield.n
 			nxWav = xAxisWavefield.n
 			nyWav = yAxisWavefield.n
@@ -1042,7 +1039,6 @@ class BornShotsGpu_3D(Op.Operator):
 			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*8/(1024*1024*1024), " [GB]")
 			ixVectorGinsu = args[12]
 			iyVectorGinsu = args[13]
-
 
 			# Allocate wavefield
 			# for iGpu in range(nGpu):
@@ -1139,6 +1135,17 @@ class BornShotsGpu_3D(Op.Operator):
 			wfld = self.pyOp.getSrcWavefield_3D(iWavefield)
 			wfld = SepVector.floatVector(fromCpp=wfld)
 		return wfld
+
+	def deallocatePinnedBornGpu_3D(self):
+		with pyAcoustic_iso_double_Born_3D.ostream_redirect():
+			self.pyOp.deallocatePinnedBornGpu_3D()
+		return
+
+	# Python destructor
+	# def __del__(self):
+	# 	with pyAcoustic_iso_double_Born_3D.ostream_redirect():
+	# 		self.pyOp.deallocatePinnedBornGpu_3D()
+	# 	return
 
 ################################################################################
 ################################# FWI ##########################################
@@ -1399,13 +1406,16 @@ def BornExtOpInitDouble_3D(args):
 	dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
 	dataDouble=SepVector.getSepVector(dataHyper,storage="dataDouble")
 
+	########################## Delete once QC'ed ###############################
 	# Create data hypercurbe for writing the data to disk
 	# Regular geometry for both the sources and receivers
+
 	if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
 		dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
 	# Irregular geometry for both the sources and receivers
-	if (shotHyper.getNdim()==1 and receiverHyper.getNdim==1):
+	if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
 		dataHyperForOutput=dataHyper
+	############################################################################
 
 	# Allocate model
 	extension=parObject.getString("extension", "noExtensionType")
@@ -1461,41 +1471,97 @@ def BornExtOpInitDouble_3D(args):
 
 	modelDouble=SepVector.getSepVector(Hypercube.hypercube(axes=[zAxis,xAxis,yAxis,ext1Axis, ext2Axis]),storage="dataDouble")
 
-	# print("model nDim=",modelDouble.getHyper().getNdim())
-	# print("model n1=",modelDouble.getHyper().axes[0].n)
-	# print("model n2=",modelDouble.getHyper().axes[1].n)
-	# print("model n3=",modelDouble.getHyper().axes[2].n)
-	# print("model n4=",modelDouble.getHyper().axes[3].n)
-	# print("model n5=",modelDouble.getHyper().axes[4].n)
-
 	return modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,dataHyperForOutput
 
 class BornExtShotsGpu_3D(Op.Operator):
-	"""Wrapper encapsulating PYBIND11 module for Born operator"""
+	"""Wrapper encapsulating PYBIND11 module for Born extended operator"""
 
-	def __init__(self,domain,range,velocity,paramP,sourceVector,sourcesSignalsDouble,receiversVector):
+	def __init__(self,*args):
+
 		# Domain = reflectivity
 		# Range = Born data
+		domain = args[0]
+		range = args[1]
 		self.setDomainRange(domain,range)
 
-		# print("domain nDim=",domain.getHyper().getNdim())
-		# print("domain n1=",domain.getHyper().axes[0].n)
-		# print("domain n2=",domain.getHyper().axes[1].n)
-		# print("domain n3=",domain.getHyper().axes[2].n)
-		#
-		# print("range nDim=",range.getHyper().getNdim())
-		# print("range n1=",range.getHyper().axes[0].n)
-		# print("range n2=",range.getHyper().axes[1].n)
-		# print("range n3=",range.getHyper().axes[2].n)
+		# Get wavefield dimensions
+		zAxisWavefield = domain.getHyper().axes[0]
+		xAxisWavefield = domain.getHyper().axes[1]
+		yAxisWavefield = domain.getHyper().axes[2]
+		timeAxisWavefield = range.getHyper().axes[0]
 
-		#Checking if getCpp is present
+		# Velocity model
+		velocity = args[2]
 		if("getCpp" in dir(velocity)):
 			velocity = velocity.getCpp()
+
+		# Parameter object
+		paramP = args[3]
+		nGpu = getGpuNumber_3D(paramP)
 		if("getCpp" in dir(paramP)):
 			paramP = paramP.getCpp()
+
+		# Source / receiver geometry
+		sourceVector = args[4]
+		receiversVector = args[6]
+
+		# Source signal
+		sourcesSignalsDouble = args[5]
 		if("getCpp" in dir(sourcesSignalsDouble)):
 			sourcesSignalsDouble = sourcesSignalsDouble.getCpp()
-		self.pyOp = pyAcoustic_iso_double_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector)
+
+		# Declare wavefield vector
+		wavefieldVector = []
+
+		# Ginsu
+		if (len(args) > 7):
+
+			# Vel hypercube for Ginsu
+			velHyperVectorGinsu = args[7]
+			if("getCpp" in dir(velHyperVectorGinsu)):
+				velHyperVectorGinsu = velHyperVectorGinsu.getCpp()
+
+			# Padding for Ginsu
+			xPadMinusVectorGinsu = args[8]
+			if("getCpp" in dir(xPadMinusVectorGinsu)):
+				xPadMinusVectorGinsu = xPadMinusVectorGinsu.getCpp()
+			xPadPlusVectorGinsu = args[9]
+			if("getCpp" in dir(xPadPlusVectorGinsu)):
+				xPadPlusVectorGinsu = xPadPlusVectorGinsu.getCpp()
+
+			# Maximum dimensions for model
+			nxMaxGinsu = args[10]
+			nyMaxGinsu = args[11]
+
+			# Create hypercube for Ginsu wavefield
+			xAxisWavefield = Hypercube.axis(n=nxMaxGinsu, o=0.0, d=1.0)
+			yAxisWavefield = Hypercube.axis(n=nyMaxGinsu, o=0.0, d=1.0)
+			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
+			nzWav = zAxisWavefield.n
+			nxWav = xAxisWavefield.n
+			nyWav = yAxisWavefield.n
+			ntWav = timeAxisWavefield.n
+			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*8/(1024*1024*1024), " [GB]")
+			ixVectorGinsu = args[12]
+			iyVectorGinsu = args[13]
+
+			# Ginsu constructor
+			self.pyOp = pyAcoustic_iso_double_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+
+		else:
+
+			# Create hypercube for wavefield
+			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
+			# print("Allocating normal wavefields")
+			nzWav = zAxisWavefield.n
+			nxWav = xAxisWavefield.n
+			nyWav = yAxisWavefield.n
+			ntWav = timeAxisWavefield.n
+			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*8/(1024*1024*1024), " [GB]")
+
+			# Normal constructor
+			self.pyOp = pyAcoustic_iso_double_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector)
+
 		return
 
 	def __str__(self):
@@ -1542,17 +1608,22 @@ class BornExtShotsGpu_3D(Op.Operator):
 			self.pyOp.setVel(vel)
 		return
 
+	def deallocatePinnedBornExtGpu_3D(self):
+		with pyAcoustic_iso_double_Born_3D.ostream_redirect():
+			self.pyOp.deallocatePinnedBornExtGpu_3D()
+		return
+
 	def dotTestCpp(self,verb=False,maxError=.00001):
 		"""Method to call the Cpp class dot-product test"""
 		with pyAcoustic_iso_double_BornExt_3D.ostream_redirect():
 			result=self.pyOp.dotTest(verb,maxError)
 		return result
 
-	def getSrcWavefield_3D(self,iWavefield):
-		with pyAcoustic_iso_double_BornExt_3D.ostream_redirect():
-			wfld = self.pyOp.getSrcWavefield_3D(iWavefield)
-			wfld = SepVector.floatVector(fromCpp=wfld)
-		return wfld
+	# Python destructor
+	# def __del__(self):
+	# 	with pyAcoustic_iso_double_BornExt_3D.ostream_redirect():
+	# 		self.pyOp.deallocatePinnedBornExtGpu_3D()
+	# 	return
 
 ################################################################################
 ############################## Tomo extended ###################################

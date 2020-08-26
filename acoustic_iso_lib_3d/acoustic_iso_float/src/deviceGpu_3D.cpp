@@ -31,7 +31,7 @@ deviceGpu_3D::deviceGpu_3D(const std::shared_ptr<float1DReg> zCoord, const std::
 	_xPadMinus = _par->getInt("xPadMinus");
 	_xPadPlus = _par->getInt("xPadPlus");
 	_yPad = _par->getInt("yPad");
-	_errorTolerance = par->getFloat("errorTolerance", 1e-6);
+	_errorTolerance = par->getFloat("errorTolerance", 1e-4);
 
 	// Get positions of aquisition devices + other parameters
 	_zCoord = zCoord;
@@ -460,28 +460,44 @@ void deviceGpu_3D::calcLinearWeights(){
         wy = 1.0 - wy;
 
 		// Check for the y-axis
-		if ( (yReg < _fat + _yPad) || ( (yReg + 1 >= _ny - _fat - _yPad) && (wy < 1.0) ) ){
+		if ( (yReg < _fat + _yPad) || ( (yReg + 1 >= _ny - _fat - _yPad) && (wy < 1.0-_errorTolerance) ) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the y-axis is out of bounds ****" << std::endl;
 			throw std::runtime_error("");
 		}
 		// Check for the x-axis
-		if ( (xReg < _fat + _xPadMinus) || ( (xReg + 1 >= _nx - _fat - _xPadPlus) && (wx < 1.0) ) ){
+
+		//////////////////////////// Debug shit ////////////////////////////////
+		// std::cout << "iDevice = " << iDevice << std::endl;
+		// std::cout << "wx = " << wx << std::endl;
+		// std::cout << "xReg = " << xReg << std::endl;
+		// std::cout << "_nx - _fat - _xPadPlus = " << _nx - _fat - _xPadPlus << std::endl;
+		////////////////////////////////////////////////////////////////////////
+
+		if ( (xReg < _fat + _xPadMinus) || ( (xReg + 1 >= _nx - _fat - _xPadPlus) && (wx < 1.0-_errorTolerance) ) ){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the x-axis is out of bounds ****" << std::endl;
-			std::cout << "(*_xCoord->_mat)[iDevice] = " << (*_xCoord->_mat)[iDevice] << std::endl;
-			std::cout << "wx before = " << ( (*_xCoord->_mat)[iDevice] - _ox ) / _dx << std::endl;
-			std::cout << "wx = " << wx << std::endl;
+
+			////////////////////////// Debug shit //////////////////////////////
 			std::cout << "iDevice = " << iDevice << std::endl;
-			std::cout << "xReg = " << xReg << std::endl;
+			std::cout << "(*_xCoord->_mat)[iDevice] = " << (*_xCoord->_mat)[iDevice] << std::endl;
+			float wxBefore = ( (*_xCoord->_mat)[iDevice] - _ox ) / _dx;
+			std::cout << "wx before = " << wxBefore << std::endl;
+			int xRegTest = wxBefore;
+			std::cout << "xRegTest = " << xRegTest << std::endl;
+			int wxAfter = wxBefore - xRegTest;
+			std::cout << "wxAfter = " << wxAfter << std::endl;
+			int wxFinal = 1.0 - wxAfter;
+			std::cout << "wxFinal = " << wxFinal << std::endl;
 			std::cout << "_fat = " << _fat << std::endl;
 			std::cout << "_xPadMinus = " << _xPadMinus << std::endl;
-			std::cout << "xReg = " << xReg << std::endl;
 			std::cout << "_nx = " << _nx << std::endl;
 			std::cout << "_xPadPlus = " << _xPadPlus << std::endl;
 			std::cout << "_nx - _fat - _xPadPlus = " << _nx - _fat - _xPadPlus << std::endl;
+			////////////////////////////////////////////////////////////////////
+
 			throw std::runtime_error("");
 		}
 		// Check for the z-axis
-		if ( (zReg < _fat + _zPadMinus) || ( (zReg + 1 >= _nz - _fat - _zPadPlus) && (wz < 1.0) ) ) {
+		if ( (zReg < _fat + _zPadMinus) || ( (zReg + 1 >= _nz - _fat - _zPadPlus) && (wz < 1.0-_errorTolerance) ) ) {
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the z-axis is out of bounds ****" << std::endl;
 			throw std::runtime_error("");
 		}

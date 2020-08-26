@@ -10,11 +10,6 @@ BornGpu_3D::BornGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<pa
 	_iGpuId = iGpuId;
 	_ginsu = _fdParam_3D->_par->getInt("ginsu");
 
-	// Allocate the source wavefield on the RAM
-	// _srcWavefield = srcWavefield; // Point to wavefield
-	// unsigned long long int _wavefieldSize = _fdParam_3D->_zAxis.n * _fdParam_3D->_xAxis.n * _fdParam_3D->_yAxis.n;
-	// _wavefieldSize = _wavefieldSize * _fdParam_3D->_nts*sizeof(double) / (1024*1024*1024);
-
 	// Initialize GPU
 	if (_ginsu == 0){
 		initBornGpu_3D(_fdParam_3D->_dz, _fdParam_3D->_dx, _fdParam_3D->_dy, _fdParam_3D->_nz, _fdParam_3D->_nx, _fdParam_3D->_ny, _fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_sub, _fdParam_3D->_minPad, _fdParam_3D->_blockSize, _fdParam_3D->_alphaCos, _nGpu, _iGpuId, iGpuAlloc);
@@ -49,26 +44,23 @@ void BornGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> mode
 	std::shared_ptr<double2DReg> dataRegDts(new double2DReg(_fdParam_3D->_nts, _nReceiversReg));
 	dataRegDts->scale(0.0);
 
-	// std::cout << "Ginsu = " << _ginsu << std::endl;
-
 	/* Launch Born forward */
 	if (_fdParam_3D->_freeSurface != 1){
 		if (_ginsu == 0){
-			// std::cout << "Inside normal = " << std::endl;
+			// std::cout << "Born model min inside = " << model->min() << std::endl;
+			// std::cout << "Born model max inside = " << model->max() << std::endl;
 			BornShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			// std::cout << "Born dataRegDts min inside = " << dataRegDts->min() << std::endl;
+			// std::cout << "Born dataRegDts max inside = " << dataRegDts->max() << std::endl;	
 			// BornShotsFwdGpu_3D_Threads(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId); //TESTING thread for pin memory copy
+
 		} else {
-			// std::cout << "Inside Ginsu = " << std::endl;
-			// std::cout << "max model Born before = " << model->max() << std::endl;
-			// std::cout << "min model Born before = " << model->min() << std::endl;
+
 			BornShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-			// std::cout << "max data Born after = " << dataRegDts->max() << std::endl;
-			// std::cout << "min data Born after = " << dataRegDts->min() << std::endl;
 		}
 	} else {
 		if (_ginsu == 0){
-			// std::cout << "max model Born before = " << model->max() << std::endl;
-			// std::cout << "min model Born before = " << model->min() << std::endl;
+
 			BornShotsFwdFreeSurfaceGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
 			// std::cout << "max data Born after = " << dataRegDts->max() << std::endl;
 			// std::cout << "min data Born after = " << dataRegDts->min() << std::endl;

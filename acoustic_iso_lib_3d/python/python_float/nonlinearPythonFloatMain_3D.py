@@ -63,14 +63,10 @@ if __name__ == '__main__':
 		nonlinearOp.forward(False,modelFloat,dataFloat)
 		t1 = time.time()
 		total = t1-t0
-		print("Time for nonlinear forward = ", total)
+		print("--- [nonlinearPythonSingleMain_3D]: Time for nonlinear forward = ", total," ---")
 
-		if dataHyperForOutput.getNdim() == 7:
-			ioMod=genericIO.defaultIO.cppMode
-			fileObj=genericIO.regFile(ioM=ioMod,tag=dataFile,fromHyper=dataHyperForOutput,usage="output")
-			fileObj.writeWindow(dataFloat)
-		else:
-			genericIO.defaultIO.writeVector(dataFile,dataFloat)
+		# Write data
+		genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
@@ -86,7 +82,7 @@ if __name__ == '__main__':
 
 		print("Free surface = ",parObject.getInt("freeSurface",0))
 		if (parObject.getInt("freeSurface",0) == 1):
-			print("---------- Using a free surface condition for modeling ------------")
+			print("---------- [nonlinearPythonSingleMain_3D]: Using a free surface condition for modeling ------------")
 
 		# Check that data was provided
 		dataFile=parObject.getString("data","noDataFile")
@@ -96,15 +92,7 @@ if __name__ == '__main__':
 
 		# Read data for irregular geometry
 		dataFile=parObject.getString("data")
-		if (dataHyperForOutput.getNdim() == 7):
-			dataFloatTemp=genericIO.defaultIO.getVector(dataFile,ndim=7)
-			dataFloatTempNp=dataFloatTemp.getNdArray()
-			dataFloatNp=dataFloat.getNdArray()
-			dataFloatNp.flat[:]=dataFloatTempNp
-			print("dataFloatTemp = ", dataFloatTemp)
-			print("dataFloat = ", dataFloat)
-		else:
-			dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
+		dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
 
 		# Apply adjoint
 		nonlinearOp.adjoint(False,modelFloat,dataFloat)

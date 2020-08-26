@@ -238,6 +238,18 @@ __global__ void scaleReflectivityTau_3D(double *dev_modelExtIn, double *dev_refl
 	}
 }
 
+__global__ void scaleReflectivityTauGinsu_3D(double *dev_modelExtIn, double *dev_reflectivityScaleIn, double *dev_vel2Dtw2In, long long extStrideIn, int iGpu){
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_modelExtIn[iGlobal+extStrideIn] *= dev_reflectivityScaleIn[iGlobal] * dev_vel2Dtw2In[iGlobal];
+		iGlobal+=dev_yStride;
+	}
+}
+
 __global__ void scaleReflectivityLinHxHy_3D(double *dev_modelExtIn, double *dev_reflectivityScaleIn, long long extStride1In, long long extStride2In){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -418,6 +430,20 @@ __global__ void imagingTauFwdGpu_3D(double *dev_model, double *dev_data, double 
 	}
 }
 
+// Forward time-lags
+__global__ void imagingTauFwdGinsuGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int iExt, int iGpu) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_data[iGlobal] += dev_model[iGlobal+iExt*dev_nVel_ginsu[iGpu]] * dev_sourceWavefieldDts[iGlobal];
+		iGlobal+=dev_yStride_ginsu[iGpu];
+	}
+}
+
 // Adjoint time-lags
 __global__ void imagingTauAdjGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int iExt) {
 
@@ -429,6 +455,20 @@ __global__ void imagingTauAdjGpu_3D(double *dev_model, double *dev_data, double 
 	for (int iy=FAT; iy<dev_ny-FAT; iy++){
 		dev_model[iGlobal+iExt*dev_nVel] += dev_data[iGlobal] * dev_sourceWavefieldDts[iGlobal];
 		iGlobal+=dev_yStride;
+	}
+}
+
+// Adjoint time-lags Ginsu
+__global__ void imagingTauAdjGinsuGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int iExt, int iGpu) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_model[iGlobal+iExt*dev_nVel_ginsu[iGpu]] += dev_data[iGlobal] * dev_sourceWavefieldDts[iGlobal];
+		iGlobal+=dev_yStride_ginsu[iGpu];
 	}
 }
 

@@ -1,43 +1,41 @@
 #Python module encapsulating PYBIND11 module
 import pyOperator as Op
-import pyDataTaper
-import ShotRecTaperModule
+import pyDataTaper_3D
 import genericIO
 import SepVector
 import Hypercube
 import numpy as np
 
-def dataTaperInit(args):
+def dataTaperInit_3D(args):
 
 	# IO object
 	parObject=genericIO.io(params=args)
 
 	offset=parObject.getInt("offset",0)
 	time=parObject.getInt("time",0)
-	t0=parObject.getFloat("t0",0)
-	velMute=parObject.getFloat("velMute",0)
-	expTime=parObject.getFloat("expTime",2)
-	taperWidthTime=parObject.getFloat("taperWidthTime",0)
-	moveout=parObject.getString("moveout","linear")
-	reverseTime=parObject.getInt("reverseTime",0)
-	maxOffset=parObject.getFloat("maxOffset",0)
-	expOffset=parObject.getFloat("expOffset",2)
-	taperWidthOffset=parObject.getFloat("taperWidthOffset",0)
-	reverseOffset=parObject.getInt("reverseOffset",0)
-	taperEndTraceWidth=parObject.getFloat("taperEndTraceWidth",0)
-	streamers=parObject.getInt("streamers",0)
+	t0=parObject.getFloat("t0",0.0)
+	velMute=parObject.getFloat("velMute",0.0)
+	expTime=parObject.getFloat("expTime",2.0)
+	taperWidthTime=parObject.getFloat("taperWidthTime",0.0)
+	moveout=parObject.getString("moveout","None")
+	timeMuting=parObject.getString("timeMuting","None")
+	maxOffset=parObject.getFloat("maxOffset",0.0)
+	expOffset=parObject.getFloat("expOffset",2.0)
+	taperWidthOffset=parObject.getFloat("taperWidthOffset",0.0)
+	offsetMuting=parObject.getString("offsetMuting","None")
+	taperEndTraceWidth=parObject.getFloat("taperEndTraceWidth",0.0)
+	sourceGeomFile=parObject.getString("sourceGeomFile","None")
+	sourceGeometry=genericIO.defaultIO.getVector(sourceGeomFile,ndims=2)
+	receiverGeomFile=parObject.getString("receiverGeomFile","None")
+	receiverGeometry=genericIO.defaultIO.getVector(receiverGeomFile,ndims=3)
 
-	#Adding shot and receiver tapering
-	shotRecTaper=parObject.getInt("shotRecTaper",0)
-	taperShotWidth,taperRecWidth,expShot,expRec,edgeValShot,edgeValRec=ShotRecTaperModule.ShotRecTaperInit(args)
+	return t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,sourceGeometry,receiverGeometry
 
-	return t0,velMute,expTime,taperWidthTime,moveout,reverseTime,maxOffset,expOffset,taperWidthOffset,reverseOffset,time,offset,shotRecTaper,taperShotWidth,taperRecWidth,expShot,expRec,edgeValShot,edgeValRec,taperEndTraceWidth,streamers
-
-class datTaper(Op.Operator):
+class dataTaper(Op.Operator):
 
 	def __str__(self):
 		"""Name of the operator"""
-		return " dataTap "
+		return "dataTaper"
 
 	def __init__(self,*args):
 		domain = args[0]
@@ -55,48 +53,44 @@ class datTaper(Op.Operator):
 		expOffset=args[9]
 		taperWidthOffset=args[10]
 		reverseOffset=args[11]
-		dataHyper=args[12]
-		if("getCpp" in dir(dataHyper)):
-			dataHyper = dataHyper.getCpp()
+		taperEndTraceWidth=args[12]
 		time=args[13]
 		offset=args[14]
-		taperEndTraceWidth=args[22]
-		streamers=args[23]
-		if (time==1 and offset==1):
-			self.pyOp = pyDataTaper.dataTaper(t0,velMute,expTime,taperWidthTime,moveout,reverseTime,maxOffset,expOffset,taperWidthOffset,reverseOffset,dataHyper,taperEndTraceWidth,streamers)
-		if (time==1 and offset==0):
-			self.pyOp = pyDataTaper.dataTaper(t0,velMute,expTime,taperWidthTime,dataHyper,moveout,reverseTime,taperEndTraceWidth)
+		dataHyper=args[15]
+		if("getCpp" in dir(dataHyper)):
+			dataHyper = dataHyper.getCpp()
+		sourceGeometry=args[16]
+		if("getCpp" in dir(sourceGeometry)):
+			sourceGeometry = sourceGeometry.getCpp()
+		receiverGeometry=args[17]
+		if("getCpp" in dir(receiverGeometry)):
+			receiverGeometry = receiverGeometry.getCpp()
+
+		# Offset muting + end of trace tapering
 		if (time==0 and offset==1):
-			self.pyOp = pyDataTaper.dataTaper(maxOffset,expOffset,taperWidthOffset,dataHyper,reverseOffset,taperEndTraceWidth,streamers)
+			self.pyOp = pyDataTaper_3D.dataTaper_3D(maxOffset,expOffset,taperWidthOffset,reverseOffset,taperEndTraceWidth,dataHyper,sourceGeometry,receiverGeometry)
+
+		# Time muting + end of trace tapering
+		if (time==1 and offset==0):
+			self.pyOp = pyDataTaper_3D.dataTaper_3D(t0,velMute,expTime,taperWidthTime,moveout,reverseTime,taperEndTraceWidth,dataHyper,sourceGeometry,receiverGeometry)
+
+		# Time muting + end of trace tapering
+		if (time==1 and offset==1):
+			self.pyOp = pyDataTaper_3D.dataTaper_3D(t0,velMute,expTime,taperWidthTime,moveout,reverseTime,maxOffset,expOffset,taperWidthOffset,reverseOffset,taperEndTraceWidth,dataHyper,sourceGeometry,receiverGeometry)
+
+		# End of trace tapering
 		if (time==0 and offset==0):
-			self.pyOp = pyDataTaper.dataTaper(dataHyper,taperEndTraceWidth)
-		#Checking if ShotRecTaper is requested and instantiating it
-		shotRecTaper=args[15]
-		if(shotRecTaper):
-			taperShotWidth=args[16]
-			taperRecWidth=args[17]
-			expShot=args[18]
-			expRec=args[19]
-			edgeValShot=args[20]
-			edgeValRec=args[21]
-			self.ShotRecTaperOp=ShotRecTaperModule.ShotRecTaper(domain,taperShotWidth,taperRecWidth,expShot,expRec,edgeValShot,edgeValRec)
-			#Creating temporary vector to apply chain of operators
-			self.tmp_data_vec = domain.clone()
+			self.pyOp=pyDataTaper_3D.dataTaper_3D(taperEndTraceWidth,dataHyper)
 
 		return
 
 	def forward(self,add,model,data):
-		#Applying ShotRecTaper operator if present
-		if("ShotRecTaperOp" in dir(self)):
-			self.ShotRecTaperOp.forward(False,model,self.tmp_data_vec)
-			model = self.tmp_data_vec.getCpp()
-		else:
-			if("getCpp" in dir(model)):
+		if("getCpp" in dir(model)):
 				model = model.getCpp()
 		if("getCpp" in dir(data)):
 			data = data.getCpp()
 		#Applying dataTaper operator
-		with pyDataTaper.ostream_redirect():
+		with pyDataTaper_3D.ostream_redirect():
 			self.pyOp.forward(add,model,data)
 		return
 
@@ -105,25 +99,21 @@ class datTaper(Op.Operator):
 		self.forward(add,data,model)
 		return
 
-	def getTaperMask(self):
-		with pyDataTaper.ostream_redirect():
-			taperMask = self.pyOp.getTaperMask()
-			taperMask = SepVector.floatVector(fromCpp=taperMask)
-		return taperMask
-
-	def getTaperMaskTime(self):
-		with pyDataTaper.ostream_redirect():
-			taperMaskTime = self.pyOp.getTaperMaskTime()
-			taperMaskTime = SepVector.floatVector(fromCpp=taperMaskTime)
-		return taperMaskTime
-
-	def getTaperMaskOffset(self):
-		with pyDataTaper.ostream_redirect():
-			taperMaskOffset = self.pyOp.getTaperMaskOffset()
+	def getTaperMaskOffset_3D(self):
+		with pyDataTaper_3D.ostream_redirect():
+			# print("Here 1, taperMaskOffset = ", taperMaskOffset)
+			taperMaskOffset = self.pyOp.getTaperMaskOffset_3D()
 			taperMaskOffset = SepVector.floatVector(fromCpp=taperMaskOffset)
 		return taperMaskOffset
 
+	def getTaperMaskTime_3D(self):
+		with pyDataTaper_3D.ostream_redirect():
+			taperMaskTime = self.pyOp.getTaperMaskTime_3D()
+			taperMaskTime = SepVector.floatVector(fromCpp=taperMaskTime)
+		return taperMaskTime
 
-	# Wrong number of argument - Throw an error message
-	# else:
-	# raise TypeError("ERROR! Incorrect number of arguments!")
+	def getTaperMaskEndTrace_3D(self):
+		with pyDataTaper_3D.ostream_redirect():
+			taperMaskEndTrace = self.pyOp.getTaperMaskEndTrace_3D()
+			taperMaskEndTrace = SepVector.floatVector(fromCpp=taperMaskEndTrace)
+		return taperMaskEndTrace

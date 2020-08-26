@@ -12,20 +12,15 @@ if __name__ == '__main__':
 	# Initialize operator
 	modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,dataHyperForOutput=Acoustic_iso_double_3D.BornExtOpInitDouble_3D(sys.argv)
 
-	# QC data size
-	# print("model nDim=",modelDouble.getHyper().getNdim())
-	# print("model n1=",modelDouble.getHyper().axes[0].n)
-	# print("model n2=",modelDouble.getHyper().axes[1].n)
-	# print("model n3=",modelDouble.getHyper().axes[2].n)
-	# print("model n4=",modelDouble.getHyper().axes[3].n)
-	# print("model n5=",modelDouble.getHyper().axes[4].n)
-	# print("data nDim=",data.getHyper().getNdim())
-	# print("data n1=",data.getHyper().axes[0].n)
-	# print("data n2=",data.getHyper().axes[1].n)
-	# print("data n3=",data.getHyper().axes[2].n)
+	# Initialize Ginsu
+	if (parObject.getInt("ginsu", 0) == 1):
+		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu = Acoustic_iso_double_3D.buildGeometryGinsu_3D(parObject,velDouble,sourcesVector,receiversVector)
 
 	# Construct nonlinear operator object
-	BornExtOp=Acoustic_iso_double_3D.BornExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector)
+	if (parObject.getInt("ginsu", 0) == 0):
+		BornExtOp=Acoustic_iso_double_3D.BornExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector)
+	else:
+		BornExtOp=Acoustic_iso_double_3D.BornExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
 
 	# Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
@@ -34,14 +29,6 @@ if __name__ == '__main__':
 		BornExtOp.dotTest(True)
 		BornExtOp.dotTest(True)
 		quit(0)
-
-	if (parObject.getInt("saveSrcWavefield",0) == 1):
-		srcWavefieldFile=parObject.getString("srcWavefieldFile","noSrcWavefieldFile")
-		if (srcWavefieldFile == "noSrcWavefieldFile"):
-			raise ValueError("**** ERROR [BornExtPythonDoubleMain_3D]: User asked to save source wavefield but did not provide a file name ****\n")
-
-		iSrcWavefield=parObject.getInt("iSrcWavefield",0)
-		print("**** [BornExtPythonDoubleMain_3D]: User has requested to save source wavefield #%d ****\n"%(iSrcWavefield))
 
 	# Forward
 	if (parObject.getInt("adj",0) == 0):
@@ -79,14 +66,8 @@ if __name__ == '__main__':
 		dataFloatNp[:]=dataDoubleNp
 		genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
-		# Saving source wavefield
-		if (parObject.getInt("saveSrcWavefield",0) == 1):
-			srcWavefieldDouble = BornExtOp.getSrcWavefield_3D(iSrcWavefield)
-			srcWavefieldFloat=SepVector.getSepVector(srcWavefieldDouble.getHyper())
-			srcWavefieldDoubleNp=srcWavefieldDouble.getNdArray()
-			srcWavefieldFloatNp=srcWavefieldFloat.getNdArray()
-			srcWavefieldFloatNp[:]=srcWavefieldDoubleNp
-			genericIO.defaultIO.writeVector(srcWavefieldFile,srcWavefieldFloat)
+		# Deallocate pinned memory
+		BornExtOp.deallocatePinnedBornExtGpu_3D()
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
@@ -129,14 +110,8 @@ if __name__ == '__main__':
 		    quit()
 		genericIO.defaultIO.writeVector(modelFile,modelFloat)
 
-		# Saving source wavefield
-		if (parObject.getInt("saveSrcWavefield",0) == 1):
-			srcWavefieldDouble = BornExtOp.getSrcWavefield_3D(iSrcWavefield)
-			srcWavefieldFloat=SepVector.getSepVector(srcWavefieldDouble.getHyper())
-			srcWavefieldDoubleNp=srcWavefieldDouble.getNdArray()
-			srcWavefieldFloatNp=srcWavefieldFloat.getNdArray()
-			srcWavefieldFloatNp[:]=srcWavefieldDoubleNp
-			genericIO.defaultIO.writeVector(srcWavefieldFile,srcWavefieldFloat)
+		# Deallocate pinned memory
+		BornExtOp.deallocatePinnedBornExtGpu_3D()
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")

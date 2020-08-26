@@ -23,13 +23,15 @@ class BornExtGpu_3D : public seismicOperator_3D<SEP::double5DReg, SEP::double2DR
 
 	private:
 
-		std::shared_ptr<SEP::double4DReg> _srcWavefield;
 		int _wavefieldSize;
 
 	public:
 
 		/* Overloaded constructors */
-		BornExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::shared_ptr<SEP::double4DReg> srcWavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
+		BornExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
+
+		/* Mutator */
+		void setBornExtGinsuGpu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu, int iGpu, int iGpuId);
 
 		/* QC */
 		bool checkParfileConsistency_3D(const std::shared_ptr<SEP::double5DReg> model, const std::shared_ptr<SEP::double2DReg> data) const;
@@ -37,12 +39,6 @@ class BornExtGpu_3D : public seismicOperator_3D<SEP::double5DReg, SEP::double2DR
 		/* FWD - ADJ */
 		void forward(const bool add, const std::shared_ptr<double5DReg> model, std::shared_ptr<double2DReg> data) const;
 		void adjoint(const bool add, std::shared_ptr<double5DReg> model, const std::shared_ptr<double2DReg> data) const;
-
-		/* Accessors */
-		std::shared_ptr<double4DReg> getSrcWavefield_3D() { return _srcWavefield; }
-
-		/* Mutator */
-		// void resetWavefield(){_srcWavefield->scale(0.0);}
 
 		/* Destructor */
 		~BornExtGpu_3D(){};

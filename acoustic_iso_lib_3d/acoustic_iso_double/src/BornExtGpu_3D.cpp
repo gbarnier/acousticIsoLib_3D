@@ -1,6 +1,6 @@
 #include "BornExtGpu_3D.h"
 
-BornExtGpu_3D::BornExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::shared_ptr<SEP::double4DReg> srcWavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
+BornExtGpu_3D::BornExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
 
 	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par); // Fd parameter object
 	_timeInterp_3D = std::make_shared<interpTimeLinTbb_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_ots, _fdParam_3D->_sub); // Time interpolation object
@@ -8,14 +8,26 @@ BornExtGpu_3D::BornExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_
 	_iGpu = iGpu; // Gpu number
 	_nGpu = nGpu; // Number of requested GPUs
 	_iGpuId = iGpuId;
-
-	// Allocate the source wavefield on the RAM
-	_srcWavefield = srcWavefield; // Point to wavefield
-	unsigned long long int _wavefieldSize = _fdParam_3D->_zAxis.n * _fdParam_3D->_xAxis.n * _fdParam_3D->_yAxis.n;
-	_wavefieldSize = _wavefieldSize * _fdParam_3D->_nts*sizeof(double) / (1024*1024*1024);
+	_ginsu = _fdParam_3D->_par->getInt("ginsu");
 
 	// Initialize GPU
-	initBornExtGpu_3D(_fdParam_3D->_dz, _fdParam_3D->_dx, _fdParam_3D->_dy, _fdParam_3D->_nz, _fdParam_3D->_nx, _fdParam_3D->_ny, _fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_sub, _fdParam_3D->_minPad, _fdParam_3D->_blockSize, _fdParam_3D->_alphaCos, _fdParam_3D->_extension, _fdParam_3D->_nExt1, _fdParam_3D->_nExt2, _nGpu, _iGpuId, iGpuAlloc);
+	if (_ginsu == 0){
+		initBornExtGpu_3D(_fdParam_3D->_dz, _fdParam_3D->_dx, _fdParam_3D->_dy, _fdParam_3D->_nz, _fdParam_3D->_nx, _fdParam_3D->_ny, _fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_sub, _fdParam_3D->_minPad, _fdParam_3D->_blockSize, _fdParam_3D->_alphaCos, _fdParam_3D->_extension, _fdParam_3D->_nExt1, _fdParam_3D->_nExt2, _nGpu, _iGpuId, iGpuAlloc);
+	} else {
+		std::cout << "Init Born extended Ginsu" << std::endl;
+		initBornExtGinsuGpu_3D(_fdParam_3D->_dz, _fdParam_3D->_dx, _fdParam_3D->_dy, _fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_sub, _fdParam_3D->_blockSize, _fdParam_3D->_alphaCos, _fdParam_3D->_extension, _fdParam_3D->_nExt1, _fdParam_3D->_nExt2, _nGpu, _iGpuId, iGpuAlloc);
+	}
+}
+
+void BornExtGpu_3D::setBornExtGinsuGpu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu, int iGpu, int iGpuId){
+
+	// Update Ginsu parameters from fdParam
+	_fdParam_3D->setFdParamGinsu_3D(velHyperGinsu, xPadMinusGinsu, xPadPlusGinsu, ixGinsu, iyGinsu);
+	_iGpu = iGpu;
+	_iGpuId = iGpuId;
+
+	// Initialize GPU
+	allocateSetBornExtGinsuGpu_3D(_fdParam_3D->_nzGinsu, _fdParam_3D->_nxGinsu, _fdParam_3D->_nyGinsu, _fdParam_3D->_minPadGinsu, _fdParam_3D->_blockSize, _fdParam_3D->_alphaCos, _fdParam_3D->_vel2Dtw2Ginsu, _fdParam_3D->_reflectivityScaleGinsu, _iGpu, _iGpuId);
 
 }
 
@@ -34,56 +46,75 @@ void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> m
 	std::shared_ptr<double2DReg> dataRegDts(new double2DReg(_fdParam_3D->_nts, _nReceiversReg));
 	dataRegDts->scale(0.0);
 
-	// Scale the model by 2.0/v^3
-	std::shared_ptr<double5DReg> modelTemp;
-	// modelTemp = model->clone();
-
-	// #pragma omp parallel for
-	// for (int iExt2=0; iExt2<_fdParam_3D->_nExt2; iExt2++){
-	// 	for (int iExt1=0; iExt1<_fdParam_3D->_nExt1; iExt1++){
-	// 		for (int iy=_fdParam_3D->_fat; iy<_fdParam_3D->_ny-_fdParam_3D->_fat; iy++){
-	// 			for (int ix=_fdParam_3D->_fat; ix<_fdParam_3D->_nx-_fdParam_3D->_fat; ix++){
-	// 				for (int iz=_fdParam_3D->_fat; iz<_fdParam_3D->_nz-_fdParam_3D->_fat; iz++){
-	// 					(*modelTemp->_mat)[iExt2][iExt1][iy][ix][iz] *= 2.0 / ( (*_fdParam_3D->_vel->_mat)[iy][ix][iz] * (*_fdParam_3D->_vel->_mat)[iy][ix][iz] * (*_fdParam_3D->_vel->_mat)[iy][ix][iz] );
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-	// long long nModelExt = _fdParam_3D->_nz * _fdParam_3D->_nx * _fdParam_3D->_ny * _fdParam_3D->_nExt1 * _fdParam_3D->_nExt2;
-
 	/* Launch Born extended forward */
+
+	// No free surface
 	if (_fdParam_3D->_freeSurface != 1){
+
+		// Time-lags extension
 		if (_fdParam_3D->_extension == "time") {
-				BornTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+
+			// No Ginsu
+			if (_ginsu==0){
+				BornTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+
+			// Ginsu
+			} else {
+				std::cout << "Born model min inside = " << model->min() << std::endl;
+				std::cout << "Born model max inside = " << model->max() << std::endl;
+				BornTauShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				std::cout << "Born dataRegDts min inside = " << dataRegDts->min() << std::endl;
+				std::cout << "Born dataRegDts max inside = " << dataRegDts->max() << std::endl;
+			}
 		}
-		if (_fdParam_3D->_extension == "offset") {
-			if (_fdParam_3D->_offsetType == "hx"){
-				BornHxShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+		// Subsurface offset extension
+		else if (_fdParam_3D->_extension == "offset") {
+
+			// No Ginsu
+			if (_ginsu==0){
+				// std::cout << "Born model min inside = " << model->min() << std::endl;
+				// std::cout << "Born model max inside = " << model->max() << std::endl;
+				BornHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				// std::cout << "Born dataRegDts min inside = " << dataRegDts->min() << std::endl;
+				// std::cout << "Born dataRegDts max inside = " << dataRegDts->max() << std::endl;
+
+			// Ginsu
+			} else {
+				// BornHxHyShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
 			}
-			else if (_fdParam_3D->_offsetType == "hxhy"){
-				BornHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
-			}
-			else {
-				std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of subsurface offset extension ****" << std::endl;
-				assert(1==2);
-			}
+
+		} else {
+			std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of extension (time of offset) ****" << std::endl; throw std::runtime_error("");
 		}
+	// Free surface modeling
 	} else {
+
+		// Time-lags extension
 		if (_fdParam_3D->_extension == "time") {
-				BornTauFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
-		}
-		if (_fdParam_3D->_extension == "offset") {
-			if (_fdParam_3D->_offsetType == "hx"){
-				BornHxFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+
+			// No Ginsu
+			if (_ginsu==0){
+				BornTauFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
 			}
-			else if (_fdParam_3D->_offsetType == "hxhy"){
-				BornHxHyFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
-			}
+			// Ginsu
 			else {
-				std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of subsurface offset extension ****" << std::endl;
-				assert(1==2);
+				// BornTauFreeSurfaceShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
 			}
+		}
+
+		// Subsurface offsets
+		else if (_fdParam_3D->_extension == "offset") {
+			// No Ginsu
+			if (_ginsu==0){
+				BornHxHyFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			}
+			// Ginsu
+			else {
+				// BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			}
+		}
+		else {
+			std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of extension (time of offset) ****" << std::endl; throw std::runtime_error("");
 		}
 	}
 
@@ -104,50 +135,83 @@ void BornExtGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> model, 
 	_receivers->adjoint(false, dataRegDts, data);
 
 	/* Launch Born extended adjoint */
+
+	// No free surface
 	if (_fdParam_3D->_freeSurface != 1){
 
-		// Time-lags + no free surface
+		// Time-lags extension
 		if (_fdParam_3D->_extension == "time") {
-			BornTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
-		}
 
-		// Horizontal subsurface offsets + no free surface
-		if (_fdParam_3D->_extension == "offset") {
-			if (_fdParam_3D->_offsetType == "hx"){
-				BornHxShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+			// No ginsu
+			if (_ginsu==0){
+				// std::cout << "Born time, model max inside = " << dataRegDts->max() << std::endl;
+				// std::cout << "Born time, model min inside = " << dataRegDts->min() << std::endl;
+				BornTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				// std::cout << "Born time, modelTemp max inside = " << modelTemp->max() << std::endl;
+				// std::cout << "Born time, modelTemp min inside = " << modelTemp->min() << std::endl;
 			}
-			else if (_fdParam_3D->_offsetType == "hxhy"){
-				BornHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
-			}
+			// Ginsu
 			else {
-				std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of subsurface offset extension ****" << std::endl;
-				assert(1==2);
+				BornTauShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
 			}
+
+		// Subsurface offsets
+		} else if (_fdParam_3D->_extension == "offset") {
+
+			// No ginsu
+			if (_ginsu==0){
+				// std::cout << "Born offset, model max inside = " << dataRegDts->max() << std::endl;
+				// std::cout << "Born offset, model min inside = " << dataRegDts->min() << std::endl;
+				BornHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				// std::cout << "Born offset, data max inside = " << modelTemp->max() << std::endl;
+				// std::cout << "Born offset, data min inside = " << modelTemp->min() << std::endl;
+			}
+			// Ginsu
+			else {
+				// BornHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			}
+		} else {
+			std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of extension (time of offset) ****" << std::endl; throw std::runtime_error("");
 		}
 
+	// Free surface modeling
 	} else {
 
-		// Time-lags + free surface
+		// Time-lags extension
 		if (_fdParam_3D->_extension == "time") {
-			BornTauFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+
+			// No ginsu
+			if (_ginsu==0) {
+				std::cout << "Born time Fs, data max inside = " << dataRegDts->max() << std::endl;
+				std::cout << "Born time Fs, data min inside = " << dataRegDts->min() << std::endl;
+				BornTauFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				std::cout << "Born time Fs, model max inside = " << modelTemp->max() << std::endl;
+				std::cout << "Born time Fs, model min inside = " << modelTemp->min() << std::endl;
+			// Ginsu
+			} else {
+				// BornTauFreeSurfaceShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			}
 		}
 
-		// Horizontal subsurface offsets + free surface
-		if (_fdParam_3D->_extension == "offset") {
-			if (_fdParam_3D->_offsetType == "hx"){
-				BornHxFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
+		// Subsurface offsets
+		else if (_fdParam_3D->_extension == "offset") {
+			// No ginsu
+			if (_ginsu==0){
+				// std::cout << "Born offset, model max inside = " << modelTemp->max() << std::endl;
+				// std::cout << "Born offset, model min inside = " << modelTemp->min() << std::endl;
+				BornHxHyFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				// std::cout << "Born offset, data max inside = " << dataRegDts->max() << std::endl;
+				// std::cout << "Born offset, data min inside = " << dataRegDts->min() << std::endl;
 			}
-			else if (_fdParam_3D->_offsetType == "hxhy"){
-				BornHxHyFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId);
-			}
+			// Ginsu
 			else {
-				std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of subsurface offset extension ****" << std::endl;
-				assert(1==2);
+				// BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
 			}
+		} else {
+			std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of extension (time of offset) ****" << std::endl; throw std::runtime_error("");
 		}
 	}
 
 	/* Update model */
 	model->scaleAdd(modelTemp, 1.0, 1.0);
-
 }

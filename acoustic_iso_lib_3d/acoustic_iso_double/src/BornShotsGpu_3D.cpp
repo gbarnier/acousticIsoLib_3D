@@ -80,23 +80,12 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 	axis xAxisWavefield = axis(nxMaxGinsu, 1.0, 1.0);
 	axis yAxisWavefield = axis(nyMaxGinsu, 1.0, 1.0);
 	axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
-	// std::cout << "Ginsu constructor" << std::endl;
-	// std::cout << "Ginsu nz = " << zAxisWavefield.n << std::endl;
-	// std::cout << "Ginsu nx = " << xAxisWavefield.n << std::endl;
-	// std::cout << "Ginsu ny = " << yAxisWavefield.n << std::endl;
-	// std::cout << "Ginsu nts = " << timeAxis.n << std::endl;
+
 	_velHyperVectorGinsu = velHyperVectorGinsu;
 	_xPadMinusVectorGinsu = xPadMinusVectorGinsu;
 	_xPadPlusVectorGinsu = xPadPlusVectorGinsu;
 	_ixVectorGinsu = ixVectorGinsu;
 	_iyVectorGinsu = iyVectorGinsu;
-
-	// for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
-	// 	std::cout << "i = " << iVec << std::endl;
-	// 	std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
-	// 	std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
-	//
-	// }
 
 	// _srcWavefieldVector = srcWavefieldVector;
 	// Allocate wavefields on pinned memory
@@ -208,11 +197,11 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 	// start = std::clock();
 	// Loop over GPUs
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
-		// std::cout << "Here 1a" << std::endl;
+
 		// Create Born object
 		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
 		BornObjectVector.push_back(BornGpuObject);
-		// std::cout << "Here 1b" << std::endl;
+
 		// Display finite-difference parameters info
 		if ( (_info == 1) && (_gpuList[iGpu] == _deviceNumberInfo) ){
 			BornGpuObject->getFdParam_3D()->getInfo_3D();
@@ -230,9 +219,8 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 	}
 	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
 	// std::cout << "Duration for allocation: " << duration << std::endl;
-	// std::cout << "Here 2" << std::endl;
-	// Launch Born forward
 
+	// Launch Born forward
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
@@ -245,18 +233,16 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 
 		// Temporary arrays/hypercube for the Ginsu
 		std::shared_ptr<SEP::double3DReg> modelTemp;
-		std::shared_ptr<SEP::hypercube> hyperTemp;
-		// std::cout << "Here 3" << std::endl;
+
 		// If no ginsu is used, use the full model
 		if (_ginsu == 0){
 			modelTemp = model;
 
 		// If ginsu is used, copy the part of the model into modelTemp
 		} else {
-			// std::cout << "Here 3a" << std::endl;
+
 			// Allocate and set Ginsu
 			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
-			// std::cout << "Here 3b" << std::endl;
 			// Allocate Ginsu model
 			modelTemp = std::make_shared<SEP::double3DReg>(_velHyperVectorGinsu[iShot]);
 			// std::cout << "Here 3c" << std::endl;
@@ -307,14 +293,14 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 
 		// Set GPU number for propagator object
 		BornObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
-		// std::cout << "Here 5" << std::endl;
+
 		// Apply forward Born
-		// std::cout << "max model shots before = " << modelTemp->max() << std::endl;
-		// std::cout << "min model shots before = " << modelTemp->min() << std::endl;
+		// std::cout << "Born modelTemp min before = " << modelTemp->min() << std::endl;
+		// std::cout << "Born modelTemp max before = " << modelTemp->max() << std::endl;
 		BornObjectVector[iGpu]->forward(false, modelTemp, dataSliceVector[iGpu]);
-		// std::cout << "max data shots after = " << dataSliceVector[iGpu]->max() << std::endl;
-		// std::cout << "min data shots after = " << dataSliceVector[iGpu]->min() << std::endl;
-		// std::cout << "Here 6" << std::endl;
+		// std::cout << "Born dataSliceVector[iGpu] min after = " << dataSliceVector[iGpu]->min() << std::endl;
+		// std::cout << "Born dataSliceVector[iGpu] max after = " << dataSliceVector[iGpu]->max() << std::endl;
+
 		// Store dataSlice into data
 		#pragma omp parallel for
 		for (int iReceiver=0; iReceiver<hyperDataSlice->getAxis(2).n; iReceiver++){
@@ -335,8 +321,8 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 		}
 	}
 
-	std::cout << "Born forward, min data = " << data->min() << std::endl;
-	std::cout << "Born forward, max data = " << data->max() << std::endl;
+	// std::cout << "Born forward, min data = " << data->min() << std::endl;
+	// std::cout << "Born forward, max data = " << data->max() << std::endl;
 
 }
 
@@ -351,13 +337,12 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 
 	// Check whether we use the same source signals for all shots
 	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
-			// std::cout << "Constant source signal over shots" << std::endl;
-			constantSrcSignal = 1; }
+		std::cout << "Constant source signal over shots" << std::endl;
+		constantSrcSignal = 1;}
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
 	if (_receiversVector.size() == 1) {
-		// std::cout << "Constant receiver geometry over shots" << std::endl;
 		constantRecGeom=1;}
 	else {constantRecGeom=0;}
 
@@ -395,10 +380,6 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 		dataSliceVector.push_back(dataSlice);
 	}
 
-	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	std::cout << "[BornShotGpu]: source wavefield address at step #2 of the adjoint for gpu[" <<iGpu << "] = " << _srcWavefieldVector[iGpu] << std::endl;
-	// }
-
 	// Launch Born adjoint
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
@@ -415,7 +396,6 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 
 		// Temporary arrays/hypercube for the Ginsu
 		std::shared_ptr<SEP::double3DReg> modelTemp;
-		std::shared_ptr<SEP::hypercube> hyperTemp;
 
 		// If no ginsu is used, use the full model
 		if (_ginsu == 0){
@@ -431,7 +411,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 			// Allocate Ginsu model
 			modelTemp = std::make_shared<SEP::double3DReg>(_velHyperVectorGinsu[iShot]);
 
-			// Copy values into Ginsu model
+			// Set model temp to zero
 			modelTemp->scale(0.0);
 		}
 
@@ -465,17 +445,18 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 		BornObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 
 		// Launch modeling
-		// BornObjectVector[iGpu]->resetWavefield();
 		if (_ginsu == 0){
 			// Launch adjoint
+			// std::cout << "Shots ext adj" << std::endl;
+			// std::cout << "dataSliceVector[iGpu] max = " << dataSliceVector[iGpu]->max() << std::endl;
+			// std::cout << "dataSliceVector[iGpu] min = " << dataSliceVector[iGpu]->min() << std::endl;
 			BornObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+			// std::cout << "modelSliceVector[iGpu] max = " << modelSliceVector[iGpu]->max() << std::endl;
+			// std::cout << "modelSliceVector[iGpu] min = " << modelSliceVector[iGpu]->min() << std::endl;
+
 		} else {
 			// Launch adjoint
-			// std::cout << "max data shots before = " << dataSliceVector[iGpu]->max() << std::endl;
-			// std::cout << "min data shots before = " << dataSliceVector[iGpu]->min() << std::endl;
 			BornObjectVector[iGpu]->adjoint(false, modelTemp, dataSliceVector[iGpu]);
-			// std::cout << "max model shots after = " << modelTemp->max() << std::endl;
-			// std::cout << "min model shots after = " << modelTemp->min() << std::endl;
 
 			// Copy modeTemp into modelSliceVector[iGpu]
 			// Temporary variables (for clarity purpose)
@@ -517,8 +498,8 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
-
-	std::cout << "Born adjoint, min model = " << model->min() << std::endl;
-	std::cout << "Born adjoint, max model = " << model->max() << std::endl;
+	// 
+	// std::cout << "Born adjoint, min model = " << model->min() << std::endl;
+	// std::cout << "Born adjoint, max model = " << model->max() << std::endl;
 
 }
