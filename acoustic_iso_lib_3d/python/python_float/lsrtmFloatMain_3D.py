@@ -25,7 +25,7 @@ if __name__ == '__main__':
 	# IO object
 	parObject=genericIO.io(params=sys.argv)
 	dataTaper=parObject.getInt("dataTaper",0)
-	rawData=parObject.getString("rawData",1)
+	rawData=parObject.getInt("rawData",1)
 	pyinfo=parObject.getInt("pyinfo",1)
 	solver=parObject.getString("solver","LCG")
 
@@ -76,6 +76,9 @@ if __name__ == '__main__':
 		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry)
 		# If input data have not been tapered yet -> taper them
 		if (rawData==1):
+			if (pyinfo==1):
+				print("---- [lsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
+			inv_log.addToLog("---- [lsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
 			dataTapered = dataFloat.clone()
 			dataTaperOp.forward(False,dataFloat,dataTapered) # Apply tapering to the data
 			dataFloat=dataTapered

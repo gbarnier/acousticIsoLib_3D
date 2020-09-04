@@ -214,6 +214,18 @@ __global__ void scaleSecondarySourceFd_3D(double *dev_timeSlice, double *dev_vel
 	}
 }
 
+__global__ void scaleSecondarySourceFdGinsu_3D(double *dev_timeSlice, double *dev_vel2Dtw2In, int iGpu){
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_timeSlice[iGlobal] *= dev_vel2Dtw2In[iGlobal];
+		iGlobal+=dev_yStride_ginsu[iGpu];
+	}
+}
+
 __global__ void scaleReflectivityLin_3D(double *dev_modelExtIn, double *dev_reflectivityScaleIn, long long extStrideIn){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -246,7 +258,7 @@ __global__ void scaleReflectivityTauGinsu_3D(double *dev_modelExtIn, double *dev
 
 	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
 		dev_modelExtIn[iGlobal+extStrideIn] *= dev_reflectivityScaleIn[iGlobal] * dev_vel2Dtw2In[iGlobal];
-		iGlobal+=dev_yStride;
+		iGlobal+=dev_yStride_ginsu[iGpu];
 	}
 }
 
@@ -259,6 +271,18 @@ __global__ void scaleReflectivityLinHxHy_3D(double *dev_modelExtIn, double *dev_
 	for (int iy=FAT; iy<dev_ny-FAT; iy++){
 		dev_modelExtIn[extStride2In+extStride1In+iGlobal] *= dev_reflectivityScaleIn[iGlobal];
 		iGlobal+=dev_yStride;
+	}
+}
+
+__global__ void scaleReflectivityLinHxHyGinsu_3D(double *dev_modelExtIn, double *dev_reflectivityScaleIn, long long extStride1In, long long extStride2In, int iGpu){
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_modelExtIn[extStride2In+extStride1In+iGlobal] *= dev_reflectivityScaleIn[iGlobal];
+		iGlobal+=dev_yStride_ginsu[iGpu];
 	}
 }
 
@@ -376,6 +400,24 @@ __global__ void imagingHxHyFwdGpu_3D(double *dev_model, double *dev_data, double
 	}
 }
 
+// Forward hx and hy
+__global__ void imagingHxHyFwdGinsuGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int ihx, int iExt1, int ihy, int iExt2, int iGpu) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the x-z slice for iy = FAT
+
+	if ( ixGlobal-FAT >= abs(ihx) && ixGlobal <= dev_nx_ginsu[iGpu]-FAT-1-abs(ihx) ){
+		for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+			if ( iy-FAT >= abs(ihy) && iy <= dev_ny_ginsu[iGpu]-FAT-1-abs(ihy) ){
+				dev_data[iGlobal+ihy*dev_yStride_ginsu[iGpu]+ihx*dev_nz_ginsu[iGpu]] += dev_model[iExt2*dev_extStride_ginsu[iGpu]+iExt1*dev_nVel_ginsu[iGpu]+iGlobal] * dev_sourceWavefieldDts[iGlobal-ihy*dev_yStride_ginsu[iGpu]-ihx*dev_nz_ginsu[iGpu]];
+			}
+			iGlobal+=dev_yStride_ginsu[iGpu];
+		}
+	}
+}
+
 // Adjoint hx and hy
 __global__ void imagingHxHyAdjGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int ihx, long long iExt1, int ihy, long long iExt2) {
 
@@ -394,6 +436,24 @@ __global__ void imagingHxHyAdjGpu_3D(double *dev_model, double *dev_data, double
 
 			}
 			iGlobal+=dev_yStride;
+		}
+	}
+}
+
+// Adjoint hx and hy
+__global__ void imagingHxHyAdjGinsuGpu_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int ihx, long long iExt1, int ihy, long long iExt2, int iGpu) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the x-z slice for iy = FAT
+
+	if ( ixGlobal-FAT >= abs(ihx) && ixGlobal <= dev_nx_ginsu[iGpu]-FAT-1-abs(ihx) ){
+		for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+			if ( iy-FAT >= abs(ihy) && iy <= dev_ny_ginsu[iGpu]-FAT-1-abs(ihy) ){
+				dev_model[iExt2*dev_extStride_ginsu[iGpu]+iExt1*dev_nVel_ginsu[iGpu]+iGlobal] += dev_data[iGlobal+ihy*dev_yStride_ginsu[iGpu]+ihx*dev_nz_ginsu[iGpu]] * dev_sourceWavefieldDts[iGlobal-ihy*dev_yStride_ginsu[iGpu]-ihx*dev_nz_ginsu[iGpu]];
+			}
+			iGlobal+=dev_yStride_ginsu[iGpu];
 		}
 	}
 }
@@ -428,6 +488,23 @@ __global__ void imagingTauFwdGpu_3D(double *dev_model, double *dev_data, double 
 		dev_data[iGlobal] += dev_model[iGlobal+iExt*dev_nVel] * dev_sourceWavefieldDts[iGlobal];
 		iGlobal+=dev_yStride;
 	}
+}
+
+// Forward time-lags
+__global__ void imagingTauFwdGpu_32_3D(double *dev_model, double *dev_data, double *dev_sourceWavefieldDts, int iExt) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * 32 + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * 32 + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
+
+    if (izGlobal < dev_nz-FAT && ixGlobal < dev_nx-FAT){
+
+    	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+    		dev_data[iGlobal] += dev_model[iGlobal+iExt*dev_nVel] * dev_sourceWavefieldDts[iGlobal];
+    		iGlobal+=dev_yStride;
+    	}
+    }
 }
 
 // Forward time-lags

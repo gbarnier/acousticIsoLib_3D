@@ -1,6 +1,6 @@
 #include "BornExtGpu_3D.h"
 
-BornExtGpu_3D::BornExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
+BornExtGpu_3D::BornExtGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
 
 	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par); // Fd parameter object
 	_timeInterp_3D = std::make_shared<interpTimeLinTbb_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_ots, _fdParam_3D->_sub); // Time interpolation object
@@ -31,19 +31,19 @@ void BornExtGpu_3D::setBornExtGinsuGpu_3D(std::shared_ptr<SEP::hypercube> velHyp
 
 }
 
-bool BornExtGpu_3D::checkParfileConsistency_3D(const std::shared_ptr<SEP::double5DReg> model, const std::shared_ptr<SEP::double2DReg> data) const {
+bool BornExtGpu_3D::checkParfileConsistency_3D(const std::shared_ptr<SEP::float5DReg> model, const std::shared_ptr<SEP::float2DReg> data) const {
 	if (_fdParam_3D->checkParfileConsistencyTime_3D(data, 1, "Data file") != true) {return false;} // Check data time axis
 	if (_fdParam_3D->checkParfileConsistencyTime_3D(_sourcesSignals, 1, "Seismic source file") != true) {return false;}; // Check wavelet time axis
 	if (_fdParam_3D->checkParfileConsistencySpace_3D(model, "Model file") != true) {return false;}; // Check model space axes
 	return true;
 }
 
-void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> model, std::shared_ptr<double2DReg> data) const {
+void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<float5DReg> model, std::shared_ptr<float2DReg> data) const {
 
 	if (!add) data->scale(0.0);
 
 	/* Allocation */
-	std::shared_ptr<double2DReg> dataRegDts(new double2DReg(_fdParam_3D->_nts, _nReceiversReg));
+	std::shared_ptr<float2DReg> dataRegDts(new float2DReg(_fdParam_3D->_nts, _nReceiversReg));
 	dataRegDts->scale(0.0);
 
 	/* Launch Born extended forward */
@@ -145,13 +145,13 @@ void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> m
 	_receivers->forward(true, dataRegDts, data);
 
 }
-void BornExtGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> model, const std::shared_ptr<double2DReg> data) const {
+void BornExtGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> model, const std::shared_ptr<float2DReg> data) const {
 
 	if (!add) model->scale(0.0);
 
 	/* Allocation */
-	std::shared_ptr<double2DReg> dataRegDts(new double2DReg(_fdParam_3D->_nts, _nReceiversReg));
-	std::shared_ptr<double5DReg> modelTemp = model->clone();
+	std::shared_ptr<float2DReg> dataRegDts(new float2DReg(_fdParam_3D->_nts, _nReceiversReg));
+	std::shared_ptr<float5DReg> modelTemp = model->clone();
 	modelTemp->scale(0.0);
 
 	/* Interpolate data to regular grid */

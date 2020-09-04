@@ -254,7 +254,7 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 			int izGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_izGinsu;
 			int ixGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_ixGinsu;
 			int iyGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_iyGinsu;
-			// std::cout << "Here 4" << std::endl;
+
 			// Copy values into Ginsu model
 			modelTemp->scale(0.0);
 			#pragma omp parallel for collapse(3)
@@ -269,7 +269,9 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 
 		// Set acquisition geometry
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
+			std::cout << "Before" << std::endl;
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
+			std::cout << "After" << std::endl;
 		}
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
@@ -498,7 +500,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
-	// 
+	//
 	// std::cout << "Born adjoint, min model = " << model->min() << std::endl;
 	// std::cout << "Born adjoint, max model = " << model->max() << std::endl;
 

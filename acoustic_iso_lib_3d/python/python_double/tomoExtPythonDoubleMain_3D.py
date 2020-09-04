@@ -11,10 +11,17 @@ import sys
 if __name__ == '__main__':
 
 	# Initialize operator
-	modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,reflectivityExt,dataHyperForOutput=Acoustic_iso_double_3D.tomoExtOpInitDouble_3D(sys.argv)
+	modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,reflectivityExtDouble,dataHyperForOutput=Acoustic_iso_double_3D.tomoExtOpInitDouble_3D(sys.argv)
+
+	# Initialize Ginsu
+	if (parObject.getInt("ginsu", 0) == 1):
+		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu = Acoustic_iso_double_3D.buildGeometryGinsu_3D(parObject,velDouble,sourcesVector,receiversVector)
 
 	# Construct tomo extended operator object
-	tomoExtOp=Acoustic_iso_double_3D.tomoExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,reflectivityExt)
+	if (parObject.getInt("ginsu", 0) == 0):
+		tomoExtOp=Acoustic_iso_double_3D.tomoExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,reflectivityExtDouble)
+	else:
+		tomoExtOp=Acoustic_iso_double_3D.tomoExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,reflectivityExtDouble,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
 
 	# Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
@@ -23,19 +30,6 @@ if __name__ == '__main__':
 		tomoExtOp.dotTest(True)
 		tomoExtOp.dotTest(True)
 		quit(0)
-
-	if (parObject.getInt("saveWavefield1",0) == 1):		
-		wavefield1File=parObject.getString("wavefield1File","noWavefield1File")
-		if (wavefield1File == "noWavefield1File"):
-			raise ValueError("**** ERROR [tomoExtPythonDoubleMain_3D]: User asked to save wavefield #1 but did not provide a file name ****\n")
-
-		iWavefield=parObject.getInt("iWavefield",0)
-		print("**** [tomoExtPythonDoubleMain_3D]: User has requested to save source wavefield #%d ****\n"%(iWavefield))
-
-	if (parObject.getInt("saveWavefield2",0) == 1):
-		wavefield2File=parObject.getString("wavefield2File","noWavefield2File")
-		if (wavefield2File == "noWavefield2File"):
-			raise ValueError("**** ERROR [tomoExtPythonDoubleMain_3D]: User asked to save wavefield #2 but did not provide a file name ****\n")
 
 	# Forward
 	if (parObject.getInt("adj",0) == 0):
@@ -72,24 +66,6 @@ if __name__ == '__main__':
 		dataDoubleNp=dataDouble.getNdArray()
 		dataFloatNp[:]=dataDoubleNp
 		genericIO.defaultIO.writeVector(dataFile,dataFloat)
-
-		# Saving wavefield 1
-		if (parObject.getInt("saveWavefield1",0) == 1):
-			wavefield1Double = tomoExtOp.getWavefield1_3D(iWavefield)
-			wavefield1Float=SepVector.getSepVector(wavefield1Double.getHyper())
-			wavefield1DoubleNp=wavefield1Double.getNdArray()
-			wavefield1FloatNp=wavefield1Float.getNdArray()
-			wavefield1FloatNp[:]=wavefield1DoubleNp
-			genericIO.defaultIO.writeVector(wavefield1File,wavefield1Float)
-
-		# Saving wavefield 2
-		if (parObject.getInt("saveWavefield2",0) == 1):
-			wavefield2Double = tomoExtOp.getWavefield1_3D(iWavefield)
-			wavefield2Float=SepVector.getSepVector(wavefield2Double.getHyper())
-			wavefield2DoubleNp=wavefield2Double.getNdArray()
-			wavefield2FloatNp=wavefield2Float.getNdArray()
-			wavefield2FloatNp[:]=wavefield2DoubleNp
-			genericIO.defaultIO.writeVector(wavefield2File,wavefield2Float)
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
@@ -133,25 +109,6 @@ if __name__ == '__main__':
 		    print("**** ERROR: User did not provide model file name ****\n")
 		    quit()
 		genericIO.defaultIO.writeVector(modelFile,modelFloat)
-
-		# Saving wavefield 1
-		if (parObject.getInt("saveWavefield1",0) == 1):
-			wavefield1Double = tomoExtOp.getWavefield1_3D(iWavefield)
-			wavefield1Float=SepVector.getSepVector(wavefield1Double.getHyper())
-			wavefield1DoubleNp=wavefield1Double.getNdArray()
-			wavefield1FloatNp=wavefield1Float.getNdArray()
-			wavefield1FloatNp[:]=wavefield1DoubleNp
-			genericIO.defaultIO.writeVector(wavefield1File,wavefield1Float)
-
-		# Saving wavefield 2
-		if (parObject.getInt("saveWavefield2",0) == 1):
-			wavefield2Double = tomoExtOp.getWavefield1_3D(iWavefield)
-			wavefield2Float=SepVector.getSepVector(wavefield2Double.getHyper())
-			wavefield2DoubleNp=wavefield2Double.getNdArray()
-			wavefield2FloatNp=wavefield2Float.getNdArray()
-			wavefield2FloatNp[:]=wavefield2DoubleNp
-			genericIO.defaultIO.writeVector(wavefield2File,wavefield2Float)
-
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")

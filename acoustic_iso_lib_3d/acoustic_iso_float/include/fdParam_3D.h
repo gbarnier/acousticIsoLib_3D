@@ -57,11 +57,13 @@ class fdParam_3D{
 		std::string _extension, _offsetType;
 
         // Ginsu parameters
+        int _ginsu;
         float *_vel2Dtw2Ginsu, *_reflectivityScaleGinsu;
         int _nzGinsu, _nxGinsu, _nyGinsu;
         int _zPadMinusGinsu, _zPadPlusGinsu, _xPadMinusGinsu, _xPadPlusGinsu, _yPadMinusGinsu, _yPadPlusGinsu, _zPadGinsu, _xPadGinsu, _yPadGinsu, _minPadGinsu;
         float _ozGinsu, _dzGinsu, _oxGinsu, _dxGinsu, _oyGinsu, _dyGinsu;
         int _izGinsu, _ixGinsu, _iyGinsu;
+        axis _zAxisGinsu, _xAxisGinsu, _yAxisGinsu;
 
 };
 

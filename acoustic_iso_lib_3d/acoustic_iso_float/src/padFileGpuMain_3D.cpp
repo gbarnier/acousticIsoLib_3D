@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
 	// Parfile
 	int zPad = par->getInt("zPad");
 	int xPad = par->getInt("xPad");
-    int yPad = par->getInt("yPad");
+  int yPad = par->getInt("yPad");
 	int fat = par->getInt("fat", 4);
 	int blockSize = par->getInt("blockSize", 16);
 	int freeSurface = par->getInt("freeSurface", 0);

@@ -39,6 +39,8 @@ pybind11_add_module(pyInterpBSpline_3D MODULE pyInterpBSpline_3D.cpp)
 target_link_libraries(pyInterpBSpline_3D PRIVATE SEIS_UTILS_FLOAT_LIB ${LIBS})
 pybind11_add_module(pyDataTaper_3D MODULE pyDataTaper_3D.cpp)
 target_link_libraries(pyDataTaper_3D PRIVATE SEIS_UTILS_FLOAT_LIB ${LIBS})
+pybind11_add_module(pyDsoGpu_3D MODULE pyDsoGpu_3D.cpp)
+target_link_libraries(pyDsoGpu_3D PRIVATE SEIS_UTILS_FLOAT_LIB ${LIBS})
 
 # Installing library
 set(PYTHON_DIR "lib/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}")
@@ -48,6 +50,7 @@ install( FILES interpBSplineModule_3D.py DESTINATION ${PYTHON_DIR})
 install( FILES maskGradientModule_3D.py DESTINATION ${PYTHON_DIR})
 install( FILES dataTaperModule_3D.py DESTINATION ${PYTHON_DIR})
 install( FILES traceNormModule_3D.py DESTINATION ${PYTHON_DIR})
+install( TARGETS pyDsoGpu_3D DESTINATION ${PYTHON_DIR})
 
 # Installing Python executables
 install( FILES interpBSplineIterMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
@@ -57,3 +60,4 @@ install( FILES generateGeomAcousticMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WR
 install( FILES dataTaperMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES traceNormMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES traceNormDerivMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
+install( FILES dsoGpuMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)

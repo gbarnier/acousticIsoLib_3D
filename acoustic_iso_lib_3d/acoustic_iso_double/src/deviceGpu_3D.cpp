@@ -489,9 +489,11 @@ void deviceGpu_3D::calcLinearWeights(){
 			std::cout << "wxFinal = " << wxFinal << std::endl;
 			std::cout << "_fat = " << _fat << std::endl;
 			std::cout << "_xPadMinus = " << _xPadMinus << std::endl;
-			std::cout << "_nx = " << _nx << std::endl;
-			std::cout << "_xPadPlus = " << _xPadPlus << std::endl;
-			std::cout << "_nx - _fat - _xPadPlus = " << _nx - _fat - _xPadPlus << std::endl;
+			std::cout << "xRegTest = " << xRegTest << std::endl;
+			std::cout << "_fat + _xPadMinus = " << _fat + _xPadMinus << std::endl;
+			// std::cout << "_nx = " << _nx << std::endl;
+			// std::cout << "_xPadPlus = " << _xPadPlus << std::endl;
+			// std::cout << "_nx - _fat - _xPadPlus = " << _nx - _fat - _xPadPlus << std::endl;
 			////////////////////////////////////////////////////////////////////
 
 			throw std::runtime_error("");

@@ -109,9 +109,13 @@ float **dev_modelDebug, **dev_dataDebug;
 __constant__ int dev_nz_ginsu[N_GPU_MAX];
 __constant__ int dev_nx_ginsu[N_GPU_MAX];
 __constant__ int dev_ny_ginsu[N_GPU_MAX];
+__constant__ int dev_nExt1_ginsu[N_GPU_MAX];
+__constant__ int dev_minPad_ginsu[N_GPU_MAX];
 __constant__ long long dev_yStride_ginsu[N_GPU_MAX];
 __constant__ unsigned long long dev_nModel_ginsu[N_GPU_MAX];
-__constant__ int dev_minPad_ginsu[N_GPU_MAX];
+__constant__ unsigned long long dev_nModelExt_ginsu[N_GPU_MAX];
+__constant__ unsigned long long dev_nVel_ginsu[N_GPU_MAX];
+__constant__ unsigned long long dev_extStride_ginsu[N_GPU_MAX];
 __constant__ float dev_cosDampingCoeffGinsuConstant[N_GPU_MAX][PAD_MAX];
 
 /******************************************************************************/
@@ -144,6 +148,10 @@ int host_minPad;
 int host_nz_ginsu[N_GPU_MAX];
 int host_nx_ginsu[N_GPU_MAX];
 int host_ny_ginsu[N_GPU_MAX];
+// int host_nExt1_ginsu[N_GPU_MAX];
+// int host_nExt2_ginsu[N_GPU_MAX];
+// int host_hExt1_ginsu[N_GPU_MAX];
+// int host_hExt2_ginsu[N_GPU_MAX];
 long long host_yStride_ginsu[N_GPU_MAX];
 unsigned long long host_nModel_ginsu[N_GPU_MAX];
 unsigned long long host_nModelExt_ginsu[N_GPU_MAX];

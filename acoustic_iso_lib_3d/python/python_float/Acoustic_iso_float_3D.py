@@ -1,6 +1,7 @@
 # Bullshit stuff
 import pyAcoustic_iso_float_nl_3D
 import pyAcoustic_iso_float_Born_3D
+import pyAcoustic_iso_float_BornExt_3D
 import pyOperator as Op
 import genericIO
 import SepVector
@@ -1263,3 +1264,295 @@ class BornShotsGpu_3D(Op.Operator):
 			wfld = self.pyOp.getSrcWavefield_3D(iWavefield)
 			wfld = SepVector.floatVector(fromCpp=wfld)
 		return wfld
+
+################################################################################
+############################## Born extended ###################################
+################################################################################
+def BornExtOpInitFloat_3D(args):
+	"""Function to correctly initialize Born extended operator
+	   The function will return the necessary variables for operator construction
+	"""
+
+	# IO object
+	parObject=genericIO.io(params=args)
+
+	# Read flag to display information
+	info = parObject.getInt("info",0)
+	if (info == 1):
+		print("**** [BornExtOpInitFloat_3D]: User has requested to display information ****\n")
+
+	# Read velocity and convert to double
+	velFile=parObject.getString("vel","noVelFile")
+	if (velFile == "noVelFile"):
+		raise ValueError("**** ERROR [BornExtOpInitFloat_3D]: User did not provide velocity file ****\n")
+	velFloat=genericIO.defaultIO.getVector(velFile)
+
+	# Determine if the source time signature is constant over shots
+	constantWavelet = parObject.getInt("constantWavelet",-1)
+	if (info == 1 and constantWavelet == 1):
+		print("**** [BornExtOpInitFloat_3D]: Using the same seismic source time signature for all shots ****\n")
+	if (info == 1 and constantWavelet == 0):
+		print("**** [BornExtOpInitFloat_3D]: Using different seismic source time signatures for each shot ****\n")
+	if (constantWavelet != 0 and constantWavelet != 1):
+		raise ValueError("**** ERROR [BornExtOpInitFloat_3D]: User did not specify an acceptable value for tag constantWavelet (must be 0 or 1) ****\n")
+
+	# Build sources/receivers geometry
+	sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat)
+	receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat)
+
+	# Compute the number of shots
+	if (shotHyper.getNdim() > 1):
+		# Case where we have a regular source geometry (the hypercube has 3 axes)
+		nShot=shotHyper.axes[0].n*shotHyper.axes[1].n*shotHyper.axes[2].n
+		zShotAxis=shotHyper.axes[0]
+		xShotAxis=shotHyper.axes[1]
+		yShotAxis=shotHyper.axes[2]
+	else:
+		# Case where we have an irregular geometry (the shot hypercube has one axis)
+		nShot=shotHyper.axes[0].n
+
+	# Create shot axis for the modeling
+	shotAxis=Hypercube.axis(n=nShot)
+
+	# Compute the number of receivers per shot (the number is constant for all shots for both regular/irregular geometries)
+	if (receiverHyper.getNdim() > 1):
+		# Regular geometry
+		nReceiver=receiverHyper.axes[0].n*receiverHyper.axes[1].n*receiverHyper.axes[2].n
+		zReceiverAxis=receiverHyper.axes[0]
+		xReceiverAxis=receiverHyper.axes[1]
+		yReceiverAxis=receiverHyper.axes[2]
+	else:
+		# Irregular geometry
+		nReceiver=receiverHyper.axes[0].n
+
+	# Create receiver axis for the modeling
+	receiverAxis=Hypercube.axis(n=nReceiver)
+
+	# Time Axis
+	nts=parObject.getInt("nts",-1)
+	ots=parObject.getFloat("ots",0.0)
+	dts=parObject.getFloat("dts",-1.0)
+	timeAxis=Hypercube.axis(n=nts,o=ots,d=dts)
+
+	# Read velocity and convert to double
+	sourcesSignalsFile=parObject.getString("sources","noSourcesFile")
+	if (sourcesSignalsFile == "noSourcesFile"):
+		raise IOError("**** ERROR [BornExtOpInitFloat_3D]: User did not provide seismic sources file ****\n")
+	sourcesSignalsFloat=genericIO.defaultIO.getVector(sourcesSignalsFile,ndims=2)
+
+	# Allocate data
+	dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
+	dataFloat=SepVector.getSepVector(dataHyper)
+
+	########################## Delete once QC'ed ###############################
+	# Create data hypercurbe for writing the data to disk
+	# Regular geometry for both the sources and receivers
+
+	if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
+		dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
+	# Irregular geometry for both the sources and receivers
+	if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
+		dataHyperForOutput=dataHyper
+	############################################################################
+
+	# Allocate model
+	extension=parObject.getString("extension", "noExtensionType")
+	if (extension == "noExtensionType"):
+		print("**** ERROR [BornExtOpInitFloat_3D]: User did not provide extension type ****\n")
+		quit()
+
+	nExt1=parObject.getInt("nExt1", -1)
+	if (nExt1 == -1):
+		print("**** ERROR [BornExtOpInitFloat_3D]: User did not provide size of extension axis #1 ****\n")
+		quit()
+	if (nExt1%2 ==0):
+		print("Length of extension axis #1 must be an uneven number")
+		quit()
+
+	extension=parObject.getString("extension", "noExtensionType")
+	if (extension == "noExtensionType"):
+		print("**** ERROR [BornExtOpInitFloat_3D]: User did not provide extension type ****\n")
+		quit()
+
+	nExt2=parObject.getInt("nExt2", -1)
+	if (nExt2 == -1):
+		print("**** ERROR [BornExtOpInitFloat_3D]: User did not provide size of extension axis #2 ****\n")
+		quit()
+	if (nExt2%2 ==0):
+		print("Length of extension axis #2 must be an uneven number")
+		quit()
+
+	# Time extension
+	if (extension == "time"):
+		dExt1=parObject.getFloat("dts",-1.0)
+		hExt1=(nExt1-1)/2
+		oExt1=-dExt1*hExt1
+		dExt2=parObject.getFloat("dts",-1.0)
+		hExt2=(nExt2-1)/2
+		oExt2=-dExt2*hExt2
+
+	# Horizontal subsurface offset extension
+	if (extension == "offset"):
+		dExt1=parObject.getFloat("dx",-1.0)
+		hExt1=(nExt1-1)/2
+		oExt1=-dExt1*hExt1
+		dExt2=parObject.getFloat("dy",-1.0)
+		hExt2=(nExt2-1)/2
+		oExt2=-dExt2*hExt2
+
+	# Space axes
+	zAxis=velFloat.getHyper().axes[0]
+	xAxis=velFloat.getHyper().axes[1]
+	yAxis=velFloat.getHyper().axes[2]
+	ext1Axis=Hypercube.axis(n=nExt1,o=oExt1,d=dExt1) # Create extended axis
+	ext2Axis=Hypercube.axis(n=nExt2,o=oExt2,d=dExt2) # Create extended axis
+
+	modelFloat=SepVector.getSepVector(Hypercube.hypercube(axes=[zAxis,xAxis,yAxis,ext1Axis,ext2Axis]))
+
+	return modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput
+
+class BornExtShotsGpu_3D(Op.Operator):
+	"""Wrapper encapsulating PYBIND11 module for Born extended operator"""
+
+	def __init__(self,*args):
+
+		# Domain = reflectivity
+		# Range = Born data
+		domain = args[0]
+		range = args[1]
+		self.setDomainRange(domain,range)
+
+		# Get wavefield dimensions
+		zAxisWavefield = domain.getHyper().axes[0]
+		xAxisWavefield = domain.getHyper().axes[1]
+		yAxisWavefield = domain.getHyper().axes[2]
+		timeAxisWavefield = range.getHyper().axes[0]
+
+		# Velocity model
+		velocity = args[2]
+		if("getCpp" in dir(velocity)):
+			velocity = velocity.getCpp()
+
+		# Parameter object
+		paramP = args[3]
+		nGpu = getGpuNumber_3D(paramP)
+		if("getCpp" in dir(paramP)):
+			paramP = paramP.getCpp()
+
+		# Source / receiver geometry
+		sourceVector = args[4]
+		receiversVector = args[6]
+
+		# Source signal
+		sourcesSignalsFloat = args[5]
+		if("getCpp" in dir(sourcesSignalsFloat)):
+			sourcesSignalsFloat = sourcesSignalsFloat.getCpp()
+
+		# Declare wavefield vector
+		wavefieldVector = []
+
+		# Ginsu
+		if (len(args) > 7):
+
+			# Vel hypercube for Ginsu
+			velHyperVectorGinsu = args[7]
+			if("getCpp" in dir(velHyperVectorGinsu)):
+				velHyperVectorGinsu = velHyperVectorGinsu.getCpp()
+
+			# Padding for Ginsu
+			xPadMinusVectorGinsu = args[8]
+			if("getCpp" in dir(xPadMinusVectorGinsu)):
+				xPadMinusVectorGinsu = xPadMinusVectorGinsu.getCpp()
+			xPadPlusVectorGinsu = args[9]
+			if("getCpp" in dir(xPadPlusVectorGinsu)):
+				xPadPlusVectorGinsu = xPadPlusVectorGinsu.getCpp()
+
+			# Maximum dimensions for model
+			nxMaxGinsu = args[10]
+			nyMaxGinsu = args[11]
+
+			# Create hypercube for Ginsu wavefield
+			xAxisWavefield = Hypercube.axis(n=nxMaxGinsu, o=0.0, d=1.0)
+			yAxisWavefield = Hypercube.axis(n=nyMaxGinsu, o=0.0, d=1.0)
+			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
+			nzWav = zAxisWavefield.n
+			nxWav = xAxisWavefield.n
+			nyWav = yAxisWavefield.n
+			ntWav = timeAxisWavefield.n
+			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*4/(1024*1024*1024), " [GB]")
+			ixVectorGinsu = args[12]
+			iyVectorGinsu = args[13]
+
+			# Ginsu constructor
+			self.pyOp = pyAcoustic_iso_float_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+
+		else:
+
+			# Create hypercube for wavefield
+			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
+			# print("Allocating normal wavefields")
+			nzWav = zAxisWavefield.n
+			nxWav = xAxisWavefield.n
+			nyWav = yAxisWavefield.n
+			ntWav = timeAxisWavefield.n
+			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*4/(1024*1024*1024), " [GB]")
+
+			# Normal constructor
+			self.pyOp = pyAcoustic_iso_float_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector)
+
+		return
+
+	def __str__(self):
+		"""Name of the operator"""
+		return " BornOp "
+
+	def forward(self,add,model,data):
+		#Checking if getCpp is present
+		if("getCpp" in dir(model)):
+			model = model.getCpp()
+		if("getCpp" in dir(data)):
+			data = data.getCpp()
+		with pyAcoustic_iso_float_BornExt_3D.ostream_redirect():
+			self.pyOp.forward(add,model,data)
+		return
+
+	def adjoint(self,add,model,data):
+		# QC data size
+		# print("Inside adjoint")
+		# print("model nDim=",model.getHyper().getNdim())
+		# print("model n1=",model.getHyper().axes[0].n)
+		# print("model n2=",model.getHyper().axes[1].n)
+		# print("model n3=",model.getHyper().axes[2].n)
+		# print("data nDim=",data.getHyper().getNdim())
+		# print("data n1=",data.getHyper().axes[0].n)
+		# print("data n2=",data.getHyper().axes[1].n)
+		# print("data n3=",data.getHyper().axes[2].n)
+
+		#Checking if getCpp is present
+		if("getCpp" in dir(model)):
+			model = model.getCpp()
+		if("getCpp" in dir(data)):
+			data = data.getCpp()
+		with pyAcoustic_iso_float_BornExt_3D.ostream_redirect():
+			# print("Just before")
+			self.pyOp.adjoint(add,model,data)
+		return
+
+	def setVel_3D(self,vel):
+		#Checking if getCpp is present
+		if("getCpp" in dir(vel)):
+			vel = vel.getCpp()
+		with pyAcoustic_iso_float_BornExt_3D.ostream_redirect():
+			self.pyOp.setVel(vel)
+		return
+
+	def deallocatePinnedBornExtGpu_3D(self):
+		with pyAcoustic_iso_float_BornExt_3D.ostream_redirect():
+			self.pyOp.deallocatePinnedBornExtGpu_3D()
+		return
+
+	def dotTestCpp(self,verb=False,maxError=.00001):
+		"""Method to call the Cpp class dot-product test"""
+		with pyAcoustic_iso_float_BornExt_3D.ostream_redirect():
+			result=self.pyOp.dotTest(verb,maxError)
+		return result

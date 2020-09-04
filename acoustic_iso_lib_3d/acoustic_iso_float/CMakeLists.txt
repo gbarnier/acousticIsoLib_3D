@@ -29,7 +29,6 @@ set(SOURCE_NL 		${SRC_DIR}/nonlinearPropShotsGpu_3D.cpp
 					${SRC_DIR}/fdParam_3D.cpp
 					${SRC_DIR}/deviceGpu_3D.cpp
 					${SRC_DIR}/nonlinearShotsGpuFunctions_3D.cu
-
 					${SRC_DIR}/interpTimeLinTbb_3D.cpp
 )
 
@@ -39,6 +38,16 @@ set(SOURCE_BORN 	${SRC_DIR}/BornShotsGpu_3D.cpp
 					${SRC_DIR}/fdParam_3D.cpp
 					${SRC_DIR}/deviceGpu_3D.cpp
 					${SRC_DIR}/BornShotsGpuFunctions_3D.cu
+					${SRC_DIR}/interpTimeLinTbb_3D.cpp
+					${SRC_DIR}/secondTimeDerivative_3D.cpp
+)
+
+# Files for nonlinear operator library
+set(SOURCE_BORN_EXT	${SRC_DIR}/BornExtShotsGpu_3D.cpp
+		   	  		${SRC_DIR}/BornExtGpu_3D.cpp
+					${SRC_DIR}/fdParam_3D.cpp
+					${SRC_DIR}/deviceGpu_3D.cpp
+					${SRC_DIR}/BornExtShotsGpuFunctions_3D.cu
 					${SRC_DIR}/interpTimeLinTbb_3D.cpp
 					${SRC_DIR}/secondTimeDerivative_3D.cpp
 )
@@ -62,12 +71,16 @@ target_link_libraries(ACOUSTIC_ISO_FLOAT_NL_3D ${LIBS} OpenMP::OpenMP_CXX)
 add_library(ACOUSTIC_ISO_FLOAT_BORN_3D ${SOURCE_BORN})
 target_link_libraries(ACOUSTIC_ISO_FLOAT_BORN_3D ${LIBS} OpenMP::OpenMP_CXX)
 
+add_library(ACOUSTIC_ISO_FLOAT_BORN_EXT_3D ${SOURCE_BORN_EXT})
+target_link_libraries(ACOUSTIC_ISO_FLOAT_BORN_EXT_3D ${LIBS} OpenMP::OpenMP_CXX)
+
 # add_executable(padFileGpuMain_3D ${SRC_DIR}/padFileGpuMain_3D.cpp)
 # target_link_libraries(padFileGpuMain_3D ${LIBS} OpenMP::OpenMP_CXX)
 
 # Adding libray and header files to install destination
 install(TARGETS ACOUSTIC_ISO_FLOAT_NL_3D DESTINATION lib)
 install(TARGETS ACOUSTIC_ISO_FLOAT_BORN_3D DESTINATION lib)
+install(TARGETS ACOUSTIC_ISO_FLOAT_BORN_EXT_3D DESTINATION lib)
 
 # install(TARGETS padFileGpuMain_3D DESTINATION bin)
 install(FILES ${HEADERS} DESTINATION include)

@@ -10,6 +10,7 @@ import os
 # Modeling operators
 import Acoustic_iso_float_3D
 import dataTaperModule_3D
+# import dsoGpuModule_3D
 
 # Solver library
 import pyOperator as pyOp
@@ -25,7 +26,7 @@ if __name__ == '__main__':
 	# IO object
 	parObject=genericIO.io(params=sys.argv)
 	dataTaper=parObject.getInt("dataTaper",0)
-	rawData=parObject.getString("rawData",1)
+	rawData=parObject.getInt("rawData",1)
 	pyinfo=parObject.getInt("pyinfo",1)
 	solver=parObject.getString("solver","LCG")
 	regType=parObject.getString("reg","None")
@@ -93,6 +94,9 @@ if __name__ == '__main__':
 		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry)
 		# If input data have not been tapered yet -> taper them
 		if (rawData==1):
+			if (pyinfo==1):
+				print("---- [extLsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
+			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")			
 			dataTapered = dataFloat.clone()
 			dataTaperOp.forward(False,dataFloat,dataTapered) # Apply tapering to the data
 			dataFloat=dataTapered
@@ -109,9 +113,6 @@ if __name__ == '__main__':
 	# Data
 	dataFile=parObject.getString("data")
 	dataFloat=genericIO.defaultIO.getVector(dataFile)
-
-	# # No regularization
-	# invProb=Prblm.ProblemL2Linear(modelInitFloat,dataFloat,invOp)
 
 	############################# Regularization ###############################
 	# Regularization
@@ -130,8 +131,8 @@ if __name__ == '__main__':
 			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requestd to use a DSO regularization ----")
 
 			# Instanciate DSO operator
-			nz,nx,nExt,fat,dsoZeroShift=dsoGpuModule.dsoGpuInit(sys.argv)
-			dsoOp=dsoGpuModule.dsoGpu(modelInitFloat,modelInitFloat,nz,nx,nExt,fat,dsoZeroShift)
+			nz,nx,ny,nExt1,nExt2,fat,dsoZeroShift=dsoGpuModule.dsoGpuInit(sys.argv)
+			dsoOp=dsoGpuModule.dsoGpu(modelInitFloat,modelInitFloat,nz,nx,ny,nExt1,nExt2,fat,dsoZeroShift)
 
 			# Instanciate problem
 			invProb=Prblm.ProblemL2LinearReg(modelInitFloat,dataFloat,invOp,epsilon,reg_op=dsoOp)

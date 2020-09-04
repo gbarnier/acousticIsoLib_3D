@@ -2,7 +2,7 @@
 import genericIO
 import SepVector
 import Hypercube
-import Acoustic_iso_double_3D
+import Acoustic_iso_float_3D
 import numpy as np
 import time
 import sys
@@ -10,17 +10,17 @@ import sys
 if __name__ == '__main__':
 
 	# Initialize operator
-	modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,dataHyperForOutput=Acoustic_iso_double_3D.BornExtOpInitDouble_3D(sys.argv)
+	modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.BornExtOpInitFloat_3D(sys.argv)
 
 	# Initialize Ginsu
 	if (parObject.getInt("ginsu", 0) == 1):
-		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu = Acoustic_iso_double_3D.buildGeometryGinsu_3D(parObject,velDouble,sourcesVector,receiversVector)
+		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu = Acoustic_iso_float_3D.buildGeometryGinsu_3D(parObject,velFloat,sourcesVector,receiversVector)
 
 	# Construct nonlinear operator object
 	if (parObject.getInt("ginsu", 0) == 0):
-		BornExtOp=Acoustic_iso_double_3D.BornExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector)
+		BornExtOp=Acoustic_iso_float_3D.BornExtShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector)
 	else:
-		BornExtOp=Acoustic_iso_double_3D.BornExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+		BornExtOp=Acoustic_iso_float_3D.BornExtShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
 
 	# Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
 		print("-------------------------------------------------------------------")
 		print("------------- Running Python Born extended forward 3D -------------")
-		print("--------------------- Double precision Python code ----------------")
+		print("--------------------- Single precision Python code ----------------")
 		print("-------------------------------------------------------------------\n")
 
 		if (parObject.getInt("freeSurface",0) == 1):
@@ -50,19 +50,11 @@ if __name__ == '__main__':
 
 		# Read model
 		modelFloat=genericIO.defaultIO.getVector(modelFile,ndims=5)
-		modelDouble=SepVector.getSepVector(modelFloat.getHyper(),storage="dataDouble",ndims=5)
-		modelDoubleNp=modelDouble.getNdArray()
-		modelFloatNp=modelFloat.getNdArray()
-		modelDoubleNp[:]=modelFloatNp
 
 		# Apply forward
-		BornExtOp.forward(False,modelDouble,dataDouble)
+		BornExtOp.forward(False,modelFloat,dataFloat)
 
 		# Write data
-		dataFloat=SepVector.getSepVector(dataDouble.getHyper(),storage="dataFloat",ndims=3)
-		dataFloatNp=dataFloat.getNdArray()
-		dataDoubleNp=dataDouble.getNdArray()
-		dataFloatNp[:]=dataDoubleNp
 		genericIO.defaultIO.writeVector(dataFile,dataFloat)
 
 		# Deallocate pinned memory
@@ -86,27 +78,20 @@ if __name__ == '__main__':
 		# Check that data was provided
 		dataFile=parObject.getString("data","noDataFile")
 		if (dataFile == "noDataFile"):
-		    print("**** ERROR: User did not provide data file ****\n")
-		    quit()
+			print("**** ERROR: User did not provide data file ****\n")
+			quit()
 
 		# Read data
 		dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
-		dataFloatNp=dataFloat.getNdArray()
-		dataDoubleNp=dataDouble.getNdArray()
-		dataDoubleNp[:]=dataFloatNp
 
 		# Apply adjoint
-		BornExtOp.adjoint(False,modelDouble,dataDouble)
+		BornExtOp.adjoint(False,modelFloat,dataFloat)
 
 		# Write model
-		modelFloat=SepVector.getSepVector(modelDouble.getHyper(),storage="dataFloat")
-		modelFloatNp=modelFloat.getNdArray()
-		modelDoubleNp=modelDouble.getNdArray()
-		modelFloatNp[:]=modelDoubleNp
 		modelFile=parObject.getString("model","noModelFile")
 		if (modelFile == "noModelFile"):
-		    print("**** ERROR: User did not provide model file name ****\n")
-		    quit()
+			print("**** ERROR [BornPythonFloatMain_3D]: User did not provide model file name ****\n")
+			quit()
 		genericIO.defaultIO.writeVector(modelFile,modelFloat)
 
 		# Deallocate pinned memory

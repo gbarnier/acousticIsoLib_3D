@@ -58,7 +58,9 @@ void seismicOperator_3D <V1, V2>::setAcquisition_3D(std::shared_ptr<deviceGpu_3D
 	setSources_3D(sources);
 	setReceivers_3D(receivers);
 	this->setDomainRange(model, data);
-	assert(checkParfileConsistency_3D(model, data));
+	if ( not checkParfileConsistency_3D(model, data) ){
+		throw std::runtime_error("**** ERROR [seismicOperator_3D]: Model or data not consistent with parfile ****");
+	}
 }
 
 // Set acquisiton for Born and Tomo
@@ -67,7 +69,9 @@ void seismicOperator_3D <V1, V2>::setAcquisition_3D(std::shared_ptr<deviceGpu_3D
 	setSources_3D(sources, sourcesSignals);
 	setReceivers_3D(receivers);
 	this->setDomainRange(model, data);
-	assert(checkParfileConsistency_3D(model, data));
+	if ( not checkParfileConsistency_3D(model, data) ){
+		throw std::runtime_error("**** ERROR [seismicOperator_3D]: Model or data not consistent with parfile ****");
+	}
 }
 
 // Scale seismic source

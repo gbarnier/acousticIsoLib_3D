@@ -13,17 +13,19 @@ def dsoGpuInit_3D(args):
 
 	nz=parObject.getInt("nz")
 	nx=parObject.getInt("nx")
-	nExt=parObject.getInt("nExt")
+	ny=parObject.getInt("ny")
+	nExt1=parObject.getInt("nExt1")
+	nExt2=parObject.getInt("nExt2")
 	fat=parObject.getInt("fat")
 	dsoZeroShift=parObject.getFloat("dsoZeroShift")
-	return nz,nx,nExt,fat,dsoZeroShift
+	return nz,nx,ny,nExt1,nExt2,fat,dsoZeroShift
 
 class dsoGpu_3D(Op.Operator):
 
-	def __init__(self,domain,range,nz,nx,nExt,fat,dsoZeroShift):
+	def __init__(self,domain,range,nz,nx,ny,nExt1,nExt2,fat,dsoZeroShift):
 
 		self.setDomainRange(domain,range)
-		self.pyOp = pyDsoGpu_3D.dsoGpu_3D(nz,nx,nExt,fat,dsoZeroShift)
+		self.pyOp = pyDsoGpu_3D.dsoGpu_3D(nz,nx,ny,nExt1,nExt2,fat,dsoZeroShift)
 		return
 
 	def forward(self,add,model,data):

@@ -114,6 +114,7 @@ __constant__ long long dev_yStride_ginsu[N_GPU_MAX];
 __constant__ unsigned long long dev_nModel_ginsu[N_GPU_MAX];
 __constant__ unsigned long long dev_nModelExt_ginsu[N_GPU_MAX];
 __constant__ unsigned long long dev_nVel_ginsu[N_GPU_MAX];
+__constant__ unsigned long long dev_extStride_ginsu[N_GPU_MAX];
 __constant__ double dev_cosDampingCoeffGinsuConstant[N_GPU_MAX][PAD_MAX];
 
 /******************************************************************************/

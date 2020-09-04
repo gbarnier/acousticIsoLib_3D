@@ -41,7 +41,7 @@ if __name__ == '__main__':
 	dataTaper=parObject.getInt("dataTaper",0)
 	traceNorm=parObject.getInt("traceNorm",0)
 	regType=parObject.getString("reg","None")
-	rawData=parObject.getString("rawData",1)
+	rawData=parObject.getInt("rawData",1)
 	reg=0
 	if (regType != "None"): reg=1
 
@@ -155,6 +155,9 @@ if __name__ == '__main__':
 		traceNormNlFwiOp=pyOp.NonLinearOperator(traceNormOp,traceNormDerivOp,traceNormDerivOp.setData)
 		# If input data has not been normalized yet -> normalize it
 		if (rawData==1):
+			if (pyinfo==1):
+				print("---- [fwiFloatMain_3D]: User has required a trace normalization and has provided raw observed data -> applying trace normlization on raw observed data ----")
+			inv_log.addToLog("---- [fwiFloatMain_3D]: User has required a trace normalization and has provided raw observed data -> applying trace normlization on raw observed data ----")			
 			# Apply normalization to data
 			dataNormalized = dataFloat.clone()
 			traceNormOp.forward(False,dataFloat,dataNormalized)
@@ -167,6 +170,9 @@ if __name__ == '__main__':
 		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry)
 		# If input data have not been tapered yet -> taper them
 		if (rawData==1):
+			if (pyinfo==1):
+				print("---- [fwiFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
+			inv_log.addToLog("---- [fwiFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
 			dataTapered = dataFloat.clone()
 			dataTaperOp.forward(False,dataFloat,dataTapered) # Apply tapering to the data
 			dataFloat=dataTapered

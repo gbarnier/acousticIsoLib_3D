@@ -54,14 +54,16 @@ class fdParam_3D{
 		double _dz, _dx, _dy, _oz, _ox, _oy, _fMax;
 		int _saveWavefield, _blockSize, _fat, _freeSurface, _splitTopBody;
 		double _alphaCos;
-		std::string _extension, _offsetType;
+		std::string _extension;
 
         // Ginsu parameters
+        int _ginsu;
         double *_vel2Dtw2Ginsu, *_reflectivityScaleGinsu;
         int _nzGinsu, _nxGinsu, _nyGinsu;
         int _zPadMinusGinsu, _zPadPlusGinsu, _xPadMinusGinsu, _xPadPlusGinsu, _yPadMinusGinsu, _yPadPlusGinsu, _zPadGinsu, _xPadGinsu, _yPadGinsu, _minPadGinsu;
         double _ozGinsu, _dzGinsu, _oxGinsu, _dxGinsu, _oyGinsu, _dyGinsu;
         int _izGinsu, _ixGinsu, _iyGinsu;
+        axis _zAxisGinsu, _xAxisGinsu, _yAxisGinsu;
 
 };
 

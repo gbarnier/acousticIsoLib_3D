@@ -676,6 +676,9 @@ void BornShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 	// duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
 	// std::cout << "duration source fwd: " << duration << std::endl;
 
+	// std::cout << "Source wavefield min = " << *std::min_element(pin_wavefieldSlice[iGpu],pin_wavefieldSlice[iGpu]+host_nVel_ginsu[iGpu]*host_nts) << std::endl;
+	// std::cout << "Source wavefield max = " << *std::max_element(pin_wavefieldSlice[iGpu],pin_wavefieldSlice[iGpu]+host_nVel_ginsu[iGpu]*host_nts) << std::endl;
+
 	/********************** Scattered wavefield computation *******************/
 	// std::clock_t start1;
 	// double duration1;

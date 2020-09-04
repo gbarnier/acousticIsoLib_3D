@@ -12,6 +12,9 @@ using namespace SEP;
 
 fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_ptr<paramObj> par) {
 
+	// Set Ginsu flag to zero
+	_ginsu = 0;
+
 	_vel = vel;
 	_par = par;
 
@@ -87,7 +90,6 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 	_hExt1 = (_nExt1-1)/2;
     _hExt2 = (_nExt2-1)/2;
 	_extension = par->getString("extension", "none");
-	_offsetType = par->getString("offsetType", "none");
 
     // Time-lag extension
     if (_extension=="time"){
@@ -303,6 +305,9 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 
 void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu) {
 
+	// Set Ginsu flag to one
+	_ginsu = 1;
+
 	// Clean-up the scaled velocity and reflectity arrays
 	delete [] _vel2Dtw2Ginsu;
 	_vel2Dtw2Ginsu = NULL;
@@ -336,13 +341,6 @@ void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGins
 	_izGinsu = (_ozGinsu - _oz)/_dz;
 	_ixGinsu = (_oxGinsu - _ox)/_dx;
 	_iyGinsu = (int) ((_oyGinsu - _oy)/_dy);
-	// std::cout << "fdParam before izGinsu = " << _izGinsu << std::endl;
-	// std::cout << "fdParam before ixGinsu = " << _ixGinsu << std::endl;
-	// std::cout << "fdParam before iyGinsu = " << _iyGinsu << std::endl;
-	//
-	// std::cout << "fdParam, ozGinsu before = " << _ozGinsu << std::endl;
-	// std::cout << "fdParam, oxGinsu before = " << _oxGinsu << std::endl;
-	// std::cout << "fdParam, oyGinsu before = " << _oyGinsu << std::endl;
 
 	// Check that izGinsu is always at the origin of the big FD grid
 	_izGinsu = (_ozGinsu - _oz)/_dz;
@@ -357,35 +355,13 @@ void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGins
 	_ozGinsu = _vel->getHyper()->getAxis(1).o + _izGinsu*_dzGinsu;
 	_oxGinsu = _vel->getHyper()->getAxis(2).o + _ixGinsu*_dxGinsu;
 	_oyGinsu = _vel->getHyper()->getAxis(3).o + _iyGinsu*_dyGinsu;
-
-	// std::cout << "fdParam, ozGinsu after = " << _ozGinsu << std::endl;
-	// std::cout << "fdParam, oxGinsu after = " << _oxGinsu << std::endl;
-	// std::cout << "fdParam, oyGinsu after = " << _oyGinsu << std::endl;
+	_zAxisGinsu = axis(_nzGinsu, _ozGinsu, _dzGinsu);
+	_xAxisGinsu = axis(_nxGinsu, _oxGinsu, _dxGinsu);
+	_yAxisGinsu = axis(_nyGinsu, _oyGinsu, _dyGinsu);
 
 	float izTest = (_ozGinsu - _oz)/_dz;
 	float ixTest = (_oxGinsu - _ox)/_dx;
 	float iyTest = (_oyGinsu - _oy)/_dy;
-	// _iyGinsu = 33;
-	// std::cout << "fdParaizGinsu = " << _izGinsu << std::endl;
-	// std::cout << "fdParam after izGinsu = " << _izGinsu << std::endl;
-	// std::cout << "fdParam after ixGinsu = " << _ixGinsu << std::endl;
-	// std::cout << "fdParam after iyGinsu = " << _iyGinsu << std::endl;
-	//
-	// std::cout << "fdParam, izGinsu float = " << izTest << std::endl;
-	// std::cout << "fdParam, ixGinsu float = " << ixTest << std::endl;
-	// std::cout << "fdParam, iyGinsu float = " << iyTest << std::endl;
-
-	// std::cout << "ozGinsu = " << _ozGinsu << std::endl;
-	// std::cout << "dzGinsu = " << _dzGinsu << std::endl;
-	// std::cout << "nyGinsu = " << _nzGinsu << std::endl;
-	//
-	// std::cout << "oxGinsu = " << _oxGinsu << std::endl;
-	// std::cout << "dxGinsu = " << _dxGinsu << std::endl;
-	// std::cout << "nxGinsu = " << _nxGinsu << std::endl;
-	//
-	// std::cout << "oyGinsu = " << _oyGinsu << std::endl;
-	// std::cout << "dyGinsu = " << _dyGinsu << std::endl;
-	// std::cout << "nyGinsu = " << _nyGinsu << std::endl;
 
 	// Deallocate small velocity
 	// _smallVel.reset();
@@ -602,14 +578,26 @@ bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<float3DRe
 	if ( std::abs(_oz - model->getHyper()->getAxis(1).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oz not consistent with parfile ****" << std::endl; return false;}
 
 	// Horizontal x-axis
-	if (_nx != model->getHyper()->getAxis(2).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: nx not consistent with parfile ****" << std::endl; return false;}
-	if ( std::abs(_dx - model->getHyper()->getAxis(2).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dx not consistent with parfile ****" << std::endl; return false;}
-	if ( std::abs(_ox - model->getHyper()->getAxis(2).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ox not consistent with parfile ****" << std::endl; return false;}
+	if (_ginsu == 0){
+		if (_nx != model->getHyper()->getAxis(2).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: nx not consistent with parfile ****" << std::endl; return false;}
+		if ( std::abs(_dx - model->getHyper()->getAxis(2).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dx not consistent with parfile ****" << std::endl; return false;}
+		if ( std::abs(_ox - model->getHyper()->getAxis(2).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ox not consistent with parfile ****" << std::endl; return false;}
+	} else {
+		if (_nxGinsu != model->getHyper()->getAxis(2).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: nx not consistent with Ginsu nx ****" << std::endl; return false;}
+		if ( std::abs(_dxGinsu - model->getHyper()->getAxis(2).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dx not consistent with Ginsu dx ****" << std::endl; return false;}
+		if ( std::abs(_oxGinsu - model->getHyper()->getAxis(2).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ox not consistent with Ginsu ox ****" << std::endl; return false;}
+	}
 
 	// Horizontal y-axis
-	if (_ny != model->getHyper()->getAxis(3).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ny not consistent with parfile ****" << std::endl; return false;}
-	if ( std::abs(_dy - model->getHyper()->getAxis(3).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dy not consistent with parfile ****" << std::endl; return false;}
-	if ( std::abs(_oy - model->getHyper()->getAxis(3).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oy not consistent with parfile ****" << std::endl; return false;}
+	if (_ginsu == 0){
+		if (_ny != model->getHyper()->getAxis(3).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ny not consistent with parfile ****" << std::endl; return false;}
+		if ( std::abs(_dy - model->getHyper()->getAxis(3).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dy not consistent with parfile ****" << std::endl; return false;}
+		if ( std::abs(_oy - model->getHyper()->getAxis(3).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oy not consistent with parfile ****" << std::endl; return false;}
+	} else {
+		if (_nyGinsu != model->getHyper()->getAxis(3).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ny not consistent with Ginsu ny ****" << std::endl; return false;}
+		if ( std::abs(_dyGinsu - model->getHyper()->getAxis(3).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dy not consistent with Ginsu dy ****" << std::endl; return false;}
+		if ( std::abs(_oyGinsu - model->getHyper()->getAxis(3).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oy not consistent with Ginsu oy ****" << std::endl; return false;}
+	}
 
 	return true;
 }
@@ -618,19 +606,33 @@ bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<float3DRe
 bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<float5DReg> modelExt, std::string fileToCheck) const {
 
 	// Vertical z-axis
+	// std::cout << "_nz = " << _nz << std::endl;
+	// std::cout << "modelExt->getHyper()->getAxis(1).n = " << modelExt->getHyper()->getAxis(1).n << std::endl;
 	if (_nz != modelExt->getHyper()->getAxis(1).n) {std::cout << "**** ["<< fileToCheck << "] ERROR [fdParam_3D]: nz not consistent with parfile ****" << std::endl; return false;}
-	if ( std::abs(_dz - modelExt->getHyper()->getAxis(1).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dz not consistent with parfile ****" << std::endl; return false;}
+	if ( std::abs(_dz - modelExt->getHyper()->getAxis(1).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dz not consistent with parfile ****" << std::endl;return false;}
 	if ( std::abs(_oz - modelExt->getHyper()->getAxis(1).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oz not consistent with parfile ****" << std::endl; return false;}
 
 	// Horizontal x-axis
-	if (_nx != modelExt->getHyper()->getAxis(2).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: nx not consistent with parfile ****" << std::endl; return false;}
-	if ( std::abs(_dx - modelExt->getHyper()->getAxis(2).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dx not consistent with parfile ****" << std::endl; return false;}
-	if ( std::abs(_ox - modelExt->getHyper()->getAxis(2).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ox not consistent with parfile ****" << std::endl; return false;}
+	if (_ginsu == 0){
+		if (_nx != modelExt->getHyper()->getAxis(2).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: nx not consistent with parfile ****" << std::endl; return false;}
+		if ( std::abs(_dx - modelExt->getHyper()->getAxis(2).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dx not consistent with parfile ****" << std::endl; return false;}
+		if ( std::abs(_ox - modelExt->getHyper()->getAxis(2).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ox not consistent with parfile ****" << std::endl; return false;}
+	} else {
+		if (_nxGinsu != modelExt->getHyper()->getAxis(2).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: nx not consistent with Ginsu nx ****" << std::endl; return false;}
+		if ( std::abs(_dxGinsu - modelExt->getHyper()->getAxis(2).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dx not consistent with Ginsu dx ****" << std::endl; return false;}
+		if ( std::abs(_oxGinsu - modelExt->getHyper()->getAxis(2).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ox not consistent with Ginsu ox ****" << std::endl; return false;}
+	}
 
 	// Horizontal y-axis
-	if (_ny != modelExt->getHyper()->getAxis(3).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ny not consistent with parfile ****" << std::endl; return false;}
-	if ( std::abs(_dy - modelExt->getHyper()->getAxis(3).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dy not consistent with parfile ****" << std::endl; return false;}
-	if ( std::abs(_oy - modelExt->getHyper()->getAxis(3).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oy not consistent with parfile ****" << std::endl; return false;}
+	if (_ginsu == 0){
+		if (_ny != modelExt->getHyper()->getAxis(3).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ny not consistent with parfile ****" << std::endl; return false;}
+		if ( std::abs(_dy - modelExt->getHyper()->getAxis(3).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dy not consistent with parfile ****" << std::endl; return false;}
+		if ( std::abs(_oy - modelExt->getHyper()->getAxis(3).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oy not consistent with parfile ****" << std::endl; return false;}
+	} else {
+		if (_nyGinsu != modelExt->getHyper()->getAxis(3).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ny not consistent with Ginsu ny ****" << std::endl; return false;}
+		if ( std::abs(_dyGinsu - modelExt->getHyper()->getAxis(3).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dy not consistent with Ginsu dy ****" << std::endl; return false;}
+		if ( std::abs(_oyGinsu - modelExt->getHyper()->getAxis(3).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oy not consistent with Ginsu oy ****" << std::endl; return false;}
+	}
 
 	// Extended axis #1
 	if (_nExt1 != modelExt->getHyper()->getAxis(4).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: nExt #1 not consistent with parfile ****" << std::endl; return false;}

@@ -214,6 +214,18 @@ __global__ void scaleSecondarySourceFd_3D(float *dev_timeSlice, float *dev_vel2D
 	}
 }
 
+__global__ void scaleSecondarySourceFdGinsu_3D(float *dev_timeSlice, float *dev_vel2Dtw2In, int iGpu){
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_timeSlice[iGlobal] *= dev_vel2Dtw2In[iGlobal];
+		iGlobal+=dev_yStride_ginsu[iGpu];
+	}
+}
+
 __global__ void scaleReflectivityLin_3D(float *dev_modelExtIn, float *dev_reflectivityScaleIn, long long extStrideIn){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -238,6 +250,18 @@ __global__ void scaleReflectivityTau_3D(float *dev_modelExtIn, float *dev_reflec
 	}
 }
 
+__global__ void scaleReflectivityTauGinsu_3D(float *dev_modelExtIn, float *dev_reflectivityScaleIn, float *dev_vel2Dtw2In, long long extStrideIn, int iGpu){
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_modelExtIn[iGlobal+extStrideIn] *= dev_reflectivityScaleIn[iGlobal] * dev_vel2Dtw2In[iGlobal];
+		iGlobal+=dev_yStride_ginsu[iGpu];
+	}
+}
+
 __global__ void scaleReflectivityLinHxHy_3D(float *dev_modelExtIn, float *dev_reflectivityScaleIn, long long extStride1In, long long extStride2In){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -247,6 +271,18 @@ __global__ void scaleReflectivityLinHxHy_3D(float *dev_modelExtIn, float *dev_re
 	for (int iy=FAT; iy<dev_ny-FAT; iy++){
 		dev_modelExtIn[extStride2In+extStride1In+iGlobal] *= dev_reflectivityScaleIn[iGlobal];
 		iGlobal+=dev_yStride;
+	}
+}
+
+__global__ void scaleReflectivityLinHxHyGinsu_3D(float *dev_modelExtIn, float *dev_reflectivityScaleIn, long long extStride1In, long long extStride2In, int iGpu){
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_modelExtIn[extStride2In+extStride1In+iGlobal] *= dev_reflectivityScaleIn[iGlobal];
+		iGlobal+=dev_yStride_ginsu[iGpu];
 	}
 }
 
@@ -364,6 +400,24 @@ __global__ void imagingHxHyFwdGpu_3D(float *dev_model, float *dev_data, float *d
 	}
 }
 
+// Forward hx and hy
+__global__ void imagingHxHyFwdGinsuGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int ihx, int iExt1, int ihy, int iExt2, int iGpu) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the x-z slice for iy = FAT
+
+	if ( ixGlobal-FAT >= abs(ihx) && ixGlobal <= dev_nx_ginsu[iGpu]-FAT-1-abs(ihx) ){
+		for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+			if ( iy-FAT >= abs(ihy) && iy <= dev_ny_ginsu[iGpu]-FAT-1-abs(ihy) ){
+				dev_data[iGlobal+ihy*dev_yStride_ginsu[iGpu]+ihx*dev_nz_ginsu[iGpu]] += dev_model[iExt2*dev_extStride_ginsu[iGpu]+iExt1*dev_nVel_ginsu[iGpu]+iGlobal] * dev_sourceWavefieldDts[iGlobal-ihy*dev_yStride_ginsu[iGpu]-ihx*dev_nz_ginsu[iGpu]];
+			}
+			iGlobal+=dev_yStride_ginsu[iGpu];
+		}
+	}
+}
+
 // Adjoint hx and hy
 __global__ void imagingHxHyAdjGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int ihx, long long iExt1, int ihy, long long iExt2) {
 
@@ -382,6 +436,24 @@ __global__ void imagingHxHyAdjGpu_3D(float *dev_model, float *dev_data, float *d
 
 			}
 			iGlobal+=dev_yStride;
+		}
+	}
+}
+
+// Adjoint hx and hy
+__global__ void imagingHxHyAdjGinsuGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int ihx, long long iExt1, int ihy, long long iExt2, int iGpu) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the x-z slice for iy = FAT
+
+	if ( ixGlobal-FAT >= abs(ihx) && ixGlobal <= dev_nx_ginsu[iGpu]-FAT-1-abs(ihx) ){
+		for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+			if ( iy-FAT >= abs(ihy) && iy <= dev_ny_ginsu[iGpu]-FAT-1-abs(ihy) ){
+				dev_model[iExt2*dev_extStride_ginsu[iGpu]+iExt1*dev_nVel_ginsu[iGpu]+iGlobal] += dev_data[iGlobal+ihy*dev_yStride_ginsu[iGpu]+ihx*dev_nz_ginsu[iGpu]] * dev_sourceWavefieldDts[iGlobal-ihy*dev_yStride_ginsu[iGpu]-ihx*dev_nz_ginsu[iGpu]];
+			}
+			iGlobal+=dev_yStride_ginsu[iGpu];
 		}
 	}
 }
@@ -418,6 +490,37 @@ __global__ void imagingTauFwdGpu_3D(float *dev_model, float *dev_data, float *de
 	}
 }
 
+// Forward time-lags
+__global__ void imagingTauFwdGpu_32_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int iExt) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * 32 + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * 32 + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
+
+    if (izGlobal < dev_nz-FAT && ixGlobal < dev_nx-FAT){
+
+    	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+    		dev_data[iGlobal] += dev_model[iGlobal+iExt*dev_nVel] * dev_sourceWavefieldDts[iGlobal];
+    		iGlobal+=dev_yStride;
+    	}
+    }
+}
+
+// Forward time-lags
+__global__ void imagingTauFwdGinsuGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int iExt, int iGpu) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_data[iGlobal] += dev_model[iGlobal+iExt*dev_nVel_ginsu[iGpu]] * dev_sourceWavefieldDts[iGlobal];
+		iGlobal+=dev_yStride_ginsu[iGpu];
+	}
+}
+
 // Adjoint time-lags
 __global__ void imagingTauAdjGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int iExt) {
 
@@ -429,6 +532,20 @@ __global__ void imagingTauAdjGpu_3D(float *dev_model, float *dev_data, float *de
 	for (int iy=FAT; iy<dev_ny-FAT; iy++){
 		dev_model[iGlobal+iExt*dev_nVel] += dev_data[iGlobal] * dev_sourceWavefieldDts[iGlobal];
 		iGlobal+=dev_yStride;
+	}
+}
+
+// Adjoint time-lags Ginsu
+__global__ void imagingTauAdjGinsuGpu_3D(float *dev_model, float *dev_data, float *dev_sourceWavefieldDts, int iExt, int iGpu) {
+
+	// Global coordinates for the faster two axes (z and x)
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+	long long iGlobal = FAT * dev_yStride_ginsu[iGpu] + dev_nz_ginsu[iGpu] * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny_ginsu[iGpu]-FAT; iy++){
+		dev_model[iGlobal+iExt*dev_nVel_ginsu[iGpu]] += dev_data[iGlobal] * dev_sourceWavefieldDts[iGlobal];
+		iGlobal+=dev_yStride_ginsu[iGpu];
 	}
 }
 
@@ -1307,14 +1424,14 @@ __global__ void stepAdjFreeSurfaceGpu_3D(float *dev_o, float *dev_c, float *dev_
 
     // Load the values along the y-direction (Remember: each thread has its own version of dev_c_y and dev_vel_y array)
     // Points from the current wavefield time-slice that will be used by the current block
-    dev_c_y[1] = dev_c[iGlobalTemp];										dev_vel_y[1] = dev_vel2Dtw2[iGlobalTemp];
+    dev_c_y[1] = dev_c[iGlobalTemp];								dev_vel_y[1] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[2] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[2] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[3] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[3] = dev_vel2Dtw2[iGlobalTemp];
-		// These ones go to shared memory because used multiple times in Laplacian computation for the z- and x-directions
+	// These ones go to shared memory because used multiple times in Laplacian computation for the z- and x-directions
     shared_c[ixLocal][izLocal] = dev_c[iGlobalTemp+=yStride]; 		shared_vel[ixLocal][izLocal] = dev_vel2Dtw2[iGlobalTemp];
-		dev_c_y[4] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[4] = dev_vel2Dtw2[iGlobalTemp];
+	dev_c_y[4] = dev_c[iGlobalTemp+=yStride];					    dev_vel_y[4] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[5] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[5] = dev_vel2Dtw2[iGlobalTemp];
-		dev_c_y[6] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[6] = dev_vel2Dtw2[iGlobalTemp];
+	dev_c_y[6] = dev_c[iGlobalTemp+=yStride];					    dev_vel_y[6] = dev_vel2Dtw2[iGlobalTemp];
     dev_c_y[7] = dev_c[iGlobalTemp+=yStride];						dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
 
     // Loop over y
@@ -1324,13 +1441,13 @@ __global__ void stepAdjFreeSurfaceGpu_3D(float *dev_o, float *dev_c, float *dev_
         dev_c_y[0] = dev_c_y[1];										dev_vel_y[0] = dev_vel_y[1];
         dev_c_y[1] = dev_c_y[2];										dev_vel_y[1] = dev_vel_y[2];
         dev_c_y[2] = dev_c_y[3];										dev_vel_y[2] = dev_vel_y[3];
-        dev_c_y[3] = shared_c[ixLocal][izLocal];		dev_vel_y[3] = shared_vel[ixLocal][izLocal];
-				__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
-        shared_c[ixLocal][izLocal] = dev_c_y[4]; 		shared_vel[ixLocal][izLocal] = dev_vel_y[4]; // Load central points to shared memory (for both current slice and scaled velocity)
+        dev_c_y[3] = shared_c[ixLocal][izLocal];		                dev_vel_y[3] = shared_vel[ixLocal][izLocal];
+		__syncthreads(); // Synchronise all threads within each block before updating the value of the shared memory at ixLocal, izLocal
+        shared_c[ixLocal][izLocal] = dev_c_y[4]; 		                shared_vel[ixLocal][izLocal] = dev_vel_y[4]; // Load central points to shared memory (for both current slice and scaled velocity)
         dev_c_y[4] = dev_c_y[5];										dev_vel_y[4] = dev_vel_y[5];
         dev_c_y[5] = dev_c_y[6];										dev_vel_y[5] = dev_vel_y[6];
         dev_c_y[6] = dev_c_y[7];										dev_vel_y[6] = dev_vel_y[7];
-        dev_c_y[7] = dev_c[iGlobalTemp+=yStride];		dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
+        dev_c_y[7] = dev_c[iGlobalTemp+=yStride];		                dev_vel_y[7] = dev_vel2Dtw2[iGlobalTemp];
 
         // Load the halos in the z-direction
         if (threadIdx.x < FAT) {
@@ -1368,9 +1485,9 @@ __global__ void stepAdjFreeSurfaceGpu_3D(float *dev_o, float *dev_c, float *dev_
 	            + dev_coeff[CX1] * ( shared_c[ixLocal-1][izLocal] * shared_vel[ixLocal-1][izLocal] + shared_c[ixLocal+1][izLocal] * shared_vel[ixLocal+1][izLocal])
 	            + dev_coeff[CY1] * ( dev_c_y[3] * dev_vel_y[3] + dev_c_y[4] * dev_vel_y[4])
 
-							- dev_coeff[CZ2] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
-							- dev_coeff[CZ3] * shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1]
-							- dev_coeff[CZ4] * shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2]
+				- dev_coeff[CZ2] * shared_c[ixLocal][izLocal] * shared_vel[ixLocal][izLocal]
+				- dev_coeff[CZ3] * shared_c[ixLocal][izLocal+1] * shared_vel[ixLocal][izLocal+1]
+				- dev_coeff[CZ4] * shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2]
 
 	            + dev_coeff[CZ2] * ( shared_c[ixLocal][izLocal-2] * shared_vel[ixLocal][izLocal-2] + shared_c[ixLocal][izLocal+2] * shared_vel[ixLocal][izLocal+2] )
 	            + dev_coeff[CX2] * ( shared_c[ixLocal-2][izLocal] * shared_vel[ixLocal-2][izLocal] + shared_c[ixLocal+2][izLocal] * shared_vel[ixLocal+2][izLocal])
