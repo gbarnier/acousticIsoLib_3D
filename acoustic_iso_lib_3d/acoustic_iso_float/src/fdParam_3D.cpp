@@ -140,7 +140,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_
 	_minPad = std::min(_zPad, std::min(_xPad, _yPad));
 	_saveWavefield = _par->getInt("saveWavefield", 0);
 	_alphaCos = par->getFloat("alphaCos", 0.99);
-	_errorTolerance = par->getFloat("errorTolerance", 0.000001);
+	_errorTolerance = par->getFloat("errorTolerance", 0.0001);
 	_nzSmall = _nz - 2*_fat - _zPadMinus - _zPadPlus;
 	_nxSmall = _nx - 2*_fat - _xPadMinus - _xPadPlus;
 	_nySmall = _ny - 2*_fat - 2*_yPad;
@@ -596,7 +596,11 @@ bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<float3DRe
 	} else {
 		if (_nyGinsu != model->getHyper()->getAxis(3).n) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: ny not consistent with Ginsu ny ****" << std::endl; return false;}
 		if ( std::abs(_dyGinsu - model->getHyper()->getAxis(3).d) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: dy not consistent with Ginsu dy ****" << std::endl; return false;}
-		if ( std::abs(_oyGinsu - model->getHyper()->getAxis(3).o) > _errorTolerance ) {std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oy not consistent with Ginsu oy ****" << std::endl; return false;}
+		if ( std::abs(_oyGinsu - model->getHyper()->getAxis(3).o) > _errorTolerance ) {
+			std::cout << "_oyGinsu = " << _oyGinsu << std::endl;
+			std::cout << "model->getHyper()->getAxis(3).o = " << model->getHyper()->getAxis(3).o << std::endl;
+			std::cout << "_errorTolerance = " << _errorTolerance << std::endl;
+			std::cout << "**** [" << fileToCheck << "] ERROR [fdParam_3D]: oy not consistent with Ginsu oy ****" << std::endl; return false;}
 	}
 
 	return true;

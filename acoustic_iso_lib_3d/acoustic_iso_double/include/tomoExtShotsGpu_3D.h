@@ -22,21 +22,25 @@ using namespace SEP;
 class tomoExtShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 
 	private:
-		int _nShot, _nGpu, _iGpuAlloc;
-		int _saveWavefield, _wavefieldShotNumber, _info, _deviceNumberInfo;
+		int _nShot, _nGpu, _iGpuAlloc, _ginsu;
+		int _info, _deviceNumberInfo;
 		std::shared_ptr<SEP::double3DReg> _vel;
 		std::shared_ptr<SEP::double2DReg> _sourcesSignals;
 		std::shared_ptr<paramObj> _par;
 		std::vector<std::shared_ptr<deviceGpu_3D>> _sourcesVector, _receiversVector;
-		std::vector<std::shared_ptr<SEP::double4DReg>> _wavefieldVector1, _wavefieldVector2;
 		std::shared_ptr<SEP::double5DReg> _extReflectivity;
+		std::shared_ptr <hypercube> _srcWavefieldHyper;
 		std::vector<int> _gpuList;
-		std::shared_ptr <hypercube> _wavefieldHyper;
+		std::vector<std::shared_ptr<SEP::hypercube>> _velHyperVectorGinsu;
+		std::shared_ptr<SEP::int1DReg> _xPadMinusVectorGinsu, _xPadPlusVectorGinsu;
+		std::vector<int> _ixVectorGinsu, _iyVectorGinsu;
 
 	public:
 
 		/* Overloaded constructors */
 		tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<SEP::double5DReg> reflectivityExt);
+
+		tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<SEP::double5DReg> reflectivityExt, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu);
 
 		/* Destructor */
 		~tomoExtShotsGpu_3D(){};
@@ -48,26 +52,12 @@ class tomoExtShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 		void forward(const bool add, const std::shared_ptr<double3DReg> model, std::shared_ptr<double3DReg> data) const;
 		void adjoint(const bool add, std::shared_ptr<double3DReg> model, const std::shared_ptr<double3DReg> data) const;
 
-		/* Accessor */
-		// iWavefield1 corresponds to the wavefield for iGpu #iWavefield
-		std::shared_ptr<double4DReg> getWavefield1_3D(int iWavefield1) {
-			if ( iWavefield1 < 0 || iWavefield1 > _nGpu-1){
-				std::cout << "**** ERROR [tomoExtShotsGpu_3D]: Please provide a valid ID for the wavefield to be saved ****" << std::endl;
-				assert(1==2);
-			}
-			return _wavefieldVector1[iWavefield1];
-		}
-		std::shared_ptr<double4DReg> getWavefield2_3D(int iWavefield2) {
-			if ( iWavefield2 < 0 || iWavefield2 > _nGpu-1){
-				std::cout << "**** ERROR [tomoExtShotsGpu_3D]: Please provide a valid ID for the wavefield to be saved ****" << std::endl;
-				assert(1==2);
-			}
-			return _wavefieldVector2[iWavefield2];
-		}
-
 		/* Mutators */
 		void setVel_3D(std::shared_ptr<SEP::double3DReg> vel){ _vel = vel; }
-		void setExtReflectivity(std::shared_ptr<SEP::double5DReg> extReflectivity){ _extReflectivity = extReflectivity; }
+		void setExtReflectivity_3D(std::shared_ptr<SEP::double5DReg> extReflectivity){ _extReflectivity = extReflectivity; }
+
+		/* Deallocate pinned memory */
+		void deallocatePinnedTomoExtGpu_3D();
 
 };
 

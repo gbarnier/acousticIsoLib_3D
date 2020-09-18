@@ -2,7 +2,7 @@
 import pyAcoustic_iso_double_nl_3D
 import pyAcoustic_iso_double_Born_3D
 import pyAcoustic_iso_double_BornExt_3D
-# import pyAcoustic_iso_double_tomoExt_3D
+import pyAcoustic_iso_double_tomoExt_3D
 import pyOperator as Op
 import genericIO
 import SepVector
@@ -655,12 +655,8 @@ def createBoundVectors_3D(parObject,model):
 	if (minBoundVectorFile=="noMinBoundVectorFile"):
 		minBound=parObject.getFloat("minBound")
 		minBoundVector=model.clone()
-		minBoundVector.scale(0.0)
-		minBoundVectorNd=minBoundVector.getNdArray()
-		for iy in range(fat,ny-fat):
-			for ix in range(fat,nx-fat):
-				for iz in range(fat,nz-fat):
-					minBoundVectorNd[iy][ix][iz]=minBound
+		minBoundVector.zero()
+		minBoundVector.getNdArray()[fat:ny-fat,fat:nx-fat,fat:nz-fat]=minBound
 
 	else:
 		minBoundVector=genericIO.defaultIO.getVector(minBoundVectorFile)
@@ -670,12 +666,8 @@ def createBoundVectors_3D(parObject,model):
 	if (maxBoundVectorFile=="noMaxBoundVectorFile"):
 		maxBound=parObject.getFloat("maxBound")
 		maxBoundVector=model.clone()
-		maxBoundVector.scale(0.0)
-		maxBoundVectorNd=maxBoundVector.getNdArray()
-		for iy in range(fat,ny-fat):
-			for ix in range(fat,nx-fat):
-				for iz in range(fat,nz-fat):
-					maxBoundVectorNd[iy][ix][iz]=maxBound
+		maxBoundVector.zero()
+		maxBoundVector.getNdArray()[fat:ny-fat,fat:nx-fat,fat:nz-fat]=maxBound
 
 	else:
 		maxBoundVector=genericIO.defaultIO.getVector(maxBoundVectorFile)
@@ -1783,7 +1775,7 @@ def tomoExtOpInitDouble_3D(args):
 	if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
 		dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
 	# Irregular geometry for both the sources and receivers
-	if (shotHyper.getNdim()==1 and receiverHyper.getNdim==1):
+	if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
 		dataHyperForOutput=dataHyper
 
 	############################## Model #######################################
@@ -1795,32 +1787,97 @@ def tomoExtOpInitDouble_3D(args):
 class tomoExtShotsGpu_3D(Op.Operator):
 	"""Wrapper encapsulating PYBIND11 module for the extended tomographic operator"""
 
-	def __init__(self,domain,range,velocity,paramP,sourceVector,sourcesSignalsDouble,receiversVector,reflectivityExt):
-		# Domain = reflectivity
-		# Range = Born data
+	# def __init__(self,domain,range,velocity,paramP,sourceVector,sourcesSignalsDouble,receiversVector,reflectivityExt):
+	def __init__(self,*args):
+		# Domain = Velocity model perturbation
+		# Range = Tomo data
+		domain = args[0]
+		range = args[1]
 		self.setDomainRange(domain,range)
 
-		# print("domain nDim=",domain.getHyper().getNdim())
-		# print("domain n1=",domain.getHyper().axes[0].n)
-		# print("domain n2=",domain.getHyper().axes[1].n)
-		# print("domain n3=",domain.getHyper().axes[2].n)
-		#
-		# print("range nDim=",range.getHyper().getNdim())
-		# print("range n1=",range.getHyper().axes[0].n)
-		# print("range n2=",range.getHyper().axes[1].n)
-		# print("range n3=",range.getHyper().axes[2].n)
+		# Get wavefield dimensions
+		zAxisWavefield = domain.getHyper().axes[0]
+		xAxisWavefield = domain.getHyper().axes[1]
+		yAxisWavefield = domain.getHyper().axes[2]
+		timeAxisWavefield = range.getHyper().axes[0]
 
-		#Checking if getCpp is present
+		# Velocity model
+		velocity = args[2]
 		if("getCpp" in dir(velocity)):
 			velocity = velocity.getCpp()
+
+		# Parameter object
+		paramP = args[3]
+		nGpu = getGpuNumber_3D(paramP)
 		if("getCpp" in dir(paramP)):
 			paramP = paramP.getCpp()
+
+		# Source / receiver geometry
+		sourceVector = args[4]
+		receiversVector = args[6]
+
+		# Source signal
+		sourcesSignalsDouble = args[5]
 		if("getCpp" in dir(sourcesSignalsDouble)):
 			sourcesSignalsDouble = sourcesSignalsDouble.getCpp()
-		if("getCpp" in dir(reflectivityExt)):
-			reflectivityExt = reflectivityExt.getCpp()
-		self.pyOp = pyAcoustic_iso_double_tomoExt_3D.tomoExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,reflectivityExt)
-		return
+
+		# Extended reflectivity
+		extReflectivityDouble = args[7]
+		if("getCpp" in dir(extReflectivityDouble)):
+			extReflectivityDouble = extReflectivityDouble.getCpp()
+
+		# Declare wavefield vector
+		wavefieldVector = []
+
+		# Ginsu
+		if (len(args) > 8):
+
+			# Vel hypercube for Ginsu
+			velHyperVectorGinsu = args[8]
+			if("getCpp" in dir(velHyperVectorGinsu)):
+				velHyperVectorGinsu = velHyperVectorGinsu.getCpp()
+
+			# Padding for Ginsu
+			xPadMinusVectorGinsu = args[9]
+			if("getCpp" in dir(xPadMinusVectorGinsu)):
+				xPadMinusVectorGinsu = xPadMinusVectorGinsu.getCpp()
+			xPadPlusVectorGinsu = args[10]
+			if("getCpp" in dir(xPadPlusVectorGinsu)):
+				xPadPlusVectorGinsu = xPadPlusVectorGinsu.getCpp()
+
+			# Maximum dimensions for model
+			nxMaxGinsu = args[11]
+			nyMaxGinsu = args[12]
+
+			# Create hypercube for Ginsu wavefield
+			xAxisWavefield = Hypercube.axis(n=nxMaxGinsu, o=0.0, d=1.0)
+			yAxisWavefield = Hypercube.axis(n=nyMaxGinsu, o=0.0, d=1.0)
+			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
+			nzWav = zAxisWavefield.n
+			nxWav = xAxisWavefield.n
+			nyWav = yAxisWavefield.n
+			ntWav = timeAxisWavefield.n
+			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*8/(1024*1024*1024), " [GB]")
+			ixVectorGinsu = args[13]
+			iyVectorGinsu = args[14]
+
+			# Ginsu constructor
+			self.pyOp = pyAcoustic_iso_double_tomoExt_3D.tomoExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,extReflectivityDouble,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+
+		# No Ginsu
+		else:
+
+			# Create hypercube for wavefield
+			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
+			# print("Allocating normal wavefields")
+			nzWav = zAxisWavefield.n
+			nxWav = xAxisWavefield.n
+			nyWav = yAxisWavefield.n
+			ntWav = timeAxisWavefield.n
+			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*8/(1024*1024*1024), " [GB]")
+
+			self.pyOp = pyAcoustic_iso_double_tomoExt_3D.tomoExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,extReflectivityDouble)
+			return
 
 	def __str__(self):
 		"""Name of the operator"""
@@ -1866,20 +1923,21 @@ class tomoExtShotsGpu_3D(Op.Operator):
 			self.pyOp.setVel(vel)
 		return
 
+	def setExtReflectivity_3D(self,vel):
+		#Checking if getCpp is present
+		if("getCpp" in dir(vel)):
+			vel = vel.getCpp()
+		with pyAcoustic_iso_double_tomoExt_3D.ostream_redirect():
+			self.pyOp.setExtReflectivity_3D(vel)
+		return
+
+	def deallocatePinnedTomoExtGpu_3D(self):
+		with pyAcoustic_iso_double_tomoExt_3D.ostream_redirect():
+			self.pyOp.deallocatePinnedTomoExtGpu_3D()
+		return
+
 	def dotTestCpp(self,verb=False,maxError=.00001):
 		"""Method to call the Cpp class dot-product test"""
 		with pyAcoustic_iso_double_tomoExt_3D.ostream_redirect():
 			result=self.pyOp.dotTest(verb,maxError)
 		return result
-
-	def getWavefield1_3D(self,iWavefield):
-		with pyAcoustic_iso_double_tomoExt_3D.ostream_redirect():
-			wfld = self.pyOp.getWavefield1_3D(iWavefield)
-			wfld = SepVector.floatVector(fromCpp=wfld)
-		return wfld
-
-	def getWavefield2_3D(self,iWavefield):
-		with pyAcoustic_iso_double_tomoExt_3D.ostream_redirect():
-			wfld = self.pyOp.getWavefield2_3D(iWavefield)
-			wfld = SepVector.floatVector(fromCpp=wfld)
-		return wfld

@@ -3,6 +3,7 @@
 #include "BornShotsGpuFunctions_3D.h"
 #include "varDeclare_3D.h"
 #include "kernelsGpu_3D.cu"
+#include "kernelsGinsuGpu_3D.cu"
 #include "cudaErrors_3D.cu"
 #include <vector>
 #include <algorithm>
@@ -161,8 +162,7 @@ void initBornGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int
 
 	// Check the subsampling coefficient is smaller than the maximum allowed
 	if (sub>=SUB_MAX){
-		std::cout << "**** ERROR [nonlinearShotsGpuFunctions_3D]: Subsampling parameter for time interpolation is too high ****" << std::endl;
-		throw std::runtime_error("");
+		throw std::runtime_error("**** ERROR [BornShotsGpuFunctions_3D]: Subsampling parameter for time interpolation is too high ****");
 	}
 
 	// Allocate and fill time interpolation filter
@@ -176,8 +176,7 @@ void initBornGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int
 
 	/************************* COMPUTE COSINE DAMPING COEFFICIENTS **********************/
 	if (minPad>=PAD_MAX){
-		std::cout << "**** ERROR [nonlinearShotsGpuFunctions_3D]: Padding value is too high ****" << std::endl;
-		throw std::runtime_error("");
+		throw std::runtime_error("**** ERROR [BornShotsGpuFunctions_3D]: Padding value is too high ****");
 	}
 	double cosDampingCoeff[minPad];
 
@@ -190,8 +189,7 @@ void initBornGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, int
 
 	// Check that the block size is consistent between parfile and "varDeclare.h"
 	if (blockSize != BLOCK_SIZE) {
-		std::cout << "**** ERROR [nonlinearShotsGpuFunctions_3D]: Blocksize value from parfile does not match value from varDeclare file ****" << std::endl;
-		throw std::runtime_error("");
+		throw std::runtime_error("**** ERROR [BornShotsGpuFunctions_3D]: Blocksize value from parfile does not match value from varDeclare file ****");
 	}
 
 	/**************************** COPY TO CONSTANT MEMORY *******************************/

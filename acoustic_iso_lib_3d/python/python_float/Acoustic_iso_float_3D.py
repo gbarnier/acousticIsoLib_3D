@@ -652,12 +652,8 @@ def createBoundVectors_3D(parObject,model):
 	if (minBoundVectorFile=="noMinBoundVectorFile"):
 		minBound=parObject.getFloat("minBound")
 		minBoundVector=model.clone()
-		minBoundVector.scale(0.0)
-		minBoundVectorNd=minBoundVector.getNdArray()
-		for iy in range(fat,ny-fat):
-			for ix in range(fat,nx-fat):
-				for iz in range(fat,nz-fat):
-					minBoundVectorNd[iy][ix][iz]=minBound
+		minBoundVector.zero()
+		minBoundVector.getNdArray()[fat:ny-fat,fat:nx-fat,fat:nz-fat]=minBound
 
 	else:
 		minBoundVector=genericIO.defaultIO.getVector(minBoundVectorFile)
@@ -667,16 +663,11 @@ def createBoundVectors_3D(parObject,model):
 	if (maxBoundVectorFile=="noMaxBoundVectorFile"):
 		maxBound=parObject.getFloat("maxBound")
 		maxBoundVector=model.clone()
-		maxBoundVector.scale(0.0)
-		maxBoundVectorNd=maxBoundVector.getNdArray()
-		for iy in range(fat,ny-fat):
-			for ix in range(fat,nx-fat):
-				for iz in range(fat,nz-fat):
-					maxBoundVectorNd[iy][ix][iz]=maxBound
+		maxBoundVector.zero()
+		maxBoundVector.getNdArray()[fat:ny-fat,fat:nx-fat,fat:nz-fat]=maxBound
 
 	else:
 		maxBoundVector=genericIO.defaultIO.getVector(maxBoundVectorFile)
-
 
 	return minBoundVector,maxBoundVector
 

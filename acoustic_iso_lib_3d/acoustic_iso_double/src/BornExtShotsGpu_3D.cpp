@@ -78,7 +78,7 @@ void BornExtShotsGpu_3D::createGpuIdList_3D(){
 	_gpuList = _par->getInts("iGpu", dummyVector);
 
 	// If the user does not provide nGpu > 0 or a valid list -> break
-	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [BornShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; throw std::runtime_error("");}
+	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [BornExtShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; throw std::runtime_error("");}
 
 	// If user does not provide a valid list but provides nGpu -> use id: 0,...,nGpu-1
 	if (_nGpu>0 && _gpuList[0]<0){
@@ -95,12 +95,12 @@ void BornExtShotsGpu_3D::createGpuIdList_3D(){
 		std::vector<int>::iterator it = std::unique(_gpuList.begin(), _gpuList.end());
 		bool isUnique = (it==_gpuList.end());
 		if (isUnique==0) {
-			std::cout << "**** ERROR [BornShotsGpu_3D]: Please make sure there are no duplicates in the list ****" << std::endl; throw std::runtime_error("");
+			std::cout << "**** ERROR [BornExtShotsGpu_3D]: Please make sure there are no duplicates in the list ****" << std::endl; throw std::runtime_error("");
 		}
 	}
 
 	// Check that the user does not ask for more GPUs than shots to be modeled
-	if (_nGpu > _nShot){std::cout << "**** ERROR [BornShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; throw std::runtime_error("");}
+	if (_nGpu > _nShot){std::cout << "**** ERROR [BornExtShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; throw std::runtime_error("");}
 
 	// Allocation of arrays of arrays will be done by the gpu # _gpuList[0]
 	_iGpuAlloc = _gpuList[0];
@@ -338,7 +338,7 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> mo
 		dataSliceVector.push_back(dataSlice);
 	}
 
-	// Launch Born adjoint
+	// Launch Born extended adjoint
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 

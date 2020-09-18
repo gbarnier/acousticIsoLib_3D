@@ -38,7 +38,7 @@ if __name__ == '__main__':
 	############################### Sources ####################################
 	# Manual inputs
 	nShot = 1
-	zSource = 0.1
+	zSource = 1.8
 
 	# Source geometry
 	sourceAxis1 = Hypercube.axis(n=nShot, o=0.0, d=1.0)
@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
 	############################### Receivers ##################################
 	nRec = 30
-	zRec = 0.06
+	zRec = 0.2
 
 	# Receivers
 	recAxis1 = Hypercube.axis(n=nShot, o=0.0, d=1.0) # Shot index

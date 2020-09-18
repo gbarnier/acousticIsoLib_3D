@@ -269,9 +269,9 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg>
 
 		// Set acquisition geometry
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
-			std::cout << "Before" << std::endl;
+			// std::cout << "Before" << std::endl;
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
-			std::cout << "After" << std::endl;
+			// std::cout << "After" << std::endl;
 		}
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
@@ -388,6 +388,8 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double3DReg> model
 
 		int iGpu = omp_get_thread_num();
 		int iGpuId = _gpuList[iGpu];
+
+		// std::cout << "iShot = " << iShot << std::endl;
 
 		// Case where the source signature is not constant over shots
 		std::shared_ptr<SEP::double2DReg> sourcesSignalsTemp;

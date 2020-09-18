@@ -3,6 +3,7 @@
 #include "nonlinearShotsGpuFunctions_3D.h"
 #include "varDeclare_3D.h"
 #include "kernelsGpu_3D.cu"
+#include "kernelsGinsuGpu_3D.cu"
 #include "cudaErrors_3D.cu"
 #include <vector>
 #include <algorithm>

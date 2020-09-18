@@ -446,6 +446,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 1) ) {
+			// std::cout << "Here" << std::endl;
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {

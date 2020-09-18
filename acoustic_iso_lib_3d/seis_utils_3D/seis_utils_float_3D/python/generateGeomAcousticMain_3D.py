@@ -135,8 +135,8 @@ if __name__ == '__main__':
 		firstShotx, firstShoty, firstShotz = parObject.getFloats("firstShotPos", [ox,oy,oz])
 		ns_inline = parObject.getInt("nShot_inline")
 		ns_crossline = parObject.getInt("nShot_crossline")
-		ds_inline = parObject.getInt("dShot_inline")
-		ds_crossline = parObject.getInt("dShot_crossline")
+		ds_inline = parObject.getFloat("dShot_inline")
+		ds_crossline = parObject.getFloat("dShot_crossline")
 		inline_dir = parObject.getString("inline_dir","X")
 		Nshots = ns_inline*ns_crossline
 
@@ -148,10 +148,10 @@ if __name__ == '__main__':
 			x_idx = 1
 			y_idx = 0
 
-		sourceGeom = SepVector.getSepVector(ns=[Nshots,1,3])
+		sourceGeom = SepVector.getSepVector(ns=[Nshots,3])
 		sourceGeomNd = sourceGeom.getNdArray()
 		# Set sources' depth
-		sourceGeomNd[2,:,:] = firstShotz
+		sourceGeomNd[2,:] = firstShotz
 		depth_source = firstShotz
 
 		xPos = np.linspace(firstShotx, firstShotx+(ns_inline-1)*ds_inline, ns_inline)
@@ -159,8 +159,8 @@ if __name__ == '__main__':
 		start = 0
 		for ii_cross in range(ns_crossline):
 			yPos = firstShoty + ii_cross*ds_crossline
-			sourceGeomNd[x_idx,:,start:start+ns_inline] = xPos
-			sourceGeomNd[y_idx,:,start:start+ns_inline] = yPos
+			sourceGeomNd[x_idx,start:start+ns_inline] = xPos
+			sourceGeomNd[y_idx,start:start+ns_inline] = yPos
 			start += ns_inline
 
 		# Receiver geometry
@@ -193,8 +193,8 @@ if __name__ == '__main__':
 
 		# Setting receiver positions with respect to give source
 		for iShot in range(Nshots):
-			receiverGeomNd[x_idx,:,iShot] = xPos[:] + sourceGeomNd[x_idx,0,iShot]
-			receiverGeomNd[y_idx,:,iShot] = yPos[:] + sourceGeomNd[y_idx,0,iShot]
+			receiverGeomNd[x_idx,:,iShot] = xPos[:] + sourceGeomNd[x_idx,iShot]
+			receiverGeomNd[y_idx,:,iShot] = yPos[:] + sourceGeomNd[y_idx,iShot]
 
 		# Setting depth of the receivers
 		receiverGeomNd[2,:,:] = depth_cables
@@ -208,6 +208,8 @@ if __name__ == '__main__':
 		# Shot geometry
 		firstShotx, firstShoty, firstShotz = parObject.getFloats("firstShotPos", [ox,oy,oz])
 		print("firstShotx = ",firstShotx)
+		print("firstShoty = ",firstShoty)
+		print("firstShotz = ",firstShotz)
 		dx_shot = parObject.getFloat("dx_shot")
 		nx_shot = parObject.getInt("nx_shot")
 		dy_shot = parObject.getFloat("dy_shot")
@@ -232,6 +234,9 @@ if __name__ == '__main__':
 
 		# Node geometry
 		firstRecx, firstRecy, firstRecz = parObject.getFloats("firstRecPos", [ox,oy,oz])
+		print("firstRecx = ",firstRecx)
+		print("firstRecy = ",firstRecy)
+		print("firstRecz = ",firstRecz)
 		dx_rec = parObject.getFloat("dx_rec")
 		nx_rec = parObject.getInt("nx_rec")
 		dy_rec = parObject.getFloat("dy_rec")

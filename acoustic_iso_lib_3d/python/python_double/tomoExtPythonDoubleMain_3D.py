@@ -25,7 +25,6 @@ if __name__ == '__main__':
 
 	# Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
-		# print("Main 1")
 		tomoExtOp.dotTest(True)
 		tomoExtOp.dotTest(True)
 		tomoExtOp.dotTest(True)
@@ -66,6 +65,9 @@ if __name__ == '__main__':
 		dataDoubleNp=dataDouble.getNdArray()
 		dataFloatNp[:]=dataDoubleNp
 		genericIO.defaultIO.writeVector(dataFile,dataFloat)
+
+		# Deallocate pinned memory
+		tomoExtOp.deallocatePinnedTomoExtGpu_3D()
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
@@ -109,6 +111,9 @@ if __name__ == '__main__':
 		    print("**** ERROR: User did not provide model file name ****\n")
 		    quit()
 		genericIO.defaultIO.writeVector(modelFile,modelFloat)
+
+		# Deallocate pinned memory
+		tomoExtOp.deallocatePinnedTomoExtGpu_3D()
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")

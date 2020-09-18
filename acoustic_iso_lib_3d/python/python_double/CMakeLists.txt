@@ -37,17 +37,18 @@ pybind11_add_module(pyAcoustic_iso_double_Born_3D MODULE pyAcoustic_iso_double_B
 target_link_libraries(pyAcoustic_iso_double_Born_3D PRIVATE ACOUSTIC_ISO_DOUBLE_BORN_3D ${LIBS})
 pybind11_add_module(pyAcoustic_iso_double_BornExt_3D MODULE pyAcoustic_iso_double_BornExt_3D.cpp)
 target_link_libraries(pyAcoustic_iso_double_BornExt_3D PRIVATE ACOUSTIC_ISO_DOUBLE_BORN_EXT_3D ${LIBS})
-# pybind11_add_module(pyAcoustic_iso_double_tomoExt_3D MODULE pyAcoustic_iso_double_tomoExt_3D.cpp)
-# target_link_libraries(pyAcoustic_iso_double_tomoExt_3D PRIVATE ACOUSTIC_ISO_DOUBLE_TOMO_EXT_3D ${LIBS})
+pybind11_add_module(pyAcoustic_iso_double_tomoExt_3D MODULE pyAcoustic_iso_double_tomoExt_3D.cpp)
+target_link_libraries(pyAcoustic_iso_double_tomoExt_3D PRIVATE ACOUSTIC_ISO_DOUBLE_TOMO_EXT_3D ${LIBS})
 
 # Installing library
 install( TARGETS pyAcoustic_iso_double_nl_3D DESTINATION lib/python) # Module for nonlinear operator
 install( FILES Acoustic_iso_double_3D.py DESTINATION lib/python)
 install( TARGETS pyAcoustic_iso_double_Born_3D DESTINATION lib/python) # Module for Born operator
-install( FILES Acoustic_iso_double_3D.py DESTINATION lib/python)
 install( TARGETS pyAcoustic_iso_double_BornExt_3D DESTINATION lib/python) # Module for Born extended operator
+install( TARGETS pyAcoustic_iso_double_tomoExt_3D DESTINATION lib/python) # Module for Born extended operator
+
 # install( FILES Acoustic_iso_double_3D.py DESTINATION lib/python)
-# install( TARGETS pyAcoustic_iso_double_tomoExt_3D DESTINATION lib/python) # Module for Born extended operator
+# install( FILES Acoustic_iso_double_3D.py DESTINATION lib/python)
 # install( FILES Acoustic_iso_double_3D.py DESTINATION lib/python)
 # install( FILES inversionUtilsDouble_3D.py DESTINATION lib/python)
 
@@ -55,5 +56,5 @@ install( TARGETS pyAcoustic_iso_double_BornExt_3D DESTINATION lib/python) # Modu
 install( FILES nonlinearPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES BornPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES BornExtPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
-# install( FILES tomoExtPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
+install( FILES tomoExtPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES makeIrregGeometry_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)

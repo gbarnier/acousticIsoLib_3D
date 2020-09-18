@@ -26,7 +26,7 @@ def inversionInitDouble_3D(args):
 	logFile=invPrefix+"_logFile"
 
 	# Recording parameters
-	bufferSize=par.getInt("bufferSize",3)
+	bufferSize=par.getInt("bufferSize",0)
 	if (bufferSize==0): bufferSize=None
 	iterSampling=par.getInt("iterSampling",10)
 	restartFolder=par.getString("restartFolder","None")
@@ -63,7 +63,7 @@ def inversionVpInitDouble_3D(args):
 	epsilon=par.getFloat("epsilon")
 
 	# Recording parameters
-	bufferSizeNl=par.getInt("bufferSizeNl",1)
+	bufferSizeNl=par.getInt("bufferSizeNl",0)
 	if (bufferSizeNl==0): bufferSizeNl=None
 	iterSamplingNl=par.getInt("iterSamplingNl",1)
 	restartFolderNl=par.getString("restartFolderNl","None")
@@ -85,7 +85,7 @@ def inversionVpInitDouble_3D(args):
 	logFileLin=invPrefixLin+"_logFile"
 
 	# Recording parameters
-	bufferSizeLin=par.getInt("bufferSizeLin",3)
+	bufferSizeLin=par.getInt("bufferSizeLin",0)
 	if (bufferSizeLin==0): bufferSizeLin=None
 	iterSamplingLin=par.getInt("iterSamplingLin",10)
 	restartFolderLin=par.getString("restartFolderLin","None")

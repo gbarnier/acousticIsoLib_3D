@@ -3,6 +3,7 @@
 #include "BornExtShotsGpuFunctions_3D.h"
 #include "varDeclare_3D.h"
 #include "kernelsGpu_3D.cu"
+#include "kernelsGinsuGpu_3D.cu"
 #include "cudaErrors_3D.cu"
 #include <vector>
 #include <algorithm>
@@ -180,8 +181,7 @@ void initBornExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, 
 
 	// Check the subsampling coefficient is smaller than the maximum allowed
 	if (sub>=SUB_MAX){
-		std::cout << "**** ERROR [nonlinearShotsGpuFunctions_3D]: Subsampling parameter for time interpolation is too high ****" << std::endl;
-		assert (1==2);
+		throw std::runtime_error("**** ERROR [BornExtShotsGpuFunctions_3D]: Subsampling parameter for time interpolation is too high ****");
 	}
 
 	// Allocate and fill time interpolation filter
@@ -195,8 +195,7 @@ void initBornExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, 
 
 	/************************* COMPUTE COSINE DAMPING COEFFICIENTS **********************/
 	if (minPad>=PAD_MAX){
-		std::cout << "**** ERROR [nonlinearShotsGpuFunctions_3D]: Padding value is too high ****" << std::endl;
-		assert (1==2);
+		throw std::runtime_error("**** ERROR [BornExtShotsGpuFunctions_3D]: Padding value is too high ****");
 	}
 	double cosDampingCoeff[minPad];
 
@@ -209,8 +208,7 @@ void initBornExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, 
 
 	// Check that the block size is consistent between parfile and "varDeclare.h"
 	if (blockSize != BLOCK_SIZE) {
-		std::cout << "**** ERROR [nonlinearShotsGpuFunctions_3D]: Blocksize value from parfile does not match value from varDeclare file ****" << std::endl;
-		assert (1==2);
+		throw std::runtime_error("**** ERROR [BornExtShotsGpuFunctions_3D]: Blocksize value from parfile does not match value from varDeclare file ****");
 	}
 
 	/**************************** COPY TO CONSTANT MEMORY *******************************/
@@ -271,9 +269,6 @@ void allocateBornExtShotsGpu_3D(double *vel2Dtw2, double *reflectivityScale, int
     // Reflectivity model
     cuda_call(cudaMalloc((void**) &dev_modelBornExt[iGpu], host_nModelExt*sizeof(double)));
 
-	// Allocate pinned memory on host
-	// cuda_call(cudaHostAlloc((void**) &pin_wavefieldSlice[iGpu], host_nVel*sizeof(double), cudaHostAllocDefault));
-
 	// Allocate the slice where we store the wavefield slice before transfering it to the host's pinned memory
 	cuda_call(cudaMalloc((void**) &dev_pStream[iGpu], host_nVel*sizeof(double)));
 
@@ -320,7 +315,7 @@ void initBornExtGinsuGpu_3D(double dz, double dx, double dy, int nts, double dts
 	host_hExt1 = (nExt1-1)/2;
 	host_hExt2 = (nExt2-1)/2;
 
-	/**************************** ALLOCATE ARRAYS OF ARRAYS *****************************/
+	/********************** ALLOCATE ARRAYS OF ARRAYS *************************/
 	// Only one GPU will perform the following
 	if (iGpuId == iGpuAlloc) {
 

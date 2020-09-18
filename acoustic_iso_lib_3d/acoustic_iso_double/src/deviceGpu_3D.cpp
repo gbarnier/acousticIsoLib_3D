@@ -477,6 +477,11 @@ void deviceGpu_3D::calcLinearWeights(){
 			std::cout << "**** ERROR [deviceGpu_3D]: One of grid points used in the linear interpolation on the x-axis is out of bounds ****" << std::endl;
 
 			////////////////////////// Debug shit //////////////////////////////
+			// if ( (*_xCoord->_mat)[iDevice] < _ox){
+			// 	std::cout << "(*_xCoord->_mat)[iDevice] - _ox" << (*_xCoord->_mat)[iDevice] < _ox << std::end;
+			// 	std::cout << "Device out of bounds" << std::end;
+			// }
+
 			std::cout << "iDevice = " << iDevice << std::endl;
 			std::cout << "(*_xCoord->_mat)[iDevice] = " << (*_xCoord->_mat)[iDevice] << std::endl;
 			double wxBefore = ( (*_xCoord->_mat)[iDevice] - _ox ) / _dx;

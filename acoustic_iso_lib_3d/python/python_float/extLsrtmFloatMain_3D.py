@@ -96,7 +96,7 @@ if __name__ == '__main__':
 		if (rawData==1):
 			if (pyinfo==1):
 				print("---- [extLsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
-			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")			
+			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
 			dataTapered = dataFloat.clone()
 			dataTaperOp.forward(False,dataFloat,dataTapered) # Apply tapering to the data
 			dataFloat=dataTapered
