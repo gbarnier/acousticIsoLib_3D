@@ -530,7 +530,7 @@ void deallocateBornExtShotsGpu_3D(int iGpu, int iGpuId){
 		}
 	}
 	if (host_extension == "offset"){
-		cuda_call(cudaMalloc((void**) &dev_pSourceWavefield[iGpu], host_nVel*sizeof(double)));
+		cuda_call(cudaFree(dev_pSourceWavefield[iGpu]));
 	}
 }
 

@@ -458,7 +458,6 @@ void deallocateBornShotsGpu_3D(int iGpu, int iGpuId){
     cuda_call(cudaFree(dev_modelBorn[iGpu]));
 	cuda_call(cudaFree(dev_pStream[iGpu]));
 	cuda_call(cudaFree(dev_pSourceWavefield[iGpu]));
-	// cuda_call(cudaFreeHost(pin_wavefieldSlice[iGpu]));
 }
 
 // Deallocate pinned memory
