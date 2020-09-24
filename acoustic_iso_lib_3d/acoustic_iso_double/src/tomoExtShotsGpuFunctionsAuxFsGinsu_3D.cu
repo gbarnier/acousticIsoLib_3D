@@ -1528,8 +1528,7 @@ void computeTomoLeg2TauAdjFsGinsu_3D(double *dev_modelTomoIn, double *dev_extRef
 			cuda_call(cudaStreamSynchronize(compStreamIn));
 
 			// Copy slice its-2*host_hExt-1 from pinned -> device
-			// cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice2[iGpu]+(its-2*host_hExt1-1)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyHostToDevice, transferStreamH2DIn));
-			cuda_call(cudaMemcpy(dev_pStream[iGpu], pin_wavefieldSlice2[iGpu]+(its-2*host_hExt1-1)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyHostToDevice));
+			cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice2[iGpu]+(its-2*host_hExt1-1)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyHostToDevice, transferStreamH2DIn));
 
 			// Imaging condition for its
 			for (int iExt=iExtMin; iExt<iExtMax; iExt++){
@@ -1547,8 +1546,7 @@ void computeTomoLeg2TauAdjFsGinsu_3D(double *dev_modelTomoIn, double *dev_extRef
 			cuda_call(cudaStreamSynchronize(compStreamIn));
 
 			// Copy slice its-2*host_hExt-1 from pinned -> device
-			// cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice1[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyHostToDevice, transferStreamH2DIn));
-			cuda_call(cudaMemcpy(dev_pStream[iGpu], pin_wavefieldSlice2[iGpu]+(its-2*host_hExt1-1)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyHostToDevice));
+			cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice2[iGpu]+(its-2*host_hExt1-1)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyHostToDevice, transferStreamH2DIn));
 
 			// Imaging condition for its
 			for (int iExt=iExtMin; iExt<iExtMax; iExt++){
@@ -1564,6 +1562,9 @@ void computeTomoLeg2TauAdjFsGinsu_3D(double *dev_modelTomoIn, double *dev_extRef
 				imagingTauTomoAdjGinsuGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_pLeft[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], dev_extReflectivityIn, iExt, iGpu);
 			}
 		}
+
+        // Load source wavefield at its+1 from host -> device
+		cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], pin_wavefieldSlice1[iGpu]+(its+1)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyHostToDevice, transferStreamH2DIn));
 
 		// Start subloop
 		for (int it2 = host_sub-1; it2 > -1; it2--){
@@ -1588,9 +1589,8 @@ void computeTomoLeg2TauAdjFsGinsu_3D(double *dev_modelTomoIn, double *dev_extRef
 
 		}
 
-		// Load source wavefield at its+1 from pinned -> pDt0
-		cuda_call(cudaMemcpy(dev_pSourceWavefield[iGpu], pin_wavefieldSlice1[iGpu]+(its+1)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyHostToDevice));
-		// cuda_call(cudaMemcpy(dev_pSourceWavefield[iGpu], dev_pDt0[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyDeviceToDevice));
+        // Wait until source wavefield slice has been copied into dev_pSourceWavefield
+		cuda_call(cudaStreamSynchronize(transferStreamH2DIn));
 
 		// Apply imaging condition at its+1
 		imagingAdjGinsuGpu_3D<<<dimGridIn, dimBlockIn, 0, compStreamIn>>>(dev_modelTomoIn, dev_pDt2[iGpu], dev_pSourceWavefield[iGpu], iGpu);
@@ -1620,8 +1620,8 @@ void computeTomoLeg2TauAdjFsGinsu_3D(double *dev_modelTomoIn, double *dev_extRef
 			int iSlice = 2*host_hExt1-host_nts+its;
 
 			// Copy new wavefield slice from pStream -> pSourceWavefieldTau
-			// cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][iSlice], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyDeviceToDevice, compStreamIn));
-			cuda_call(cudaMemcpy(dev_pSourceWavefieldTau[iGpu][iSlice], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyDeviceToDevice));
+			cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][iSlice], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyDeviceToDevice, compStreamIn));
+			// cuda_call(cudaMemcpy(dev_pSourceWavefieldTau[iGpu][iSlice], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyDeviceToDevice));
 
 		// Middle part of adjoint propagation
 		} else if (its <= host_nts-2*host_hExt1-1 && its >= 2*host_hExt1+1){
@@ -1638,8 +1638,8 @@ void computeTomoLeg2TauAdjFsGinsu_3D(double *dev_modelTomoIn, double *dev_extRef
 			cuda_call(cudaStreamSynchronize(transferStreamH2DIn));
 
 			// Copy pStream -> device
-			// cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][0], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyDeviceToDevice, compStreamIn));
-			cuda_call(cudaMemcpy(dev_pSourceWavefieldTau[iGpu][0], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyDeviceToDevice));
+			cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][0], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyDeviceToDevice, compStreamIn));
+			// cuda_call(cudaMemcpy(dev_pSourceWavefieldTau[iGpu][0], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyDeviceToDevice));
 		}
 
 	}

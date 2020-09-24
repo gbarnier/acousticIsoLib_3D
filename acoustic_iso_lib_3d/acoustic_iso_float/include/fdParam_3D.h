@@ -21,6 +21,9 @@ class fdParam_3D{
         // Ginsu mutator
   		void setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu);
 
+        // Ginsu mutator for tomo
+  		void setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu, const std::shared_ptr<float5DReg> extReflectivity);
+
         // Destructor
   		~fdParam_3D();
 
@@ -54,11 +57,11 @@ class fdParam_3D{
 		float _dz, _dx, _dy, _oz, _ox, _oy, _fMax;
 		int _saveWavefield, _blockSize, _fat, _freeSurface, _splitTopBody;
 		float _alphaCos;
-		std::string _extension, _offsetType;
+		std::string _extension;
 
         // Ginsu parameters
         int _ginsu;
-        float *_vel2Dtw2Ginsu, *_reflectivityScaleGinsu;
+        float *_vel2Dtw2Ginsu, *_reflectivityScaleGinsu, *_extReflectivityGinsu;
         int _nzGinsu, _nxGinsu, _nyGinsu;
         int _zPadMinusGinsu, _zPadPlusGinsu, _xPadMinusGinsu, _xPadPlusGinsu, _yPadMinusGinsu, _yPadPlusGinsu, _zPadGinsu, _xPadGinsu, _yPadGinsu, _minPadGinsu;
         float _ozGinsu, _dzGinsu, _oxGinsu, _dxGinsu, _oyGinsu, _dyGinsu;

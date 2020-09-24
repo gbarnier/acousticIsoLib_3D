@@ -34,7 +34,6 @@
 #define CZ4 10
 #define CX4 11
 #define CY4 12
-// Check that using float does not affect precision (maybe we should use double, compute the coefficients, and then convert to float?) - Ask Bob
 #define C_C00(d) (8.f/(5.f*(d)*(d)))
 #define get_coeffs(d1,d2,d3) {-1025.f/576.f*(C_C00(d1)+C_C00(d2)+C_C00(d3)), C_C00(d1), C_C00(d2), C_C00(d3),-C_C00(d1)/8.f,-C_C00(d2)/8.f,-C_C00(d3)/8.f,C_C00(d1)/63.f,C_C00(d2)/63.f,C_C00(d3)/63.f,-C_C00(d1)/896.f,-C_C00(d2)/896.f,-C_C00(d3)/896.f}
 
@@ -148,10 +147,6 @@ int host_minPad;
 int host_nz_ginsu[N_GPU_MAX];
 int host_nx_ginsu[N_GPU_MAX];
 int host_ny_ginsu[N_GPU_MAX];
-// int host_nExt1_ginsu[N_GPU_MAX];
-// int host_nExt2_ginsu[N_GPU_MAX];
-// int host_hExt1_ginsu[N_GPU_MAX];
-// int host_hExt2_ginsu[N_GPU_MAX];
 long long host_yStride_ginsu[N_GPU_MAX];
 unsigned long long host_nModel_ginsu[N_GPU_MAX];
 unsigned long long host_nModelExt_ginsu[N_GPU_MAX];

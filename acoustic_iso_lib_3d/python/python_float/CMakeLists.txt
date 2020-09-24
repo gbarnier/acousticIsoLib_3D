@@ -37,11 +37,14 @@ pybind11_add_module(pyAcoustic_iso_float_Born_3D MODULE pyAcoustic_iso_float_Bor
 target_link_libraries(pyAcoustic_iso_float_Born_3D PRIVATE ACOUSTIC_ISO_FLOAT_BORN_3D ${LIBS})
 pybind11_add_module(pyAcoustic_iso_float_BornExt_3D MODULE pyAcoustic_iso_float_BornExt_3D.cpp)
 target_link_libraries(pyAcoustic_iso_float_BornExt_3D PRIVATE ACOUSTIC_ISO_FLOAT_BORN_EXT_3D ${LIBS})
+pybind11_add_module(pyAcoustic_iso_float_tomoExt_3D MODULE pyAcoustic_iso_float_tomoExt_3D.cpp)
+target_link_libraries(pyAcoustic_iso_float_tomoExt_3D PRIVATE ACOUSTIC_ISO_FLOAT_TOMO_EXT_3D ${LIBS})
 
 # Installing library
 install( TARGETS pyAcoustic_iso_float_nl_3D DESTINATION lib/python) # Module for nonlinear operator
 install( TARGETS pyAcoustic_iso_float_Born_3D DESTINATION lib/python) # Module for nonlinear operator
 install( TARGETS pyAcoustic_iso_float_BornExt_3D DESTINATION lib/python) # Module for nonlinear operator
+install( TARGETS pyAcoustic_iso_float_tomoExt_3D DESTINATION lib/python) # Module for nonlinear operator
 install( FILES Acoustic_iso_float_3D.py DESTINATION lib/python)
 install( FILES inversionUtilsFloat_3D.py DESTINATION lib/python)
 
@@ -49,6 +52,7 @@ install( FILES inversionUtilsFloat_3D.py DESTINATION lib/python)
 install( FILES nonlinearPythonFloatMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES BornPythonFloatMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES BornExtPythonFloatMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
+install( FILES tomoExtPythonFloatMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES makeIrregGeometryFloat_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES lsrtmFloatMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES fwiFloatMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)

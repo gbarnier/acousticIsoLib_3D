@@ -54,6 +54,7 @@ class BornShotsGpu_3D : public Operator<SEP::float3DReg, SEP::float3DReg> {
 		/* Mutators */
 		void setVel_3D(std::shared_ptr<SEP::float3DReg> vel){ _vel = vel; }
 		void deallocatePinnedBornGpu_3D();
+
 };
 
 #endif

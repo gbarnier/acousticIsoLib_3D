@@ -27,7 +27,7 @@ def inversionInitFloat_3D(args):
 
 	# Recording parameters
 	bufferSize=par.getInt("bufferSize",0)
-	if (bufferSize==0): bufferSize=None
+	# if (bufferSize==0): bufferSize=None
 	iterSampling=par.getInt("iterSampling",10)
 	restartFolder=par.getString("restartFolder","None")
 	flushMemory=par.getInt("flushMemory",1)
@@ -64,7 +64,7 @@ def inversionVpInitFloat_3D(args):
 
 	# Recording parameters
 	bufferSizeNl=par.getInt("bufferSizeNl",0)
-	if (bufferSizeNl==0): bufferSizeNl=None
+	# if (bufferSizeNl==0): bufferSizeNl=None
 	iterSamplingNl=par.getInt("iterSamplingNl",1)
 	restartFolderNl=par.getString("restartFolderNl","None")
 	flushMemoryNl=par.getInt("flushMemoryNl",1)
@@ -86,7 +86,7 @@ def inversionVpInitFloat_3D(args):
 
 	# Recording parameters
 	bufferSizeLin=par.getInt("bufferSizeLin",0)
-	if (bufferSizeLin==0): bufferSizeLin=None
+	# if (bufferSizeLin==0): bufferSizeLin=None
 	iterSamplingLin=par.getInt("iterSamplingLin",10)
 	restartFolderLin=par.getString("restartFolderLin","None")
 	flushMemoryLin=par.getInt("flushMemoryLin",1)

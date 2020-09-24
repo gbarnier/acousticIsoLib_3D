@@ -78,7 +78,7 @@ void BornExtShotsGpu_3D::createGpuIdList_3D(){
 	_gpuList = _par->getInts("iGpu", dummyVector);
 
 	// If the user does not provide nGpu > 0 or a valid list -> break
-	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [BornShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; throw std::runtime_error("");}
+	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [BornExtShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; throw std::runtime_error("");}
 
 	// If user does not provide a valid list but provides nGpu -> use id: 0,...,nGpu-1
 	if (_nGpu>0 && _gpuList[0]<0){
@@ -95,12 +95,12 @@ void BornExtShotsGpu_3D::createGpuIdList_3D(){
 		std::vector<int>::iterator it = std::unique(_gpuList.begin(), _gpuList.end());
 		bool isUnique = (it==_gpuList.end());
 		if (isUnique==0) {
-			std::cout << "**** ERROR [BornShotsGpu_3D]: Please make sure there are no duplicates in the list ****" << std::endl; throw std::runtime_error("");
+			std::cout << "**** ERROR [BornExtShotsGpu_3D]: Please make sure there are no duplicates in the list ****" << std::endl; throw std::runtime_error("");
 		}
 	}
 
 	// Check that the user does not ask for more GPUs than shots to be modeled
-	if (_nGpu > _nShot){std::cout << "**** ERROR [BornShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; throw std::runtime_error("");}
+	if (_nGpu > _nShot){std::cout << "**** ERROR [BornExtShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; throw std::runtime_error("");}
 
 	// Allocation of arrays of arrays will be done by the gpu # _gpuList[0]
 	_iGpuAlloc = _gpuList[0];
@@ -125,15 +125,11 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float5DRe
 	int constantSrcSignal, constantRecGeom;
 
 	// Check whether we use the same source signals for all shots
-	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
-			// std::cout << "Constant source signal over shots" << std::endl;
-			constantSrcSignal = 1; }
+	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {constantSrcSignal = 1;}
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
-	if (_receiversVector.size() == 1) {
-		// std::cout << "Constant receiver geometry over shots" << std::endl;
-		constantRecGeom=1;}
+	if (_receiversVector.size() == 1) {constantRecGeom=1;}
 	else {constantRecGeom=0;}
 
 	// Create vectors for each GPU
@@ -186,13 +182,8 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float5DRe
 
 			// Allocate and set Ginsu
 			BornExtObjectVector[iGpu]->setBornExtGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
-			// std::cout << "_velHyperVectorGinsu[iShot] n1 = " << _velHyperVectorGinsu[iShot]->getAxis(1).n << std::endl;
-			// std::cout << "_velHyperVectorGinsu[iShot] n2 = " << _velHyperVectorGinsu[iShot]->getAxis(2).n << std::endl;
-			// std::cout << "_velHyperVectorGinsu[iShot] n3 = " << _velHyperVectorGinsu[iShot]->getAxis(3).n << std::endl;
-			// std::cout << "_velHyperVectorGinsu[iShot] n4 = " << _velHyperVectorGinsu[iShot]->getAxis(4).n << std::endl;
-			// std::cout << "_velHyperVectorGinsu[iShot] n5 = " << _velHyperVectorGinsu[iShot]->getAxis(5).n << std::endl;
-			// Allocate Ginsu model
 
+			// Allocate Ginsu model
 			// Temporary variables (for clarity purpose)
 			int fat = BornExtObjectVector[iGpu]->getFdParam_3D()->_fat;
 			int nzGinsu = BornExtObjectVector[iGpu]->getFdParam_3D()->_nzGinsu;
@@ -253,11 +244,7 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float5DRe
 
 		// Set GPU number for propagator object
 		BornExtObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
-		// std::cout << "Born modelTemp min before = " << modelTemp->min() << std::endl;
-		// std::cout << "Born modelTemp max before = " << modelTemp->max() << std::endl;
 		BornExtObjectVector[iGpu]->forward(false, modelTemp, dataSliceVector[iGpu]);
-		// std::cout << "Born dataSliceVector[iGpu] min after = " << dataSliceVector[iGpu]->min() << std::endl;
-		// std::cout << "Born dataSliceVector[iGpu] max after = " << dataSliceVector[iGpu]->max() << std::endl;
 
 		// Store dataSlice into data
 		#pragma omp parallel for
@@ -280,9 +267,6 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float5DRe
 		}
 	}
 
-	// std::cout << "Born extended forward, min data = " << data->min() << std::endl;
-	// std::cout << "Born extended forward, max data = " << data->max() << std::endl;
-
 }
 
 void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> model, const std::shared_ptr<float3DReg> data) const {
@@ -294,9 +278,7 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 	int constantSrcSignal, constantRecGeom;
 
 	// Check whether we use the same source signals for all shots
-	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
-		std::cout << "Constant source signal over shots" << std::endl;
-		constantSrcSignal = 1;}
+	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {constantSrcSignal = 1;}
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
@@ -338,7 +320,7 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 		dataSliceVector.push_back(dataSlice);
 	}
 
-	// Launch Born adjoint
+	// Launch Born extended adjoint
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
@@ -354,7 +336,7 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 
 		// Temporary arrays/hypercube for the Ginsu
 		std::shared_ptr<SEP::float5DReg> modelTemp;
-		std::shared_ptr<SEP::hypercube> hyperTemp;
+		// std::shared_ptr<SEP::hypercube> hyperTemp;
 
 		// If no ginsu is used, use the full model
 		if (_ginsu == 0){
@@ -423,12 +405,7 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 		// Launch modeling
 		if (_ginsu==0){
 			// Launch adjoint
-			// std::cout << "Shots ext adj" << std::endl;
-			// std::cout << "dataSliceVector[iGpu] max = " << dataSliceVector[iGpu]->max() << std::endl;
-			// std::cout << "dataSliceVector[iGpu] min = " << dataSliceVector[iGpu]->min() << std::endl;
 			BornExtObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
-			// std::cout << "modelSliceVector[iGpu] max = " << modelSliceVector[iGpu]->max() << std::endl;
-			// std::cout << "modelSliceVector[iGpu] min = " << modelSliceVector[iGpu]->min() << std::endl;
 		} else {
 			// Launch adjoint
 			BornExtObjectVector[iGpu]->adjoint(false, modelTemp, dataSliceVector[iGpu]);
@@ -483,7 +460,4 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 			deallocateBornExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
-	//
-	// std::cout << "Born extended adjoint, min model = " << model->min() << std::endl;
-	// std::cout << "Born extended adjoint, max model = " << model->max() << std::endl;
 }

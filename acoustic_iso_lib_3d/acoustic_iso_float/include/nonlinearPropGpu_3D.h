@@ -41,10 +41,6 @@ class nonlinearPropGpu_3D : public seismicOperator_3D<SEP::float2DReg, SEP::floa
 		/* Variable */
 		std::shared_ptr<float2DReg> _dataDtw;
 
-		/* Accessor */
-		// int _iGpuAlloc;
-		// std::shared_ptr<freeSurfaceDebugOp> _freeSurfaceDebugOpObj;
-
 };
 
 #endif

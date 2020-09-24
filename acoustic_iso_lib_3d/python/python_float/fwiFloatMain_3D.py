@@ -157,7 +157,7 @@ if __name__ == '__main__':
 		if (rawData==1):
 			if (pyinfo==1):
 				print("---- [fwiFloatMain_3D]: User has required a trace normalization and has provided raw observed data -> applying trace normlization on raw observed data ----")
-			inv_log.addToLog("---- [fwiFloatMain_3D]: User has required a trace normalization and has provided raw observed data -> applying trace normlization on raw observed data ----")			
+			inv_log.addToLog("---- [fwiFloatMain_3D]: User has required a trace normalization and has provided raw observed data -> applying trace normlization on raw observed data ----")
 			# Apply normalization to data
 			dataNormalized = dataFloat.clone()
 			traceNormOp.forward(False,dataFloat,dataNormalized)
@@ -195,7 +195,8 @@ if __name__ == '__main__':
 		illumination_file=parObject.getString("illumination","noIllum")
 		H0_Op = None
 		if illumination_file != "noIllum":
-			illumination=genericIO.defaultIO.getVector(illumination_file,ndims=2)
+			print("--- Using illumination as initial Hessian inverse ---")
+			illumination=genericIO.defaultIO.getVector(illumination_file,ndims=3)
 			H0_Op = pyOp.DiagonalOp(illumination)
 		nlSolver=LBFGS(stop, H0=H0_Op, logger=inv_log)
 

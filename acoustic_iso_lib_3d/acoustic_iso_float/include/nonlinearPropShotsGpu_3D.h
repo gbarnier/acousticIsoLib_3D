@@ -24,7 +24,6 @@ class nonlinearPropShotsGpu_3D : public Operator<SEP::float2DReg, SEP::float3DRe
 		std::shared_ptr<paramObj> _par;
 		std::vector<std::shared_ptr<deviceGpu_3D>> _sourcesVector, _receiversVector;
 		std::vector<int> _gpuList;
-		// std::shared_ptr<float3DReg> _dampVolumeShots;
 		std::shared_ptr<fdParam_3D> _fdParamDampShots_3D;
 		std::vector<std::shared_ptr<SEP::hypercube>> _velHyperVectorGinsu;
 		std::shared_ptr<SEP::int1DReg> _xPadMinusVectorGinsu, _xPadPlusVectorGinsu;

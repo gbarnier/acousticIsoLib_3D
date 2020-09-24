@@ -1,10 +1,10 @@
 #include <vector>
 #include <omp.h>
-#include "BornShotsGpu_3D.h"
-#include "BornGpu_3D.h"
-#include <time.h>
+#include "tomoExtShotsGpu_3D.h"
+#include "tomoExtGpu_3D.h"
 
-BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector){
+/* Constructor for non-Ginsu */
+tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<SEP::float5DReg> extReflectivity) {
 
 	// Setup parameters
 	_par = par;
@@ -20,17 +20,20 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shar
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
+	_extReflectivity = extReflectivity;
 
 	// Allocate wavefields on pinned memory
 	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 		std::cout << "Allocating wavefield # " << iGpu << std::endl;
-		allocatePinnedBornGpu_3D(_par->getInt("nz"), _par->getInt("nx"), _par->getInt("ny"), _par->getInt("nts"), _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+		allocatePinnedTomoExtGpu_3D(_par->getInt("nz"), _par->getInt("nx"), _par->getInt("ny"), _par->getInt("nts"), _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
 	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
+
 }
 
-BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu){
+/* Constructor for Ginsu */
+tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<SEP::float5DReg> extReflectivity, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu) {
 
 	// Setup parameters
 	_par = par;
@@ -39,13 +42,14 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shar
 	createGpuIdList_3D();
 	_info = par->getInt("info", 0);
 	_deviceNumberInfo = par->getInt("deviceNumberInfo", _gpuList[0]);
-	if ( not getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo) ){
-		throw std::runtime_error("Error in getGpuInfo");
+	if (not getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo)){
+		throw std::runtime_error("Error in getGpuInfo_3D");
    	}
 	_ginsu = par->getInt("ginsu");
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
+	_extReflectivity = extReflectivity;
 
 	// Compute the dimension of the largest model we will have to allocate among all the different shots
 	axis zAxisWavefield = axis(_vel->getHyper()->getAxis(1).n, 1.0, 1.0);
@@ -59,29 +63,26 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shar
 	_ixVectorGinsu = ixVectorGinsu;
 	_iyVectorGinsu = iyVectorGinsu;
 
-	// _srcWavefieldVector = srcWavefieldVector;
 	// Allocate wavefields on pinned memory
-	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
+	std::cout << "Allocating source wavefields on pinned memory for Ginsu modeling" << std::endl;
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 		std::cout << "Allocating wavefield # " << iGpu << std::endl;
-		allocatePinnedBornGpu_3D(zAxisWavefield.n, xAxisWavefield.n, yAxisWavefield.n, timeAxis.n, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+		allocatePinnedTomoExtGpu_3D(zAxisWavefield.n, xAxisWavefield.n, yAxisWavefield.n, timeAxis.n, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
 	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
 
 }
 
-// Gpu list
-void BornShotsGpu_3D::createGpuIdList_3D(){
+void tomoExtShotsGpu_3D::createGpuIdList_3D(){
 
 	// Setup Gpu numbers
 	_nGpu = _par->getInt("nGpu", -1);
-
 	std::vector<int> dummyVector;
  	dummyVector.push_back(-1);
 	_gpuList = _par->getInts("iGpu", dummyVector);
 
 	// If the user does not provide nGpu > 0 or a valid list -> break
-	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [BornShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; throw std::runtime_error("");}
+	if (_nGpu <= 0 && _gpuList[0]<0){std::cout << "**** ERROR [tomoExtShotsGpu_3D]: Please provide a list of GPUs to be used ****" << std::endl; throw std::runtime_error("");}
 
 	// If user does not provide a valid list but provides nGpu -> use id: 0,...,nGpu-1
 	if (_nGpu>0 && _gpuList[0]<0){
@@ -98,29 +99,29 @@ void BornShotsGpu_3D::createGpuIdList_3D(){
 		std::vector<int>::iterator it = std::unique(_gpuList.begin(), _gpuList.end());
 		bool isUnique = (it==_gpuList.end());
 		if (isUnique==0) {
-			std::cout << "**** ERROR [BornShotsGpu_3D]: Please make sure there are no duplicates in the list ****" << std::endl; throw std::runtime_error("");
+			std::cout << "**** ERROR [tomoExtShotsGpu_3D]: Please make sure there are no duplicates in the list ****" << std::endl; throw std::runtime_error("");
 		}
 	}
 
 	// Check that the user does not ask for more GPUs than shots to be modeled
-	if (_nGpu > _nShot){std::cout << "**** ERROR [BornShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; throw std::runtime_error("");}
+	if (_nGpu > _nShot){std::cout << "**** ERROR [tomoExtShotsGpu_3D]: User required more GPUs than shots to be modeled ****" << std::endl; throw std::runtime_error("");}
 
 	// Allocation of arrays of arrays will be done by the gpu # _gpuList[0]
 	_iGpuAlloc = _gpuList[0];
 }
 
 // Gpu list
-void BornShotsGpu_3D::deallocatePinnedBornGpu_3D(){
+void tomoExtShotsGpu_3D::deallocatePinnedTomoExtGpu_3D(){
 
 	// Deallocate pinned memory
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 		std::cout << "Deallocating wavefield # " << iGpu << std::endl;
-		deallocatePinnedBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+		deallocatePinnedTomoExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 	}
 }
 
-// Forward
-void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const {
+/* Forward */
+void tomoExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> model, std::shared_ptr<float3DReg> data) const {
 
 	if (!add) data->scale(0.0);
 
@@ -129,7 +130,9 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> 
 	int constantSrcSignal, constantRecGeom;
 
 	// Check whether we use the same source signals for all shots
-	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {constantSrcSignal = 1;}
+	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
+		// std::cout << "Constant source signal over shots" << std::endl;
+		constantSrcSignal = 1; }
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
@@ -141,23 +144,23 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> 
 	// Create vectors for each GPU
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
 	std::vector<std::shared_ptr<float2DReg>> dataSliceVector;
-	std::vector<std::shared_ptr<BornGpu_3D>> BornObjectVector;
+	std::vector<std::shared_ptr<tomoExtGpu_3D>> tomoExtObjectVector;
 
 	// Loop over GPUs
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
-		// Create Born object
-		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
-		BornObjectVector.push_back(BornGpuObject);
+		// Create extended tomo object
+		std::shared_ptr<tomoExtGpu_3D> tomoExtGpuObject(new tomoExtGpu_3D(_vel, _par, _extReflectivity, _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
+		tomoExtObjectVector.push_back(tomoExtGpuObject);
 
 		// Display finite-difference parameters info
 		if ( (_info == 1) && (_gpuList[iGpu] == _deviceNumberInfo) ){
-			BornGpuObject->getFdParam_3D()->getInfo_3D();
+			tomoExtGpuObject->getFdParam_3D()->getInfo_3D();
 		}
 
 		if (_ginsu == 0){
 			// Allocate memory on device
-			allocateBornShotsGpu_3D(BornObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
+			allocateTomoExtShotsGpu_3D(tomoExtObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, tomoExtObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, tomoExtObjectVector[iGpu]->getExtReflectivity_3D()->getVals(), iGpu, _gpuList[iGpu]);
 		}
 
 		// Create data slice for this GPU number
@@ -166,7 +169,7 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> 
 
 	}
 
-	// Launch Born forward
+	// Launch Tomo forward
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
@@ -183,30 +186,32 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> 
 		// If no ginsu is used, use the full model
 		if (_ginsu == 0){
 			modelTemp = model;
-
 		// If ginsu is used, copy the part of the model into modelTemp
 		} else {
 
 			// Allocate and set Ginsu
-			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
-			// Allocate Ginsu model
-			modelTemp = std::make_shared<SEP::float3DReg>(_velHyperVectorGinsu[iShot]);
+			tomoExtObjectVector[iGpu]->setTomoExtGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
 
 			// Temporary variables (for clarity purpose)
-			int fat = BornObjectVector[iGpu]->getFdParam_3D()->_fat;
-			int nzGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nzGinsu;
-			int nxGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nxGinsu;
-			int nyGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nyGinsu;
-			int izGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_izGinsu;
-			int ixGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_ixGinsu;
-			int iyGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_iyGinsu;
+			int fat = tomoExtObjectVector[iGpu]->getFdParam_3D()->_fat;
+			int nzGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_nzGinsu;
+			int nxGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_nxGinsu;
+			int nyGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_nyGinsu;
+			int izGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_izGinsu;
+			int ixGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_ixGinsu;
+			int iyGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_iyGinsu;
+			axis zAxisGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_zAxisGinsu;
+			axis xAxisGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_xAxisGinsu;
+			axis yAxisGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_yAxisGinsu;
+
+			modelTemp = std::make_shared<SEP::float3DReg>(zAxisGinsu, xAxisGinsu, yAxisGinsu);
 
 			// Copy values into Ginsu model
 			modelTemp->scale(0.0);
 			#pragma omp parallel for collapse(3)
 			for (int iy = fat; iy < nyGinsu-fat; iy++){
 				for (int ix = fat; ix < nxGinsu-fat; ix++){
-					for (int iz = 	fat; iz < nzGinsu-fat; iz++){
+					for (int iz = fat; iz < nzGinsu-fat; iz++){
 						(*modelTemp->_mat)[iy][ix][iz] = (*model->_mat)[iy+iyGinsu][ix+ixGinsu][iz+izGinsu];
 					}
 				}
@@ -215,33 +220,31 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> 
 
 		// Set acquisition geometry
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
+			tomoExtObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
+
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
 			sourcesSignalsTemp = std::make_shared<float2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(float)*_sourcesSignals->getHyper()->getAxis(1).n);
-
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
+			tomoExtObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
-
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
+			tomoExtObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
 			sourcesSignalsTemp = std::make_shared<float2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(float)*_sourcesSignals->getHyper()->getAxis(1).n);
-			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
+			tomoExtObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
 
 		// Set GPU number for propagator object
-		BornObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
+		tomoExtObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 
-		// Apply forward Born
-		BornObjectVector[iGpu]->forward(false, modelTemp, dataSliceVector[iGpu]);
+		// Launch modeling
+		tomoExtObjectVector[iGpu]->forward(false, modelTemp, dataSliceVector[iGpu]);
 
 		// Store dataSlice into data
 		#pragma omp parallel for
@@ -252,20 +255,20 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> 
 		}
 		if (_ginsu == 1){
 			// Deallocate memory on GPU
-			deallocateBornShotsGpu_3D(iGpu, iGpuId);
+			deallocateTomoExtShotsGpu_3D(iGpu, iGpuId);
 		}
 	}
 
+	// Deallocate memory on device
 	if (_ginsu == 0){
-		// Deallocate memory on device
 		for (int iGpu=0; iGpu<_nGpu; iGpu++){
-			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+			deallocateTomoExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
 }
 
-// Adjoint
-void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model, const std::shared_ptr<float3DReg> data) const {
+/* Adjoint */
+void tomoExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model, const std::shared_ptr<float3DReg> data) const {
 
 	if (!add) model->scale(0.0);
 
@@ -278,37 +281,36 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
-	if (_receiversVector.size() == 1) {
-		constantRecGeom=1;}
+	if (_receiversVector.size() == 1) {constantRecGeom=1;}
 	else {constantRecGeom=0;}
 
 	// Create vectors for each GPU
 	std::shared_ptr<SEP::hypercube> hyperModelSlice(new hypercube(model->getHyper()->getAxis(1), model->getHyper()->getAxis(2), model->getHyper()->getAxis(3)));
 	std::shared_ptr<SEP::hypercube> hyperDataSlice(new hypercube(data->getHyper()->getAxis(1), data->getHyper()->getAxis(2)));
-	std::vector<std::shared_ptr<float3DReg>> modelSliceVector;
 	std::vector<std::shared_ptr<float2DReg>> dataSliceVector;
-	std::vector<std::shared_ptr<BornGpu_3D>> BornObjectVector;
+	std::vector<std::shared_ptr<float3DReg>> modelSliceVector;
+	std::vector<std::shared_ptr<tomoExtGpu_3D>> tomoExtObjectVector;
 
 	// Loop over GPUs
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
-		// Create Born object
-		std::shared_ptr<BornGpu_3D> BornGpuObject(new BornGpu_3D(_vel, _par, _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
-		BornObjectVector.push_back(BornGpuObject);
+		// Create extended Born object
+		std::shared_ptr<tomoExtGpu_3D> tomoExtGpuObject(new tomoExtGpu_3D(_vel, _par, _extReflectivity, _nGpu, iGpu, _gpuList[iGpu], _iGpuAlloc));
+		tomoExtObjectVector.push_back(tomoExtGpuObject);
 
 		// Display finite-difference parameters info
 		if ( (_info == 1) && (_gpuList[iGpu] == _deviceNumberInfo) ){
-			BornGpuObject->getFdParam_3D()->getInfo_3D();
+			tomoExtGpuObject->getFdParam_3D()->getInfo_3D();
 		}
 
 		if (_ginsu == 0){
 			// Allocate memory on device for that object
-			allocateBornShotsGpu_3D(BornObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, BornObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, iGpu, _gpuList[iGpu]);
+			allocateTomoExtShotsGpu_3D(tomoExtObjectVector[iGpu]->getFdParam_3D()->_vel2Dtw2, tomoExtObjectVector[iGpu]->getFdParam_3D()->_reflectivityScale, tomoExtObjectVector[iGpu]->getExtReflectivity_3D()->getVals(), iGpu, _gpuList[iGpu]);
 		}
 
 		// Model slice
 		std::shared_ptr<SEP::float3DReg> modelSlice(new SEP::float3DReg(hyperModelSlice));
-		modelSlice->scale(0.0); // Check that
+		modelSlice->scale(0.0);
 		modelSliceVector.push_back(modelSlice);
 
 		// Create data slice for this GPU number
@@ -316,7 +318,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 		dataSliceVector.push_back(dataSlice);
 	}
 
-	// Launch Born adjoint
+	// Launch Tomo extended adjoint
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
@@ -332,6 +334,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 
 		// Temporary arrays/hypercube for the Ginsu
 		std::shared_ptr<SEP::float3DReg> modelTemp;
+		std::shared_ptr<SEP::hypercube> hyperTemp;
 
 		// If no ginsu is used, use the full model
 		if (_ginsu == 0){
@@ -341,31 +344,46 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 		} else {
 
 			// Allocate and set Ginsu
-			BornObjectVector[iGpu]->setBornGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
+			tomoExtObjectVector[iGpu]->setTomoExtGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
 
-			// Allocate Ginsu model
-			modelTemp = std::make_shared<SEP::float3DReg>(_velHyperVectorGinsu[iShot]);
+			// Temporary variables (for clarity purpose)
+			int fat = tomoExtObjectVector[iGpu]->getFdParam_3D()->_fat;
+			int nzGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_nzGinsu;
+			int nxGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_nxGinsu;
+			int nyGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_nyGinsu;
+			int izGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_izGinsu;
+			int ixGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_ixGinsu;
+			int iyGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_iyGinsu;
+			axis zAxisGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_zAxisGinsu;
+			axis xAxisGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_xAxisGinsu;
+			axis yAxisGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_yAxisGinsu;
 
-			// Set model temp to zero
+			modelTemp = std::make_shared<SEP::float3DReg>(zAxisGinsu, xAxisGinsu, yAxisGinsu);
+
+			// Copy values into Ginsu model
 			modelTemp->scale(0.0);
+
 		}
 
 		// Set acquisition geometry
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
+			tomoExtObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
-		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 
+		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
 			// Create a 2D-temporary array where you store the wavelet for this shot
 			sourcesSignalsTemp = std::make_shared<float2DReg>(_sourcesSignals->getHyper()->getAxis(1),dummyAxis);
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(float)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
+			tomoExtObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
+
 		}
+
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 1) ) {
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
+			tomoExtObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
+
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {
 
 			// Create a 2D-temporary array where you store the wavelet for this shot
@@ -373,29 +391,29 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
     		memcpy(sourcesSignalsTemp->getVals(), &(_sourcesSignals->getVals()[iShot*_sourcesSignals->getHyper()->getAxis(1).n]), sizeof(float)*_sourcesSignals->getHyper()->getAxis(1).n);
 
 			// Set the acquisition geometry (shot+receiver) for this specific shot
-			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
+			tomoExtObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
 
 		// Set GPU number for propagator object
-		BornObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
+		tomoExtObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
 
 		// Launch modeling
-		if (_ginsu == 0){
-			// Launch adjoint
-			BornObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+		if (_ginsu==0){
+			tomoExtObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+
 		} else {
 			// Launch adjoint
-			BornObjectVector[iGpu]->adjoint(false, modelTemp, dataSliceVector[iGpu]);
+			tomoExtObjectVector[iGpu]->adjoint(false, modelTemp, dataSliceVector[iGpu]);
 
 			// Copy modeTemp into modelSliceVector[iGpu]
 			// Temporary variables (for clarity purpose)
-			int fat = BornObjectVector[iGpu]->getFdParam_3D()->_fat;
-			int nzGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nzGinsu;
-			int nxGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nxGinsu;
-			int nyGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_nyGinsu;
-			int izGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_izGinsu;
-			int ixGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_ixGinsu;
-			int iyGinsu = BornObjectVector[iGpu]->getFdParam_3D()->_iyGinsu;
+			int fat = tomoExtObjectVector[iGpu]->getFdParam_3D()->_fat;
+			int nzGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_nzGinsu;
+			int nxGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_nxGinsu;
+			int nyGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_nyGinsu;
+			int izGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_izGinsu;
+			int ixGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_ixGinsu;
+			int iyGinsu = tomoExtObjectVector[iGpu]->getFdParam_3D()->_iyGinsu;
 
 			// Copy values into Ginsu model
 			#pragma omp parallel for collapse(3)
@@ -406,25 +424,28 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 					}
 				}
 			}
+
 			// Deallocate memory on Gpu
-			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+			deallocateTomoExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
+
 	// Stack models computed by each GPU
-    for (int iGpu=0; iGpu<_nGpu; iGpu++){
-        #pragma omp parallel for
+	for (int iGpu=0; iGpu<_nGpu; iGpu++){
+		#pragma omp parallel for collapse(3)
         for (int iy=0; iy<model->getHyper()->getAxis(3).n; iy++){
-            for (int ix=0; ix<model->getHyper()->getAxis(2).n; ix++){
+		    for (int ix=0; ix<model->getHyper()->getAxis(2).n; ix++){
                 for (int iz=0; iz<model->getHyper()->getAxis(1).n; iz++){
                     (*model->_mat)[iy][ix][iz] += (*modelSliceVector[iGpu]->_mat)[iy][ix][iz];
                 }
             }
         }
     }
+
 	// Deallocate memory on device
 	if (_ginsu == 0){
 		for (int iGpu=0; iGpu<_nGpu; iGpu++){
-			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
+			deallocateTomoExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
 }

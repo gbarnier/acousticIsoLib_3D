@@ -13,7 +13,7 @@ void seismicOperator_3D <V1, V2>::setSources_3D(std::shared_ptr<deviceGpu_3D> so
 
 	// Check that nts is the same for sourceDevice and sourcesSignal
 	if (sourcesDevices->getNt() != sourcesSignals->getHyper()->getAxis(1).n){
-		std::cerr << "**** ERROR [seismicOperator_3D]: Number of time samples for seismic source inconsistent with tag nts in parfile ****" << std::endl;
+		throw std::runtime_error("**** ERROR [seismicOperator_3D]: Number of time samples for seismic source inconsistent with tag nts in parfile ****");
 	}
 
 	// Set source devices

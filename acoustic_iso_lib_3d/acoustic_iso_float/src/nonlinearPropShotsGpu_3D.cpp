@@ -43,28 +43,6 @@ nonlinearPropShotsGpu_3D::nonlinearPropShotsGpu_3D(std::shared_ptr<SEP::float3DR
 	_xPadPlusVectorGinsu = xPadPlusVectorGinsu;
 	_ixVectorGinsu = ixVectorGinsu;
 	_iyVectorGinsu = iyVectorGinsu;
-
-	// std::cout << "Inside shot constructor" << std::endl;
-	// for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
-	// 	std::cout << "i = " << iVec << std::endl;
-	// 	std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
-	// 	std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
-	// }
-
-	// Print pad vector
-	// for (int i=0; i < _xPadMinusVectorGinsu->getHyper()->getAxis(1).n; i++){
-	// 	std::cout << "_xPadMinusVectorGinsu [" << i << "] = " << (*_xPadMinusVectorGinsu->_mat)[i] << std::endl;
-	// 	std::cout << "_xPadPlusVectorGinsu [" << i << "] = " << (*_xPadPlusVectorGinsu->_mat)[i] << std::endl;
-	// 	std::cout << "nzGinsu = " << _velHyperVectorGinsu[i]->getAxis(1).n << std::endl;
-	// 	std::cout << "ozGinsu = " << _velHyperVectorGinsu[i]->getAxis(1).o << std::endl;
-	// 	std::cout << "dzGinsu = " << _velHyperVectorGinsu[i]->getAxis(1).d << std::endl;
-	// 	std::cout << "nxGinsu = " << _velHyperVectorGinsu[i]->getAxis(2).n << std::endl;
-	// 	std::cout << "oxGinsu = " << _velHyperVectorGinsu[i]->getAxis(2).o << std::endl;
-	// 	std::cout << "dxGinsu = " << _velHyperVectorGinsu[i]->getAxis(2).d << std::endl;
-	// 	std::cout << "nyGinsu = " << _velHyperVectorGinsu[i]->getAxis(3).n << std::endl;
-	// 	std::cout << "oyGinsu = " << _velHyperVectorGinsu[i]->getAxis(3).o << std::endl;
-	// 	std::cout << "dyGinsu = " << _velHyperVectorGinsu[i]->getAxis(3).d << std::endl;
-	// }
 }
 
 void nonlinearPropShotsGpu_3D::createGpuIdList_3D(){
@@ -142,14 +120,10 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<flo
     // Create a vector that will contain copies nonlinearPropGpu_3D that will be sent to each GPU
 	std::vector<std::shared_ptr<nonlinearPropGpu_3D>> propObjectVector;
 
-	// std::cout << "Shot3" << std::endl;
-
 	// Initialization for each GPU:
 	// (1) Creation of vector of objects, model, and data
 	// (2) Memory allocation on GPU
-	std::clock_t start;
-	float duration;
-	start = std::clock();
+
 	for (int iGpu=0; iGpu<_nGpu; iGpu++){
 
 		// Instanciate nonlinear propagator object
@@ -176,27 +150,12 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<flo
 		dataSliceVector.push_back(dataSlice);
 
 	}
-	duration = (std::clock() - start) / (float) CLOCKS_PER_SEC;
-	// std::cout << "Duration for allocation: " << duration << std::endl;
-	// std::cout << "Done instanciation shots nonlinear" << std::endl;
-	// Launch nonlinear forward
-	// #pragma omp parallel for num_threads(2)
-	// #pragma omp parallel for
-
-	// std::cout << "Inside shot fwd" << std::endl;
-	// for (int iVec=0; iVec<_ixVectorGinsu.size(); iVec++){
-	// 	std::cout << "i = " << iVec << std::endl;
-	// 	// std::cout << "_ixVectorGinsu = " << _ixVectorGinsu[iVec] << std::endl;
-	// 	// std::cout << "_iyVectorGinsu = " << _iyVectorGinsu[iVec] << std::endl;
-	// }
 
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
 		int iGpu = omp_get_thread_num();
 		int iGpuId = _gpuList[iGpu];
-
-		// std::cout << "iShot = " << iShot << std::endl;
 
 		// Copy model slice (wavelet)
 		if (constantSrcSignal == 1) {
@@ -214,10 +173,6 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<flo
 
 		// Ginsu modeling
 		if (_ginsu == 1){
-			// std::cout << "iShot = " << iShot << std::endl;
-			// // Allocate and set Ginsu
-			// std::cout << "_ixVectorGinsu[iGpu] = " << _ixVectorGinsu[iShot] << std::endl;
-			// std::cout << "_iyVectorGinsu[iGpu] = " << _iyVectorGinsu[iShot] << std::endl;
 			propObjectVector[iGpu]->setNonlinearPropGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
 
 		}
@@ -248,7 +203,6 @@ void nonlinearPropShotsGpu_3D::forward(const bool add, const std::shared_ptr<flo
 			deallocateNonlinearGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
-
 }
 
 // Adjoint
