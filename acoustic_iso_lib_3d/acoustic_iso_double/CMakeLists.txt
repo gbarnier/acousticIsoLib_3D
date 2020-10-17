@@ -43,6 +43,9 @@ set(SOURCE_BORN 	${SRC_DIR}/BornShotsGpu_3D.cpp
 					${SRC_DIR}/BornShotsGpuFunctions_3D.cu
 					${SRC_DIR}/interpTimeLinTbb_3D.cpp
 					${SRC_DIR}/secondTimeDerivative_3D.cpp
+		   	  		# ${SRC_DIR}/tomoExtGpu_3D.cpp
+					# ${SRC_DIR}/tomoExtShotsGpu_3D.cpp
+					# ${SRC_DIR}/tomoExtShotsGpuFunctions_3D.cu
 )
 
 # Files for Born extended operator library

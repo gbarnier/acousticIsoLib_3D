@@ -17,7 +17,6 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <time.h>
-#include "testCpp.cu"
 
 /****************************************************************************************/
 /******************************* Set GPU propagation parameters *************************/
@@ -297,6 +296,20 @@ void allocatePinnedBornExtGpu_3D(int nzWavefield, int nxWavefield, int nyWavefie
 	}
 	// Allocate pinned memory on host
 	cuda_call(cudaHostAlloc((void**) &pin_wavefieldSlice[iGpu], host_nWavefieldSpace*ntsWavefield*sizeof(double), cudaHostAllocDefault));
+}
+
+// Allocate pinned normal
+void setPinnedBornExtGpuFwime_3D(double* wavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
+
+	// Get GPU number
+	cudaSetDevice(iGpuId);
+
+	// Only one GPU will perform the following
+	if (iGpuId == iGpuAlloc) {
+		pin_wavefieldSlice = new double*[nGpu];
+	}
+	// Set pointer to wavefield
+	pin_wavefieldSlice[iGpu] = wavefield;
 }
 
 // Init Ginsu

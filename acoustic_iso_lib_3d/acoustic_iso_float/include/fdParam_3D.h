@@ -16,7 +16,7 @@ class fdParam_3D{
  	public:
 
 		// Constructor
-  		fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_ptr<paramObj> par);
+  		fdParam_3D(const std::shared_ptr<float3DReg> vel, const std::shared_ptr<paramObj> par, std::string seismicOpType);
 
         // Ginsu mutator
   		void setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu);
@@ -58,6 +58,7 @@ class fdParam_3D{
 		int _saveWavefield, _blockSize, _fat, _freeSurface, _splitTopBody;
 		float _alphaCos;
 		std::string _extension;
+        std::string _seismicOpType; // Nonlinear, Born, BornExt, tomoExt
 
         // Ginsu parameters
         int _ginsu;

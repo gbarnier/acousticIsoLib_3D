@@ -7,7 +7,7 @@
 using namespace SEP;
 
 // Constructor for offset only + end of trace taper
-dataTaper_3D::dataTaper_3D(float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry){
+dataTaper_3D::dataTaper_3D(float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, float tPow, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry){
 
 	// Data hypercube
 	_dataHyper = dataHyper;
@@ -16,9 +16,12 @@ dataTaper_3D::dataTaper_3D(float maxOffset, float expOffset, float taperWidthOff
 
 	// Set flags
 	_taperOffsetFlag = 1;
-	_taperEndTraceWidth = taperEndTraceWidth; // Taper width [s]
 	_taperEndTraceFlag = 1;
     _taperTimeFlag = 0;
+
+	// Trace time tapering (end of trace + tpow)
+	_taperEndTraceWidth = taperEndTraceWidth; // Taper width [s]
+	_tPow = tPow;
 
 	// Acquisition geometry files
 	_sourceGeometry = sourceGeometry;
@@ -41,7 +44,7 @@ dataTaper_3D::dataTaper_3D(float maxOffset, float expOffset, float taperWidthOff
 }
 
 // Constructor for time only + end of trace
-dataTaper_3D::dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry){
+dataTaper_3D::dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float taperEndTraceWidth, float tPow, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry){
 
 	// Data hypercube + parameters
 	_dataHyper = dataHyper;
@@ -50,9 +53,12 @@ dataTaper_3D::dataTaper_3D(float t0, float velMute, float expTime, float taperWi
 
 	// Set flags
 	_taperOffsetFlag = 0;
-	_taperEndTraceWidth = taperEndTraceWidth; // Taper width [s]
 	_taperEndTraceFlag = 1;
     _taperTimeFlag = 1;
+
+	// Trace time tapering (end of trace + tpow)
+	_taperEndTraceWidth = taperEndTraceWidth; // Taper width [s]
+	_tPow = tPow;
 
 	// Acquisition geometry files
 	_sourceGeometry = sourceGeometry;
@@ -78,7 +84,7 @@ dataTaper_3D::dataTaper_3D(float t0, float velMute, float expTime, float taperWi
 }
 
 // Constructor for offset + time + end of trace
-dataTaper_3D::dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry){
+dataTaper_3D::dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, float tPow, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry){
 
     // Display information about constructor
     std::cout << "---- [dataTaper_3D]: Data taper for time + offset + end of trace muting and tapering ----" << std::endl;
@@ -90,9 +96,12 @@ dataTaper_3D::dataTaper_3D(float t0, float velMute, float expTime, float taperWi
 
 	// Set flags
 	_taperOffsetFlag = 1;
-	_taperEndTraceWidth = taperEndTraceWidth; // Taper width [s]
 	_taperEndTraceFlag = 1;
     _taperTimeFlag = 1;
+
+	// Trace time tapering (end of trace + tpow)
+	_taperEndTraceWidth = taperEndTraceWidth; // Taper width [s]
+	_tPow = tPow;
 
 	// Acquisition geometry files
 	_sourceGeometry = sourceGeometry;
@@ -126,7 +135,7 @@ dataTaper_3D::dataTaper_3D(float t0, float velMute, float expTime, float taperWi
 }
 
 // Constructor for end of trace taper
-dataTaper_3D::dataTaper_3D(float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper){
+dataTaper_3D::dataTaper_3D(float taperEndTraceWidth, float tPow, std::shared_ptr<SEP::hypercube> dataHyper){
 
 	// Data hypercube
 	_dataHyper = dataHyper;
@@ -136,7 +145,10 @@ dataTaper_3D::dataTaper_3D(float taperEndTraceWidth, std::shared_ptr<SEP::hyperc
 	// Set flags
 	_taperOffsetFlag = 0;
 	_taperEndTraceFlag = 1;
+
+	// Trace time tapering (end of trace + tpow)
 	_taperEndTraceWidth = taperEndTraceWidth; // Taper width [s]
+	_tPow = tPow;
 
     // Display information about constructor
 	if (_taperEndTraceWidth > 0.0 ){std::cout << "---- [dataTaper_3D]: Data taper for end of trace tapering ----" << std::endl;}
@@ -414,6 +426,14 @@ void dataTaper_3D::computeTaperEndTrace(){
 	// Allocate and computer taper mask
 	_taperMaskEndTrace=std::make_shared<float1DReg>(_nts);
 	_taperMaskEndTrace->set(1.0); // Set mask value to 1
+
+	if (_tPow > 0.0){
+		// Compute tpow
+		for (int its=0; its<_nts; its++){
+			float time = _ots + its*_dts;
+			(*_taperMaskEndTrace->_mat)[its] = 1.0 * pow(time, _tPow);
+		}
+	}
 
 	if (_taperEndTraceWidth > 0.0){
 

@@ -15,6 +15,9 @@ void allocateBornShotsGpu_3D(double *vel2Dtw2, double *reflectivityScale, int iG
 // Allocate normal pinned memory
 void allocatePinnedBornGpu_3D(int nzWavefield, int nxWavefield, int nyWavefield, int ntsWavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
 
+// Allocate pinned memory for FWIME
+void setPinnedBornGpuFwime_3D(double *wavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
+
 // Init Ginsu
 void initBornGinsuGpu_3D(double dz, double dx, double dy, int nts, double dts, int sub, int blockSize, double alphaCos, int nGpu, int iGpuId, int iGpuAlloc);
 

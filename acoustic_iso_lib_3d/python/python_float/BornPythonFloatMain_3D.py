@@ -14,15 +14,24 @@ if __name__ == '__main__':
 	# Initialize operator
 	modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.BornOpInitFloat_3D(sys.argv)
 
+	if (parObject.getInt("fwime", 0) == 1):
+		_,_,_,_,_,_,_,reflectivityExtFloat,_=Acoustic_iso_float_3D.tomoExtOpInitFloat_3D(sys.argv)
+	else:
+		tomoExtOp=None
+
 	# Initialize Ginsu
 	if (parObject.getInt("ginsu", 0) == 1):
 		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu = Acoustic_iso_float_3D.buildGeometryGinsu_3D(parObject,velFloat,sourcesVector,receiversVector)
 
 	# Construct Born operator object
 	if (parObject.getInt("ginsu", 0) == 0):
-		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector)
+		if (parObject.getInt("fwime",0)==1):
+			tomoExtOp=Acoustic_iso_float_3D.tomoExtShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,reflectivityExtFloat)
+		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,tomoExtOp=tomoExtOp)
 	else:
-		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+		if (parObject.getInt("fwime",0)==1):
+			tomoExtOp=Acoustic_iso_float_3D.tomoExtShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,reflectivityExtFloat,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,tomoExtOp=tomoExtOp)
 
 	#Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
@@ -61,15 +70,8 @@ if __name__ == '__main__':
 		# Read model
 		modelFloat=genericIO.defaultIO.getVector(modelFile)
 
-		print("model max = ", modelFloat.max())
-		print("model min = ", modelFloat.min())
-
 		# Apply forward
-		t0 = time.time()
 		BornOp.forward(False,modelFloat,dataFloat)
-		t1 = time.time()
-		total = t1-t0
-		print("Time for Born forward = ", total)
 
 		# Write data
 		if dataHyperForOutput.getNdim() == 7:
@@ -117,11 +119,7 @@ if __name__ == '__main__':
 			dataFloatNp.flat[:]=dataFloatTempNp
 
 		# Apply adjoint
-		t0 = time.time()
 		BornOp.adjoint(False,modelFloat,dataFloat)
-		t1 = time.time()
-		total = t1-t0
-		print("Time for Born adjoint = ", total)
 
 		# Write model
 		modelFile=parObject.getString("model","noModelFile")

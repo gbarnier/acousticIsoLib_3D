@@ -4,6 +4,7 @@
 #include "BornGpu_3D.h"
 #include <time.h>
 
+// Normal constructor
 BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector){
 
 	// Setup parameters
@@ -28,36 +29,36 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 		allocatePinnedBornGpu_3D(_par->getInt("nz"), _par->getInt("nx"), _par->getInt("ny"), _par->getInt("nts"), _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
 	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
-	// _srcWavefieldVector = srcWavefieldVector;
-
-	// axis zAxis = _vel->getHyper()->getAxis(1);
-	// axis xAxis = _vel->getHyper()->getAxis(2);
-	// axis yAxis = _vel->getHyper()->getAxis(3);
-	// axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
-	// _srcWavefieldHyper = std::make_shared<hypercube>(zAxis, xAxis, yAxis, timeAxis);
-	// double sizeWavefield = zAxis.n * xAxis.n * yAxis.n * timeAxis.n * 8.0 / (1024*1024*1024);
-	// std::cout << "Size of wavefield = " << sizeWavefield << " [GB]" << std::endl;
-
-	// std::cout << "Constructor nz = " << zAxis.n << std::endl;
-	// std::cout << "Constructor nx = " << xAxis.n << std::endl;
-	// std::cout << "Constructor ny = " << yAxis.n << std::endl;
-	// std::cout << "Constructor nts = " << timeAxis.n << std::endl;
-	// std::cout << "z * x = " << zAxis.n * xAxis.n << std::endl;
-	// std::cout << "z * x * y = " << zAxis.n * xAxis.n * yAxis.n << std::endl;
-	// unsigned long long testNumber = zAxis.n * xAxis.n * yAxis.n * 200;
-	// std::cout << "z * x * y * t = " << testNumber << std::endl;
-	// printf("Very Large Number: %lld \n", testNumber);
-	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	std::cout << "iGpu 1 = " << iGpu << std::endl;
-	// 	// wavefieldTemp = std::make_shared<SEP::double4DReg>(_srcWavefieldHyper);
-	// 	std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
-	// 	std::cout << "iGpu 2 = " << iGpu << std::endl;
-	// 	_srcWavefieldVector.push_back(wavefieldTemp);
-	// 	_srcWavefieldVector[iGpu]->scale(0.0);
-	// 	std::cout << "iGpu 3 = " << iGpu << std::endl;
-	// }
 }
 
+// Constructor for Fwime
+BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<tomoExtShotsGpu_3D> tomoExtGpuObj){
+
+	// Setup parameters
+	_par = par;
+	_vel = vel;
+	_nShot = par->getInt("nShot");
+	createGpuIdList_3D();
+	_info = par->getInt("info", 0);
+	_deviceNumberInfo = par->getInt("deviceNumberInfo", _gpuList[0]);
+	if (not getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo)){
+		throw std::runtime_error("Error in getGpuInfo_3D");
+   	}
+	_ginsu = par->getInt("ginsu");
+	_sourcesVector = sourcesVector;
+	_receiversVector = receiversVector;
+	_sourcesSignals = sourcesSignals;
+
+	// Allocate wavefields on pinned memory
+	std::cout << "Allocating source wavefields on pinned memory for Born" << std::endl;
+	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
+		std::cout << "Allocating wavefield # " << iGpu << std::endl;
+		setPinnedBornGpuFwime_3D(tomoExtGpuObj->getPinWavefieldVec()[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+	}
+	std::cout << "Done allocating source wavefields on pinned memory for Born" << std::endl;
+}
+
+// Constructor for Ginsu
 BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu){
 
 	// Setup parameters
@@ -95,21 +96,45 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::sha
 		allocatePinnedBornGpu_3D(zAxisWavefield.n, xAxisWavefield.n, yAxisWavefield.n, timeAxis.n, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
 	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
+}
 
-	// _srcWavefieldHyper = std::make_shared<hypercube>(zAxisWavefield, xAxisWavefield, yAxisWavefield, timeAxis);
-	// For each GPU we are going to use
-	// Allocate the wavefield on the CPU
-	// No need to allocate the wavefield for the full model, just nz x nxMax x nyMax x nts
-	// double sizeWavefield = zAxisWavefield.n * xAxisWavefield.n * yAxisWavefield.n * timeAxis.n * 8 / (1024*1024*1024);
-	// std::cout << "Size of wavefield = " << sizeWavefield << " [GB]" << std::endl;
-	// std::cout << "Starting wavefields allocation" << std::endl;
-	// for (int iGpu=0; iGpu<_nGpu; iGpu++){
-	// 	// std::shared_ptr<double4DReg> wavefieldTemp(new double4DReg(_srcWavefieldHyper));
-	// 	_srcWavefieldVector.push_back(wavefieldTemp);
-	// 	_srcWavefieldVector[iGpu]->scale(0.0);
-	// }
-	// std::cout << "Done allocating wavefields" << std::endl;
+// Constructor for Ginsu + Fwime
+BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu, std::shared_ptr<tomoExtShotsGpu_3D> tomoExtGpuObj){
 
+	// Setup parameters
+	_par = par;
+	_vel = vel;
+	_nShot = par->getInt("nShot");
+	createGpuIdList_3D();
+	_info = par->getInt("info", 0);
+	_deviceNumberInfo = par->getInt("deviceNumberInfo", _gpuList[0]);
+	if ( not getGpuInfo_3D(_gpuList, _info, _deviceNumberInfo) ){
+		throw std::runtime_error("Error in getGpuInfo");
+   	}
+	_ginsu = par->getInt("ginsu");
+	_sourcesVector = sourcesVector;
+	_receiversVector = receiversVector;
+	_sourcesSignals = sourcesSignals;
+
+	// Compute the dimension of the largest model we will have to allocate among all the different shots
+	// axis zAxisWavefield = axis(_vel->getHyper()->getAxis(1).n, 1.0, 1.0);
+	// axis xAxisWavefield = axis(nxMaxGinsu, 1.0, 1.0);
+	// axis yAxisWavefield = axis(nyMaxGinsu, 1.0, 1.0);
+	// axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
+
+	_velHyperVectorGinsu = velHyperVectorGinsu;
+	_xPadMinusVectorGinsu = xPadMinusVectorGinsu;
+	_xPadPlusVectorGinsu = xPadPlusVectorGinsu;
+	_ixVectorGinsu = ixVectorGinsu;
+	_iyVectorGinsu = iyVectorGinsu;
+
+	// Allocate wavefields on pinned memory
+	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
+	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
+		std::cout << "Allocating wavefield # " << iGpu << std::endl;
+		setPinnedBornGpuFwime_3D(tomoExtGpuObj->getPinWavefieldVec()[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+	}
+	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
 }
 
 // Gpu list

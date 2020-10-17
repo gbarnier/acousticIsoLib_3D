@@ -65,7 +65,7 @@ if __name__ == '__main__':
 		if (pyinfo==1):
 			print("--- [extLsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
 		inv_log.addToLog("--- [extLsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
-		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,sourceGeometry,receiverGeometry=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
+		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# Initialize Born
 	modelInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.BornExtOpInitFloat_3D(sys.argv)
@@ -88,20 +88,6 @@ if __name__ == '__main__':
 	# Create inversion operator
 	invOp=BornOp
 
-	# Data tapering
-	if (dataTaper==1):
-		# Instantiate operator
-		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry)
-		# If input data have not been tapered yet -> taper them
-		if (rawData==1):
-			if (pyinfo==1):
-				print("---- [extLsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
-			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
-			dataTapered = dataFloat.clone()
-			dataTaperOp.forward(False,dataFloat,dataTapered) # Apply tapering to the data
-			dataFloat=dataTapered
-		invOp=pyOp.ChainOperator(invOp,dataTaperOp)
-
 	############################# Read files ###################################
 	# Read initial model
 	modelInitFile=parObject.getString("modelInit","None")
@@ -113,6 +99,22 @@ if __name__ == '__main__':
 	# Data
 	dataFile=parObject.getString("data")
 	dataFloat=genericIO.defaultIO.getVector(dataFile)
+
+	############################################################################
+
+	# Data tapering
+	if (dataTaper==1):
+		# Instantiate operator
+		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry)
+		# If input data have not been tapered yet -> taper them
+		if (rawData==1):
+			if (pyinfo==1):
+				print("---- [extLsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
+			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has required a data tapering/muting and has provided raw observed data -> applying tapering on raw observed data ----")
+			dataTapered = dataFloat.clone()
+			dataTaperOp.forward(False,dataFloat,dataTapered) # Apply tapering to the data
+			dataFloat=dataTapered
+		invOp=pyOp.ChainOperator(invOp,dataTaperOp)
 
 	############################# Regularization ###############################
 	# Regularization

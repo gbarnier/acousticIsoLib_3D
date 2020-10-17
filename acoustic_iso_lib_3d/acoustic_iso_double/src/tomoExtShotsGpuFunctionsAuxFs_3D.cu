@@ -1565,7 +1565,7 @@ void computeTomoLeg2TauAdjFs_3D(double *dev_modelTomoIn, double *dev_extReflecti
 		}
 
         // Load source wavefield at its+1 from host -> device
-		cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], pin_wavefieldSlice1[iGpu]+(its+1)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(double), cudaMemcpyHostToDevice, transferStreamH2DIn));
+		cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], pin_wavefieldSlice1[iGpu]+(its+1)*host_nVel, host_nVel*sizeof(double), cudaMemcpyHostToDevice, transferStreamH2DIn));
 
 		// Start subloop
 		for (int it2 = host_sub-1; it2 > -1; it2--){

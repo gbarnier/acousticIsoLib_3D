@@ -34,6 +34,8 @@ class tomoExtShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 		std::vector<std::shared_ptr<SEP::hypercube>> _velHyperVectorGinsu;
 		std::shared_ptr<SEP::int1DReg> _xPadMinusVectorGinsu, _xPadPlusVectorGinsu;
 		std::vector<int> _ixVectorGinsu, _iyVectorGinsu;
+		int _fwime;
+		std::vector<double*> _pinWavefieldVec;
 
 	public:
 
@@ -59,6 +61,8 @@ class tomoExtShotsGpu_3D : public Operator<SEP::double3DReg, SEP::double3DReg> {
 		/* Deallocate pinned memory */
 		void deallocatePinnedTomoExtGpu_3D();
 
+		/* Accessors */
+		std::vector<double*> getPinWavefieldVec(){return _pinWavefieldVec;}
 };
 
 #endif

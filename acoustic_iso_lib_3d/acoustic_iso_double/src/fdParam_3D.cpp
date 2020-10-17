@@ -10,11 +10,14 @@
 #include <iostream>
 using namespace SEP;
 
-fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared_ptr<paramObj> par) {
+// Constructor for all seismic operators
+fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared_ptr<paramObj> par, std::string seismicOpType) {
 
 	// Set Ginsu flag to zero
 	_ginsu = 0;
 
+	// Set operator flag
+	_seismicOpType = seismicOpType;
 	_vel = vel;
 	_par = par;
 
@@ -284,18 +287,20 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
         }
     }
 
-	/*********** Maybe put an "if" statement for nonlinear propagation *********/
+	/*********** Reflectivity scaling *********/
 	// Compute reflectivity scaling
-	_reflectivityScale = new double[_nz * _nx * _ny * sizeof(double)];
-	#pragma omp parallel for collapse(3)
-    for (int iy = 0; iy < _ny; iy++){
-        for (int ix = 0; ix < _nx; ix++){
-            for (int iz = 0; iz < _nz; iz++) {
-                int i1 = iy * _nz * _nx + ix * _nz + iz;
-                _reflectivityScale[i1] = 2.0 / ( (*_vel->_mat)[iy][ix][iz] * (*_vel->_mat)[iy][ix][iz] * (*_vel->_mat)[iy][ix][iz] );
-            }
-        }
-    }
+	if (_seismicOpType != "nonlinear"){
+		_reflectivityScale = new double[_nz * _nx * _ny * sizeof(double)];
+		#pragma omp parallel for collapse(3)
+    	for (int iy = 0; iy < _ny; iy++){
+        	for (int ix = 0; ix < _nx; ix++){
+            	for (int iz = 0; iz < _nz; iz++) {
+                	int i1 = iy * _nz * _nx + ix * _nz + iz;
+                	_reflectivityScale[i1] = 2.0 / ( (*_vel->_mat)[iy][ix][iz] * (*_vel->_mat)[iy][ix][iz] * (*_vel->_mat)[iy][ix][iz] );
+            	}
+        	}
+    	}
+	}
 
 	/*********** Allocate a dummy vel and reflectivityScale for Ginsu an*******/
 	_vel2Dtw2Ginsu = new double[sizeof(double)];
@@ -304,6 +309,7 @@ fdParam_3D::fdParam_3D(const std::shared_ptr<double3DReg> vel, const std::shared
 
 }
 
+// Ginsu parameters for nonlinear, Born and BornExt
 void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu) {
 
 	// Set Ginsu flag to one
@@ -371,14 +377,9 @@ void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGins
 	// v^2 * dtw^2
 	_vel2Dtw2Ginsu = new double[_nzGinsu * _nxGinsu * _nyGinsu * sizeof(double)];
 	long long sizeVel = sizeof(_vel2Dtw2Ginsu);
-	// std::cout << "sizeVel = " << sizeof(_vel2Dtw2Ginsu) << std::endl;
-	// long long nElementVel = _nzGinsu * _nxGinsu * _nyGinsu;
 	long long nElementVel = _nzGinsu * _nxGinsu;
 	nElementVel *= _nyGinsu;
-	// std::cout << "nElementVel = " << nElementVel << std::endl;
 	memset(_vel2Dtw2Ginsu, 0, nElementVel*sizeof(double)); // Reset values to zero
-	// std::cout << "Min value vel = " << *std::min_element(_vel2Dtw2Ginsu,_vel2Dtw2Ginsu+nElementVel) << std::endl;
-	// std::cout << "Max value vel = " << *std::max_element(_vel2Dtw2Ginsu,_vel2Dtw2Ginsu+nElementVel) << std::endl;
 	#pragma omp parallel for collapse(3)
     for (long long iy = _fat; iy < _nyGinsu-_fat; iy++){
         for (long long ix = _fat; ix < _nxGinsu-_fat; ix++){
@@ -389,22 +390,23 @@ void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGins
         }
     }
 
-	/*********** Maybe put an "if" statement for nonlinear propagation *********/
-	// Compute reflectivity scaling
-	_reflectivityScaleGinsu = new double[_nzGinsu * _nxGinsu * _nyGinsu * sizeof(double)];
-	memset(_reflectivityScaleGinsu, 0, nElementVel*sizeVel); // Reset values to zero
-	#pragma omp parallel for collapse(3)
-    for (int iy = _fat; iy < _nyGinsu-_fat; iy++){
-        for (int ix = _fat; ix < _nxGinsu-_fat; ix++){
-            for (int iz = _fat; iz < _nzGinsu-_fat; iz++) {
-                long long i1 = iy * _nzGinsu * _nxGinsu + ix * _nzGinsu + iz;
-                _reflectivityScaleGinsu[i1] = 2.0 / ( (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] );
-            }
-        }
-    }
+	/*********** Reflectivity scaling *********/
+	if (_seismicOpType != "nonlinear"){
+		_reflectivityScaleGinsu = new double[_nzGinsu * _nxGinsu * _nyGinsu * sizeof(double)];
+		memset(_reflectivityScaleGinsu, 0, nElementVel*sizeVel); // Reset values to zero
+		#pragma omp parallel for collapse(3)
+    	for (int iy = _fat; iy < _nyGinsu-_fat; iy++){
+        	for (int ix = _fat; ix < _nxGinsu-_fat; ix++){
+            	for (int iz = _fat; iz < _nzGinsu-_fat; iz++) {
+                	long long i1 = iy * _nzGinsu * _nxGinsu + ix * _nzGinsu + iz;
+                	_reflectivityScaleGinsu[i1] = 2.0 / ( (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] * (*_vel->_mat)[iy+_iyGinsu][ix+_ixGinsu][iz+_izGinsu] );
+            	}
+        	}
+    	}
+	}
 }
 
-// Overloaded function for tomo
+// Ginsu parameters for tomo only
 void fdParam_3D::setFdParamGinsu_3D(std::shared_ptr<SEP::hypercube> velHyperGinsu, int xPadMinusGinsu, int xPadPlusGinsu, int ixGinsu, int iyGinsu, const std::shared_ptr<double5DReg> extReflectivity) {
 
 	// Set Ginsu flag to one
@@ -780,8 +782,19 @@ bool fdParam_3D::checkParfileConsistencySpace_3D(const std::shared_ptr<double5DR
 	return true;
 }
 
+// Destructor
 fdParam_3D::~fdParam_3D(){
-	// Deallocate _vel2Dtw2 on host
+	// Deallocate memory on host
 	delete [] _vel2Dtw2;
+	delete [] _vel2Dtw2Ginsu;
+	delete [] _reflectivityScaleGinsu;
+	delete [] _extReflectivityGinsu;
 	_vel2Dtw2 = NULL;
+	_vel2Dtw2Ginsu = NULL;
+	_reflectivityScaleGinsu = NULL;
+	_extReflectivityGinsu = NULL;
+	if (_seismicOpType != "nonlinear"){
+		delete [] _reflectivityScale;
+		_reflectivityScale = NULL;
+	}
 }

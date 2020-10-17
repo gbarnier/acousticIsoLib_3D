@@ -50,6 +50,7 @@ install( FILES interpBSplineModule_3D.py DESTINATION ${PYTHON_DIR})
 install( FILES maskGradientModule_3D.py DESTINATION ${PYTHON_DIR})
 install( FILES dataTaperModule_3D.py DESTINATION ${PYTHON_DIR})
 install( FILES traceNormModule_3D.py DESTINATION ${PYTHON_DIR})
+install( FILES dsoGpuModule_3D.py DESTINATION ${PYTHON_DIR})
 install( TARGETS pyDsoGpu_3D DESTINATION ${PYTHON_DIR})
 
 # Installing Python executables

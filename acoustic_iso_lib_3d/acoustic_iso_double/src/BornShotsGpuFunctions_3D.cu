@@ -271,6 +271,19 @@ void allocatePinnedBornGpu_3D(int nzWavefield, int nxWavefield, int nyWavefield,
 	// std::cout << "Done allocating wavefield on pinned memory" << std::endl;
 }
 
+// Allocate pinned normal
+void setPinnedBornGpuFwime_3D(double* wavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
+
+	// Get GPU number
+	cudaSetDevice(iGpuId);
+	// Only one GPU will perform the following
+	if (iGpuId == iGpuAlloc) {
+		pin_wavefieldSlice = new double*[nGpu];
+	}
+	// Set pointer to wavefield
+	pin_wavefieldSlice[iGpu] = wavefield;
+}
+
 // Init Ginsu
 void initBornGinsuGpu_3D(double dz, double dx, double dy, int nts, double dts, int sub, int blockSize, double alphaCos, int nGpu, int iGpuId, int iGpuAlloc){
 

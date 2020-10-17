@@ -3,7 +3,7 @@
 tomoExtGpu_3D::tomoExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::shared_ptr<SEP::double5DReg> extReflectivity, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
 
 	// Finite-difference parameters
-	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par);
+	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par, "tomoExt");
 	_timeInterp_3D = std::make_shared<interpTimeLinTbb_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_ots, _fdParam_3D->_sub);
 	_secTimeDer = std::make_shared<secondTimeDerivative_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts);
 	_extReflectivity = extReflectivity;

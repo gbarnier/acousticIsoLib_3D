@@ -17,19 +17,50 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 		throw std::runtime_error("Error in getGpuInfo_3D");
    	}
 	_ginsu = par->getInt("ginsu");
+	_fwime = par->getInt("fwime", 0);
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
 	_extReflectivity = extReflectivity;
 
 	// Allocate wavefields on pinned memory
-	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
-	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
-		std::cout << "Allocating wavefield # " << iGpu << std::endl;
-		allocatePinnedTomoExtGpu_3D(_par->getInt("nz"), _par->getInt("nx"), _par->getInt("ny"), _par->getInt("nts"), _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
-	}
-	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
+	if (_fwime == 0){
 
+		std::cout << "Allocating source wavefields on pinned memory" << std::endl;
+
+		for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
+
+			std::cout << "Allocating wavefield # " << iGpu << std::endl;
+
+			allocatePinnedTomoExtGpu_3D(_par->getInt("nz"), _par->getInt("nx"), _par->getInt("ny"), _par->getInt("nts"), _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+		}
+
+		std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
+	}
+	else {
+
+		// Initialize wavefield vector
+		_pinWavefieldVec.clear();
+
+		std::cout << "Allocating source wavefields on pinned memory for tomo (FWIME)" << std::endl;
+
+		for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
+
+			std::cout << "Allocating wavefield # " << iGpu << std::endl;
+
+			// Temporary array for wavefield address
+			float *arrayTemp;
+
+			// Allocate both wavefields on pinned memory
+			allocatePinnedTomoExtGpuFwime_3D(_par->getInt("nz"), _par->getInt("nx"), _par->getInt("ny"), _par->getInt("nts"), arrayTemp, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+
+			// Add entry to vector
+			_pinWavefieldVec.push_back(arrayTemp);
+
+			// Delete temporary pointer
+			arrayTemp = NULL;
+		}
+	}
 }
 
 /* Constructor for Ginsu */
@@ -46,6 +77,7 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 		throw std::runtime_error("Error in getGpuInfo_3D");
    	}
 	_ginsu = par->getInt("ginsu");
+	_fwime = par->getInt("fwime", 0);
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
@@ -64,13 +96,35 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 	_iyVectorGinsu = iyVectorGinsu;
 
 	// Allocate wavefields on pinned memory
-	std::cout << "Allocating source wavefields on pinned memory for Ginsu modeling" << std::endl;
-	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
-		std::cout << "Allocating wavefield # " << iGpu << std::endl;
-		allocatePinnedTomoExtGpu_3D(zAxisWavefield.n, xAxisWavefield.n, yAxisWavefield.n, timeAxis.n, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+	if (_fwime == 0){
+		std::cout << "Allocating source wavefields on pinned memory for Ginsu modeling" << std::endl;
+		for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
+			std::cout << "Allocating wavefield # " << iGpu << std::endl;
+			allocatePinnedTomoExtGpu_3D(zAxisWavefield.n, xAxisWavefield.n, yAxisWavefield.n, timeAxis.n, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+		}
+		std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
 	}
-	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
+	else {
+		// Initialize wavefield vector
+		_pinWavefieldVec.clear();
 
+		for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
+
+			// Temporary array for wavefield address
+			float *arrayTemp;
+
+			// Allocate both wavefields on pinned memory
+			allocatePinnedTomoExtGpuFwime_3D(zAxisWavefield.n, xAxisWavefield.n, yAxisWavefield.n, timeAxis.n, arrayTemp, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+
+			// Add entry to vector
+			_pinWavefieldVec.push_back(arrayTemp);
+			std::cout << "_pinWavefieldVec[" << iGpu << "] = "<< _pinWavefieldVec[iGpu] << std::endl;
+
+			// Delete temporary array
+			// delete [] arrayTemp;
+			arrayTemp = NULL;
+		}
+	}
 }
 
 void tomoExtShotsGpu_3D::createGpuIdList_3D(){

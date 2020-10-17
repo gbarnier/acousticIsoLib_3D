@@ -1571,7 +1571,7 @@ void computeTomoLeg2TauAdj_3D(float *dev_modelTomoIn, float *dev_extReflectivity
 			}
 		}
 
-        // Launch source wavefield transfer from Host -> device
+        // Launch source wavefield transfer from host -> device
 		cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], pin_wavefieldSlice1[iGpu]+(its+1)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStreamH2DIn));
 
 		// Start subloop
@@ -1596,10 +1596,6 @@ void computeTomoLeg2TauAdj_3D(float *dev_modelTomoIn, float *dev_extReflectivity
 			dev_temp1[iGpu] = NULL;
 
 		}
-
-		// Load source wavefield at its+1 from pinned -> pDt0
-		// cuda_call(cudaMemcpy(dev_pSourceWavefield[iGpu], pin_wavefieldSlice1[iGpu]+(its+1)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice));
-		// cuda_call(cudaMemcpy(dev_pSourceWavefield[iGpu], dev_pDt0[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice));
 
         // Wait until source wavefield slice has been copied into dev_pSourceWavefield
 		cuda_call(cudaStreamSynchronize(transferStreamH2DIn));
@@ -1633,7 +1629,6 @@ void computeTomoLeg2TauAdj_3D(float *dev_modelTomoIn, float *dev_extReflectivity
 
 			// Copy new wavefield slice from pStream -> pSourceWavefieldTau
 			cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][iSlice], dev_pStream[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice, compStreamIn));
-			// cuda_call(cudaMemcpy(dev_pSourceWavefieldTau[iGpu][iSlice], dev_pStream[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice));
 
 		// Middle part of adjoint propagation
 		} else if (its <= host_nts-2*host_hExt1-1 && its >= 2*host_hExt1+1){
@@ -1651,7 +1646,7 @@ void computeTomoLeg2TauAdj_3D(float *dev_modelTomoIn, float *dev_extReflectivity
 
 			// Copy pStream -> device
 			cuda_call(cudaMemcpyAsync(dev_pSourceWavefieldTau[iGpu][0], dev_pStream[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice, compStreamIn));
-			// cuda_call(cudaMemcpy(dev_pSourceWavefieldTau[iGpu][0], dev_pStream[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice));
+
 		}
 
 	}

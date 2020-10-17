@@ -1089,13 +1089,16 @@ class BornShotsGpu_3D(Op.Operator):
 	"""Wrapper encapsulating PYBIND11 module for Born operator"""
 
 	# def __init__(self,domain,range,velocity,paramP,sourceVector,sourcesSignalsFloat,receiversVector):
-	def __init__(self,*args):
+	def __init__(self,*args,**kwargs):
 
 		# Domain = reflectivity
 		# Range = Born data
 		domainOp = args[0]
 		rangeOp = args[1]
 		self.setDomainRange(domainOp,rangeOp)
+
+		# Get tomo operator for Fwime
+		tomoExtOp=kwargs.get("tomoExtOp",None)
 
 		# Get wavefield dimensions
 		zAxisWavefield = domainOp.getHyper().axes[0]
@@ -1171,9 +1174,12 @@ class BornShotsGpu_3D(Op.Operator):
 			# if("getCpp" in dir(wavefieldVector)):
 			# 	wavefieldVector = wavefieldVector.getCpp()
 
-			# Ginsu constructor
-			self.pyOp = pyAcoustic_iso_float_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
-
+			if (tomoExtOp == None):
+				# Ginsu constructor
+				self.pyOp = pyAcoustic_iso_float_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+			else:
+				# Ginsu constructor for Fwime
+				self.pyOp = pyAcoustic_iso_float_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,tomoExtOp.pyOp)
 		else:
 			# Create hypercube for wavefield
 			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
@@ -1191,8 +1197,14 @@ class BornShotsGpu_3D(Op.Operator):
 			# print("Done allocating normal wavefields")
 			# if("getCpp" in dir(wavefieldVector)):
 			# 	wavefieldVector = wavefieldVector.getCpp()
-			# Normal constructor
-			self.pyOp = pyAcoustic_iso_float_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector)
+			if (tomoExtOp == None):
+				# Normal constructor
+				self.pyOp = pyAcoustic_iso_float_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector)
+			else:
+				# Normal constructor for Fwime
+				print("Born constructor for FWIME")
+				self.pyOp = pyAcoustic_iso_float_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,tomoExtOp.pyOp)
+				print("Done Born constructor for FWIME")
 		return
 
 	def __str__(self):
@@ -1406,13 +1418,15 @@ def BornExtOpInitFloat_3D(args):
 class BornExtShotsGpu_3D(Op.Operator):
 	"""Wrapper encapsulating PYBIND11 module for Born extended operator"""
 
-	def __init__(self,*args):
+	def __init__(self,*args,**kwargs):
 
 		# Domain = reflectivity
 		# Range = Born data
 		domain = args[0]
 		range = args[1]
 		self.setDomainRange(domain,range)
+
+		tomoExtOp=kwargs.get("tomoExtOp",None)
 
 		# Get wavefield dimensions
 		zAxisWavefield = domain.getHyper().axes[0]
@@ -1475,9 +1489,12 @@ class BornExtShotsGpu_3D(Op.Operator):
 			ixVectorGinsu = args[12]
 			iyVectorGinsu = args[13]
 
-			# Ginsu constructor
-			self.pyOp = pyAcoustic_iso_float_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
-
+			if (tomoExtOp == None):
+				# Ginsu constructor
+				self.pyOp = pyAcoustic_iso_float_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+			else:
+				# Ginsu constructor for Fwime
+				self.pyOp = pyAcoustic_iso_float_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,tomoExtOp.pyOp)
 		else:
 
 			# Create hypercube for wavefield
@@ -1489,9 +1506,14 @@ class BornExtShotsGpu_3D(Op.Operator):
 			ntWav = timeAxisWavefield.n
 			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*4/(1024*1024*1024), " [GB]")
 
-			# Normal constructor
-			self.pyOp = pyAcoustic_iso_float_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector)
-
+			if (tomoExtOp == None):
+				# Normal constructor
+				self.pyOp = pyAcoustic_iso_float_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector)
+			else:
+				print("BornExt constructor for FWIME")
+				# Normal constructor for Fwime
+				self.pyOp = pyAcoustic_iso_float_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,tomoExtOp.pyOp)
+				print("Done BornExt constructor for FWIME")
 		return
 
 	def __str__(self):
@@ -1528,6 +1550,14 @@ class BornExtShotsGpu_3D(Op.Operator):
 		with pyAcoustic_iso_float_BornExt_3D.ostream_redirect():
 			# print("Just before")
 			self.pyOp.adjoint(add,model,data)
+		return
+
+	def add_spline_3D(self,Spline_op):
+		"""
+		   Adding spline operator to set background
+		"""
+		self.Spline_op = Spline_op
+		self.tmp_fine_model = Spline_op.range.clone()
 		return
 
 	def setVel_3D(self,vel):
@@ -1795,7 +1825,10 @@ class tomoExtShotsGpu_3D(Op.Operator):
 			nyWav = yAxisWavefield.n
 			ntWav = timeAxisWavefield.n
 			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*4/(1024*1024*1024), " [GB]")
-
+			print("nzWav=",nzWav)
+			print("nxWav=",nxWav)
+			print("nyWav=",nyWav)
+			print("ntWav=",ntWav)
 			self.pyOp = pyAcoustic_iso_float_tomoExt_3D.tomoExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsFloat,receiversVector,extReflectivityFloat)
 			return
 

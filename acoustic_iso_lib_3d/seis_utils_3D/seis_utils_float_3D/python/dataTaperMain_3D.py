@@ -98,10 +98,10 @@ if __name__ == '__main__':
 	model=genericIO.defaultIO.getVector(modelFile,ndims=3)
 
 	# Initialize operator
-	t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,sourceGeometry,receiverGeometry=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
+	t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# Instanciate operator
-	dataTaperOb=dataTaperModule_3D.dataTaper(model,model,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,model.getHyper(),sourceGeometry,receiverGeometry)
+	dataTaperOb=dataTaperModule_3D.dataTaper(model,model,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,model.getHyper(),sourceGeometry,receiverGeometry)
 
 	# Get offset tapering mask
 	maskOffsetFile=parObject.getString("maskOffsetFile","noMaskOffsetFile")

@@ -2,7 +2,7 @@
 
 BornGpu_3D::BornGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
 
-	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par); // Fd parameter object
+	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par, "Born"); // Fd parameter object
 	_timeInterp_3D = std::make_shared<interpTimeLinTbb_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_ots, _fdParam_3D->_sub); // Time interpolation object
 	_secTimeDer = std::make_shared<secondTimeDerivative_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts); // Second time derivative object
 	_iGpu = iGpu; // Gpu number
@@ -51,7 +51,7 @@ void BornGpu_3D::forward(const bool add, const std::shared_ptr<double3DReg> mode
 			// std::cout << "Born model max inside = " << model->max() << std::endl;
 			BornShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
 			// std::cout << "Born dataRegDts min inside = " << dataRegDts->min() << std::endl;
-			// std::cout << "Born dataRegDts max inside = " << dataRegDts->max() << std::endl;	
+			// std::cout << "Born dataRegDts max inside = " << dataRegDts->max() << std::endl;
 			// BornShotsFwdGpu_3D_Threads(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _srcWavefield->getVals(), _iGpu, _iGpuId); //TESTING thread for pin memory copy
 
 		} else {

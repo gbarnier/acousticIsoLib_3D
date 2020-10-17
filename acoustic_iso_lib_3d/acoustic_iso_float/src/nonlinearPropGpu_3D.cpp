@@ -4,7 +4,7 @@
 
 nonlinearPropGpu_3D::nonlinearPropGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
 
-	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par);
+	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par, "nonlinear");
  	_timeInterp_3D = std::make_shared<interpTimeLinTbb_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_ots, _fdParam_3D->_sub);
 	_iGpu = iGpu;
 	_nGpu = nGpu;

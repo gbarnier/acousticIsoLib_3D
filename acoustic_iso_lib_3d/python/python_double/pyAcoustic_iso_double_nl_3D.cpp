@@ -47,7 +47,7 @@ PYBIND11_MODULE(pyAcoustic_iso_double_nl_3D, clsGeneric) {
 
       .def("dotTest",(bool (nonlinearPropShotsGpu_3D::*)(const bool, const double)) &nonlinearPropShotsGpu_3D::dotTest,"Dot-Product Test")
 
-      .def("getDampVolumeShots_3D",(std::shared_ptr<double3DReg> (nonlinearPropShotsGpu_3D::*)()) &nonlinearPropShotsGpu_3D::getDampVolumeShots_3D,"Function to get the damping volume computed on the CPU for debugging")
+      // .def("getDampVolumeShots_3D",(std::shared_ptr<double3DReg> (nonlinearPropShotsGpu_3D::*)()) &nonlinearPropShotsGpu_3D::getDampVolumeShots_3D,"Function to get the damping volume computed on the CPU for debugging")
 
 ;
 

@@ -11,6 +11,8 @@ void allocateTomoExtShotsGpu_3D(float *vel2Dtw2, float *reflectivityScale, float
 
 void allocatePinnedTomoExtGpu_3D(int nzWavefield, int nxWavefield, int nyWavefield, int ntsWavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
 
+void allocatePinnedTomoExtGpuFwime_3D(int nzWavefield, int nxWavefield, int nyWavefield, int ntsWavefield, float * &wavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
+
 void initTomoExtGinsuGpu_3D(float dz, float dx, float dy, int nts, float dts, int sub, int blockSize, float alphaCos, std::string extension, int nExt1, int nExt2, int leg1, int leg2, int nGpu, int iGpuId, int iGpuAlloc);
 
 void allocateSetTomoExtGinsuGpu_3D(int nz, int nx, int ny, int minPad, int blockSize, float alphaCos, float *vel2Dtw2, float *reflectivityScale, float *extReflectivity, int iGpu, int iGpuId);

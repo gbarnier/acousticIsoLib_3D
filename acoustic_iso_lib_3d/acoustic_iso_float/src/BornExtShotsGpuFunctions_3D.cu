@@ -294,6 +294,22 @@ void allocatePinnedBornExtGpu_3D(int nzWavefield, int nxWavefield, int nyWavefie
 	cuda_call(cudaHostAlloc((void**) &pin_wavefieldSlice[iGpu], host_nWavefieldSpace*ntsWavefield*sizeof(float), cudaHostAllocDefault));
 }
 
+// Allocate pinned normal
+void setPinnedBornExtGpuFwime_3D(float* wavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
+
+	// Get GPU number
+	cudaSetDevice(iGpuId);
+
+	std::cout << "Inside BornExt set pinned before" << std::endl;
+	// Only one GPU will perform the following
+	if (iGpuId == iGpuAlloc) {
+		pin_wavefieldSlice = new float*[nGpu];
+	}
+	// Set pointer to wavefield
+	pin_wavefieldSlice[iGpu] = wavefield;
+	std::cout << "Inside BornExt set pinned after" << std::endl;
+}
+
 // Init Ginsu
 void initBornExtGinsuGpu_3D(float dz, float dx, float dy, int nts, float dts, int sub, int blockSize, float alphaCos, std::string extension, int nExt1, int nExt2, int nGpu, int iGpuId, int iGpuAlloc){
 

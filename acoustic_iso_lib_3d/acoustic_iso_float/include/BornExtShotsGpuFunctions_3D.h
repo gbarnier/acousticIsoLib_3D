@@ -11,6 +11,9 @@ void allocateBornExtShotsGpu_3D(float *vel2Dtw2, float *reflectivityScale, int i
 
 void allocatePinnedBornExtGpu_3D(int nzWavefield, int nxWavefield, int nyWavefield, int ntsWavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
 
+// Allocate pinned memory for Fwime
+void setPinnedBornExtGpuFwime_3D(float *wavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc);
+
 void initBornExtGinsuGpu_3D(float dz, float dx, float dy, int nts, float dts, int sub, int blockSize, float alphaCos, std::string extension, int nExt1, int nExt2, int nGpu, int iGpuId, int iGpuAlloc);
 
 void allocateSetBornExtGinsuGpu_3D(int nz, int nx, int ny, int minPad, int blockSize, float alphaCos, float *vel2Dtw2, float *reflectivityScale, int iGpu, int iGpuId);

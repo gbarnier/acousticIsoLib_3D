@@ -13,7 +13,7 @@ class dataTaper_3D : public Operator<SEP::float3DReg, SEP::float3DReg> {
 
 	private:
 
-		float _maxOffset, _expOffset, _taperWidthOffset, _taperEndTraceWidth;
+		float _maxOffset, _expOffset, _taperWidthOffset, _taperEndTraceWidth, _tPow;
 		float  _taperWidthTime, _expTime, _velMute, _t0;
 		float _xMinRec, _xMaxRec, _dRec;
 		float _xMinShot, _xMaxShot, _dShot;
@@ -35,16 +35,16 @@ class dataTaper_3D : public Operator<SEP::float3DReg, SEP::float3DReg> {
 	public:
 
 		// Constructor for offset tapering only
-		dataTaper_3D(float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry);
+		dataTaper_3D(float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, float tPow, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry);
 
 		// Constructor for time tapering only
-		dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry);
+		dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float taperEndTraceWidth, float tPow, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry);
 
 		// Constructor for time and offset tapering
-		dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry);
+		dataTaper_3D(float t0, float velMute, float expTime, float taperWidthTime, std::string moveout, std::string timeMuting, float maxOffset, float expOffset, float taperWidthOffset, std::string offsetMuting, float taperEndTraceWidth, float tPow, std::shared_ptr<SEP::hypercube> dataHyper, std::shared_ptr<float2DReg> sourceGeometry, std::shared_ptr<float3DReg> receiverGeometry);
 
 		// Constructor for end of trace tapering only
-		dataTaper_3D(float taperEndTraceWidth, std::shared_ptr<SEP::hypercube> dataHyper);
+		dataTaper_3D(float taperEndTraceWidth, float tPow, std::shared_ptr<SEP::hypercube> dataHyper);
 
 		/* Destructor */
 		~dataTaper_3D(){};

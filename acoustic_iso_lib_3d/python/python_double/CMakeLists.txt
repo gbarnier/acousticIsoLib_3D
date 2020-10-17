@@ -34,9 +34,9 @@ set(LIBS genericCpp buffers jsonCpp hypercube  ${OpenMP_EXE_LINKER_FLAGS} ${TBB_
 pybind11_add_module(pyAcoustic_iso_double_nl_3D MODULE pyAcoustic_iso_double_nl_3D.cpp)
 target_link_libraries(pyAcoustic_iso_double_nl_3D PRIVATE ACOUSTIC_ISO_DOUBLE_NL_3D ${LIBS})
 pybind11_add_module(pyAcoustic_iso_double_Born_3D MODULE pyAcoustic_iso_double_Born_3D.cpp)
-target_link_libraries(pyAcoustic_iso_double_Born_3D PRIVATE ACOUSTIC_ISO_DOUBLE_BORN_3D ${LIBS})
+target_link_libraries(pyAcoustic_iso_double_Born_3D PRIVATE ACOUSTIC_ISO_DOUBLE_BORN_3D ACOUSTIC_ISO_DOUBLE_TOMO_EXT_3D ${LIBS})
 pybind11_add_module(pyAcoustic_iso_double_BornExt_3D MODULE pyAcoustic_iso_double_BornExt_3D.cpp)
-target_link_libraries(pyAcoustic_iso_double_BornExt_3D PRIVATE ACOUSTIC_ISO_DOUBLE_BORN_EXT_3D ${LIBS})
+target_link_libraries(pyAcoustic_iso_double_BornExt_3D PRIVATE ACOUSTIC_ISO_DOUBLE_BORN_EXT_3D ACOUSTIC_ISO_DOUBLE_TOMO_EXT_3D ${LIBS})
 pybind11_add_module(pyAcoustic_iso_double_tomoExt_3D MODULE pyAcoustic_iso_double_tomoExt_3D.cpp)
 target_link_libraries(pyAcoustic_iso_double_tomoExt_3D PRIVATE ACOUSTIC_ISO_DOUBLE_TOMO_EXT_3D ${LIBS})
 
@@ -57,4 +57,4 @@ install( FILES nonlinearPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_W
 install( FILES BornPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES BornExtPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
 install( FILES tomoExtPythonDoubleMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
-install( FILES makeIrregGeometry_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)
+# install( FILES makeIrregGeometry_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)

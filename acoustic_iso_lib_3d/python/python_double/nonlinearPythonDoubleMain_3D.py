@@ -82,13 +82,12 @@ if __name__ == '__main__':
 		modelSMat=modelFloat.getNdArray()
 		modelDMat[:]=modelSMat
 
-		print("Here 1")
 		# Apply forward
-		t0 = time.time()
+		# t0 = time.time()
 		nonlinearOp.forward(False,modelDouble,dataDouble)
-		t1 = time.time()
-		total = t1-t0
-		print("Time for nonlinear forward = ", total)
+		# t1 = time.time()
+		# total = t1-t0
+		# print("Time for nonlinear forward = ", total)
 		# nonlinearOp.forward(False,modelDouble,dataDouble)
 		# nonlinearOp.forward(False,modelDouble,dataDouble)
 		# nonlinearOp.forward(False,modelDouble,dataDouble)

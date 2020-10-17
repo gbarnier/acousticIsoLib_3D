@@ -51,10 +51,10 @@ class nonlinearPropShotsGpu_3D : public Operator<SEP::float2DReg, SEP::float3DRe
 		void setVel_3D(std::shared_ptr<SEP::float3DReg> vel){_vel = vel;}
 
 		// Debugging
-		std::shared_ptr<float3DReg> getDampVolumeShots_3D() {
-			_fdParamDampShots_3D = std::make_shared<fdParam_3D>(_vel, _par);
-			return _fdParamDampShots_3D->_dampVolume;
-		}
+		// std::shared_ptr<float3DReg> getDampVolumeShots_3D() {
+		// 	_fdParamDampShots_3D = std::make_shared<fdParam_3D>(_vel, _par);
+		// 	return _fdParamDampShots_3D->_dampVolume;
+		// }
 };
 
 #endif

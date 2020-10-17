@@ -5,6 +5,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/iostream.h>
 #include "BornExtShotsGpu_3D.h"
+#include "tomoExtShotsGpu_3D.h"
 
 namespace py = pybind11;
 using namespace SEP;
@@ -18,7 +19,11 @@ PYBIND11_MODULE(pyAcoustic_iso_double_BornExt_3D, clsGeneric) {
 
       .def(py::init<std::shared_ptr<SEP::double3DReg>, std::shared_ptr<paramObj>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::shared_ptr<SEP::double2DReg>, std::vector<std::shared_ptr<deviceGpu_3D>>>(), "Initialize a BornExtShotsGpu_3D")
 
+      .def(py::init<std::shared_ptr<SEP::double3DReg>, std::shared_ptr<paramObj>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::shared_ptr<SEP::double2DReg>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::shared_ptr<tomoExtShotsGpu_3D>>(), "Initialize a BornExtShotsGpu_3D")
+
       .def(py::init<std::shared_ptr<SEP::double3DReg>, std::shared_ptr<paramObj>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::shared_ptr<SEP::double2DReg>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::vector<std::shared_ptr<SEP::hypercube>>, std::shared_ptr<SEP::int1DReg>, std::shared_ptr<SEP::int1DReg>, int, int, std::vector<int>, std::vector<int>>(), "Initialize a BornExtShotsGpu_3D with Ginsu")
+
+      .def(py::init<std::shared_ptr<SEP::double3DReg>, std::shared_ptr<paramObj>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::shared_ptr<SEP::double2DReg>, std::vector<std::shared_ptr<deviceGpu_3D>>, std::vector<std::shared_ptr<SEP::hypercube>>, std::shared_ptr<SEP::int1DReg>, std::shared_ptr<SEP::int1DReg>, int, int, std::vector<int>, std::vector<int>, std::shared_ptr<tomoExtShotsGpu_3D>>(), "Initialize a BornExtShotsGpu_3D with Ginsu")
 
       .def("forward", (void (BornExtShotsGpu_3D::*)(const bool, const std::shared_ptr<double5DReg>, std::shared_ptr<double3DReg>)) &BornExtShotsGpu_3D::forward, "Forward")
 

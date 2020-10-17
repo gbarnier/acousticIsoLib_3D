@@ -59,11 +59,12 @@ if __name__ == '__main__':
 		modelFloatNp[:]=modelFloatTempNp
 
 		# Apply forward
-		t0 = time.time()
+		# t0 = time.time()
+		print("run #",i)
 		nonlinearOp.forward(False,modelFloat,dataFloat)
-		t1 = time.time()
-		total = t1-t0
-		print("--- [nonlinearPythonSingleMain_3D]: Time for nonlinear forward = ", total," ---")
+		# t1 = time.time()
+		# total = t1-t0
+		# print("--- [nonlinearPythonSingleMain_3D]: Time for nonlinear forward = ", total," ---")
 
 		# Write data
 		genericIO.defaultIO.writeVector(dataFile,dataFloat)

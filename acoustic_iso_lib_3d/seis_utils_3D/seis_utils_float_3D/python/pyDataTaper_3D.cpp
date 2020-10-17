@@ -16,16 +16,16 @@ PYBIND11_MODULE(pyDataTaper_3D, clsGeneric) {
   py::class_<dataTaper_3D, std::shared_ptr<dataTaper_3D>>(clsGeneric,"dataTaper_3D")
 
       // Constructor for offset + end of trace tapering
-      .def(py::init<float,float,float,std::string,float,std::shared_ptr<SEP::hypercube>,std::shared_ptr<float2DReg>,std::shared_ptr<float3DReg>>(), "Initialize a dataTaper_3D for offset muting")
+      .def(py::init<float,float,float,std::string,float,float,std::shared_ptr<SEP::hypercube>,std::shared_ptr<float2DReg>,std::shared_ptr<float3DReg>>(), "Initialize a dataTaper_3D for offset muting")
 
       // Constructor for time + end of trace tapering
-      .def(py::init<float,float,float,float,std::string,std::string,float,std::shared_ptr<SEP::hypercube>,std::shared_ptr<float2DReg>,std::shared_ptr<float3DReg>>(), "Initialize a dataTaper_3D for time muting")
+      .def(py::init<float,float,float,float,std::string,std::string,float,float,std::shared_ptr<SEP::hypercube>,std::shared_ptr<float2DReg>,std::shared_ptr<float3DReg>>(), "Initialize a dataTaper_3D for time muting")
 
       // Constructor for time + end of trace tapering
-      .def(py::init<float,float,float,float,std::string,std::string,float,float,float,std::string,float,std::shared_ptr<SEP::hypercube>,std::shared_ptr<float2DReg>,std::shared_ptr<float3DReg>>(), "Initialize a dataTaper_3D for time muting")
+      .def(py::init<float,float,float,float,std::string,std::string,float,float,float,std::string,float,float,std::shared_ptr<SEP::hypercube>,std::shared_ptr<float2DReg>,std::shared_ptr<float3DReg>>(), "Initialize a dataTaper_3D for time muting")
 
       // Constructor for end of trace tapering
-      .def(py::init<float,std::shared_ptr<SEP::hypercube>>(), "Initialize a dataTaper_3D for end of trace tapering")
+      .def(py::init<float,float,std::shared_ptr<SEP::hypercube>>(), "Initialize a dataTaper_3D for end of trace tapering")
 
       .def("forward", (void (dataTaper_3D::*)(const bool, const std::shared_ptr<float3DReg>, std::shared_ptr<float3DReg>)) &dataTaper_3D::forward, "Forward")
 

@@ -340,6 +340,30 @@ void allocatePinnedTomoExtGpu_3D(int nzWavefield, int nxWavefield, int nyWavefie
 
 }
 
+// Allocate memory on pinned memory for wavefield 1 for FWIME
+void allocatePinnedTomoExtGpuFwime_3D(int nzWavefield, int nxWavefield, int nyWavefield, int ntsWavefield, double * &wavefield, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
+
+	// Get GPU number
+	cudaSetDevice(iGpuId);
+
+	host_nWavefieldSpace = nzWavefield * nxWavefield * nyWavefield;
+
+	// Only one GPU will perform the following
+	if (iGpuId == iGpuAlloc) {
+		pin_wavefieldSlice1 = new double*[nGpu];
+		pin_wavefieldSlice2 = new double*[nGpu];
+	}
+
+	// Allocate pinned memory on host
+	cuda_call(cudaHostAlloc((void**) &pin_wavefieldSlice1[iGpu], host_nWavefieldSpace*ntsWavefield*sizeof(double), cudaHostAllocDefault));
+	cuda_call(cudaHostAlloc((void**) &pin_wavefieldSlice2[iGpu], host_nWavefieldSpace*ntsWavefield*sizeof(double), cudaHostAllocDefault));
+
+	// std::cout << "iGpu = " << iGpu << std::endl;
+	// std::cout << "pin_wavefieldSlice1[iGpu] = " << pin_wavefieldSlice1[iGpu] << std::endl;
+
+	wavefield = pin_wavefieldSlice1[iGpu];
+}
+
 // Init Ginsu
 void initTomoExtGinsuGpu_3D(double dz, double dx, double dy, int nts, double dts, int sub, int blockSize, double alphaCos, std::string extension, int nExt1, int nExt2, int leg1, int leg2, int nGpu, int iGpuId, int iGpuAlloc){
 

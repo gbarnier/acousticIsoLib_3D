@@ -2,7 +2,7 @@
 
 BornGpu_3D::BornGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, int nGpu, int iGpu, int iGpuId, int iGpuAlloc){
 
-	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par); // Fd parameter object
+	_fdParam_3D = std::make_shared<fdParam_3D>(vel, par, "Born"); // Fd parameter object
 	_timeInterp_3D = std::make_shared<interpTimeLinTbb_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts, _fdParam_3D->_ots, _fdParam_3D->_sub); // Time interpolation object
 	_secTimeDer = std::make_shared<secondTimeDerivative_3D>(_fdParam_3D->_nts, _fdParam_3D->_dts); // Second time derivative object
 	_iGpu = iGpu; // Gpu number
