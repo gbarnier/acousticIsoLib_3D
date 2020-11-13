@@ -75,7 +75,7 @@ if __name__ == '__main__':
 	if (dataTaper==1):
 		print("--- [fwiFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
 		inv_log.addToLog("--- [fwiFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
-		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
+		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry,dataMask=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# FWI nonlinear operator
 	modelFineInitFloat,dataFloat,sourcesSignalsFloat,parObject,sourcesVector,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.nonlinearFwiOpInitFloat_3D(sys.argv)
@@ -167,7 +167,7 @@ if __name__ == '__main__':
 	# Data tapering
 	if (dataTaper==1):
 		# Instantiate operator
-		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry)
+		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry,dataMask)
 		# If input data have not been tapered yet -> taper them
 		if (rawData==1):
 			if (pyinfo==1):

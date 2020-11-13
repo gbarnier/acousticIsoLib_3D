@@ -65,7 +65,7 @@ if __name__ == '__main__':
 		if (pyinfo==1):
 			print("--- [extLsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
 		inv_log.addToLog("--- [extLsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
-		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
+		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry,dataMask=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# Initialize Born
 	modelInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.BornExtOpInitFloat_3D(sys.argv)
@@ -105,7 +105,7 @@ if __name__ == '__main__':
 	# Data tapering
 	if (dataTaper==1):
 		# Instantiate operator
-		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry)
+		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry,dataMask)
 		# If input data have not been tapered yet -> taper them
 		if (rawData==1):
 			if (pyinfo==1):

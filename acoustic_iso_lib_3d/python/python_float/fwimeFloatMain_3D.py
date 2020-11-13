@@ -81,7 +81,7 @@ if __name__ == '__main__':
 	if (dataTaper==1):
 		print("--- [fwimeFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
 		inv_log.addToLog("--- [fwimeFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
-		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,sourceGeometry,receiverGeometry=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
+		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,sourceGeometry,receiverGeometry,dataMask=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# Gradient mask
 	if (gradientMask==1):
@@ -202,7 +202,7 @@ if __name__ == '__main__':
 	# Data taper
 	if (dataTaper==1):
 		# Instantiate operator
-		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry)
+		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry,dataMask)
 		# If input data have not been tapered yet -> taper them
 		if (rawData==1):
 			if (pyinfo==1):

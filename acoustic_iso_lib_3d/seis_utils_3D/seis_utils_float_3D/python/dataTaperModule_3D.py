@@ -29,8 +29,13 @@ def dataTaperInit_3D(args):
 	sourceGeometry=genericIO.defaultIO.getVector(sourceGeomFile,ndims=2)
 	receiverGeomFile=parObject.getString("receiverGeomFile","None")
 	receiverGeometry=genericIO.defaultIO.getVector(receiverGeomFile,ndims=3)
+	dataMaskFile=parObject.getString("dataMaskFile","None")
+	if dataMaskFile != "None":
+		dataMask=genericIO.defaultIO.getVector(dataMaskFile,ndims=3)
+	else:
+		dataMask=None
 
-	return t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry
+	return t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry,dataMask
 
 class dataTaper(Op.Operator):
 
@@ -67,6 +72,7 @@ class dataTaper(Op.Operator):
 		receiverGeometry=args[18]
 		if("getCpp" in dir(receiverGeometry)):
 			receiverGeometry = receiverGeometry.getCpp()
+		dataMask = args[19]
 
 		# Offset muting + end of trace tapering
 		if (time==0 and offset==1):
@@ -83,6 +89,17 @@ class dataTaper(Op.Operator):
 		# End of trace tapering
 		if (time==0 and offset==0):
 			self.pyOp=pyDataTaper_3D.dataTaper_3D(taperEndTraceWidth,tPow,dataHyper)
+
+		# Adding traveltime mask if requested
+		if dataMask is not None:
+			if time == 0:
+				raise ValueError("ERROR! Cannot use user provided dataMask muting if time muting is not requested!")
+			taperMaskTime = self.getTaperMaskTime_3D()
+			if not dataMask.checkSame(taperMaskTime):
+				raise ValueError("ERROR! Data mask not consistent with data vector")
+			taperMaskTime.getNdArray()[:] *= dataMask.getNdArray()
+			print("---- [dataTaper_3D]: Adding Data taper provided from dataMaskFile ----")
+
 
 		return
 
