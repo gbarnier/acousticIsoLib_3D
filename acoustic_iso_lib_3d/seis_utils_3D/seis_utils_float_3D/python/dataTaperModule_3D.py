@@ -90,7 +90,7 @@ class dataTaper(Op.Operator):
 		if (time==0 and offset==0):
 			self.pyOp=pyDataTaper_3D.dataTaper_3D(taperEndTraceWidth,tPow,dataHyper)
 
-		# Adding traveltime mask if requested
+		# Adding user-defined mask if provided
 		if dataMask is not None:
 			if time == 0:
 				raise ValueError("ERROR! Cannot use user provided dataMask muting if time muting is not requested!")
