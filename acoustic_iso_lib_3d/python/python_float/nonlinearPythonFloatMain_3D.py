@@ -60,7 +60,6 @@ if __name__ == '__main__':
 
 		# Apply forward
 		# t0 = time.time()
-		print("run #",i)
 		nonlinearOp.forward(False,modelFloat,dataFloat)
 		# t1 = time.time()
 		# total = t1-t0

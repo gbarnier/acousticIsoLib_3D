@@ -26,7 +26,8 @@ if __name__ == '__main__':
 	traceNormDerivOp.forward(False,model,data)
 
 	# Run dot-product test
-	# traceNormDerivOp.dotTest(True)
+	if parObject.getInt("dotTest", 0):
+		traceNormDerivOp.dotTest(True)
 
 	# Write data
 	dataFile=parObject.getString("data")

@@ -98,8 +98,19 @@ if __name__ == '__main__':
     # User provided a source/receiver geometry file
 	dataFloat=genericIO.defaultIO.getVector(dataFile)
 
+	# Diagonal Preconditioning
+	PrecFile = parObject.getString("PrecFile","None")
+	Precond = None
+	if PrecFile != "None":
+		if(pyinfo): print("--- Using diagonal preconditioning ---")
+		inv_log.addToLog("--- Using diagonal preconditioning ---")
+		PrecVec=genericIO.defaultIO.getVector(PrecFile,ndims=3)
+		if not PrecVec.checkSame(modelInitFloat):
+			raise ValueError("ERROR! Preconditioning diagonal inconsistent with model vector")
+		Precond = pyOp.DiagonalOp(PrecVec)
+
 	# No regularization
-	invProb=Prblm.ProblemL2Linear(modelInitFloat,dataFloat,invOp)
+	invProb=Prblm.ProblemL2Linear(modelInitFloat,dataFloat,invOp,prec=Precond)
 
 	############################## Solver ######################################
 	# Solver

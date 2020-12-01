@@ -15,6 +15,7 @@ import interpBSplineModule_3D
 import maskGradientModule_3D
 import dataTaperModule_3D
 import dsoGpuModule_3D
+import traceNormModule_3D
 
 # Solver library
 import pyOperator as pyOp
@@ -35,7 +36,7 @@ if __name__ == '__main__':
 	# Auxiliary operators
 	spline=parObject.getInt("spline")
 	dataTaper=parObject.getInt("dataTaper")
-	# traceNorm=parObject.getInt("traceNorm")
+	traceNorm=parObject.getInt("traceNorm")
 	gradientMask=parObject.getInt("gradientMask")
 	print("gradientMask = ",gradientMask)
 	rawData=parObject.getInt("rawData",1)
@@ -83,15 +84,20 @@ if __name__ == '__main__':
 		inv_log.addToLog("--- [fwimeFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
 		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,sourceGeometry,receiverGeometry,dataMask=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
+	# Trace normalization
+	if (traceNorm==1):
+		print("---- [fwimeFloatMain_3D]: User has requestd to use a trace normalization operator on the data ----")
+		inv_log.addToLog("--- [fwimeFloatMain_3D]: User has requestd to use a trace normalization operator on the data ---")
+
 	# Gradient mask
 	if (gradientMask==1):
-		print("--- [fwiFloatMain_3D]: User has requestd to use a MASK for the gradient ---")
-		inv_log.addToLog("--- [fwiFloatMain_3D]: User has requestd to use a MASK for the gradient ---")
+		print("--- [fwimeFloatMain_3D]: User has requestd to use a MASK for the gradient ---")
+		inv_log.addToLog("--- [fwimeFloatMain_3D]: User has requestd to use a MASK for the gradient ---")
 		velDummy,bufferUp,bufferDown,taperExp,fat,wbShift,gradientMaskFile,bathymetryFile=maskGradientModule_3D.maskGradientInit_3D(sys.argv)
 	else:
-		print("--- [fwiFloatMain_3D]: User has NOT requestd to use a MASK for the gradient ---")
-		inv_log.addToLog("--- [fwiFloatMain_3D]: User has NOT requestd to use a MASK for the gradient ---")
-	print("Main 1")
+		print("--- [fwimeFloatMain_3D]: User has NOT requestd to use a MASK for the gradient ---")
+		inv_log.addToLog("--- [fwimeFloatMain_3D]: User has NOT requestd to use a MASK for the gradient ---")
+
 	############################# Seismic operators ############################
 	# Nonlinear modeling operator
 	modelFineInitFloat,dataFloat,sourcesSignalsFloat,parObject,sourcesVector,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.nonlinearFwiOpInitFloat_3D(sys.argv)
@@ -107,7 +113,7 @@ if __name__ == '__main__':
 
 	# Dso
 	nz,nx,ny,nExt1,nExt2,fat,zeroShift=dsoGpuModule_3D.dsoGpuInit_3D(sys.argv)
-	print("Main 2")
+
 	################################# Ginsu ####################################
 	# Ginsu
 	if (parObject.getInt("ginsu",0) == 1):
@@ -117,7 +123,7 @@ if __name__ == '__main__':
 	else:
 		print("--- [fwiFloatMain_3D]: User has NOT requestd to use a Ginsu modeling ---")
 		inv_log.addToLog("--- [fwiFloatMain_3D]: User has NOT requestd to use a Ginsu modeling ---")
-	print("Main 3")
+
 	############################# Read files ###################################
 	# The initial model is read during the initialization of the nonlinear operator (no need to re-read it)
 	# Except for the waveletFile
@@ -199,6 +205,26 @@ if __name__ == '__main__':
 		splineOp=interpBSplineModule_3D.bSpline3d(modelCoarseInit,modelFineInitFloat,zOrder,xOrder,yOrder,zSplineMesh,xSplineMesh,ySplineMesh,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat)
 		splineNlOp=pyOp.NonLinearOperator(splineOp,splineOp) # Create spline nonlinear operator
 
+	# Trace normalization
+	if (traceNorm==1):
+		epsilonTraceNorm=parObject.getFloat("epsilonTraceNorm",1e-10)
+		# Instantiate nonlinear forward
+		traceNormOp=traceNormModule_3D.traceNorm_3D(dataFloat,dataFloat,epsilonTraceNorm)
+		# Instantiate Jacobian
+		traceNormDerivOp=traceNormModule_3D.traceNormDeriv_3D(dataFloat,epsilonTraceNorm)
+		# Instantiate nonlinear operator
+		traceNormNlFwimeOp=pyOp.NonLinearOperator(traceNormOp,traceNormDerivOp,traceNormDerivOp.setData)
+		# If input data has not been normalized yet -> normalize it
+		if (rawData==1):
+			if (pyinfo==1):
+				print("---- [fwimeFloatMain_3D]: User has required a trace normalization and has provided raw observed data -> applying trace normlization on raw observed data ----")
+			inv_log.addToLog("---- [fwimeFloatMain_3D]: User has required a trace normalization and has provided raw observed data -> applying trace normlization on raw observed data ----")
+			# Apply normalization to data
+			dataNormalized = dataFloat.clone()
+			traceNormOp.forward(False,dataFloat,dataNormalized)
+			dataFloat=dataNormalized
+		# fwiInvOp=pyOp.CombNonlinearOp(fwiInvOp,traceNormNlFwiOp)
+
 	# Data taper
 	if (dataTaper==1):
 		# Instantiate operator
@@ -212,10 +238,12 @@ if __name__ == '__main__':
 			dataTaperOp.forward(False,dataFloat,dataTapered) # Apply tapering to the data
 			dataFloat=dataTapered
 		dataTaperNlOp=pyOp.NonLinearOperator(dataTaperOp,dataTaperOp) # Create dataTaper nonlinear operator
-	print("Main 6")
+
 	# Concatenate operators
 	if (spline==1):
 		gInvOp=pyOp.CombNonlinearOp(splineNlOp,gInvOp)
+	if (traceNorm==1):
+		gInvOp=pyOp.CombNonlinearOp(gInvOp,traceNormOp)		
 	if (dataTaper==1):
 		gInvOp=pyOp.CombNonlinearOp(gInvOp,dataTaperNlOp)
 
@@ -235,7 +263,7 @@ if __name__ == '__main__':
 	if (gradientMask==0 and dataTaper==1):
 		BornExtInvOp=pyOp.ChainOperator(BornExtInvOp,dataTaperOp)
 		tomoExtInvOp=pyOp.ChainOperator(tomoExtInvOp,dataTaperOp)
-	print("Main 7")
+
 	# Dso
 	dsoOp=dsoGpuModule_3D.dsoGpu_3D(reflectivityExtInit,reflectivityExtInit,nz,nx,ny,nExt1,nExt2,fat,zeroShift)
 
@@ -256,7 +284,7 @@ if __name__ == '__main__':
 
 	# Variable projection operator for the regularization term
 	vpRegOp=pyOp.VpOperator(dsoNonlinearOp,dsoOp,pyOp.dummy_set_background,pyOp.dummy_set_background)
-	print("Main 8")
+
 	############################### solver #####################################
 	# Initialize solvers
 	# stopNl,logFileNl,saveObjNl,saveResNl,saveGradNl,saveModelNl,invPrefixNl,bufferSizeNl,iterSamplingNl,restartFolderNl,flushMemoryNl,stopLin,logFileLin,saveObjLin,saveResLin,saveGradLin,saveModelLin,invPrefixLin,bufferSizeLin,iterSamplingLin,restartFolderLin,flushMemoryLin,epsilon,info=inversionUtlisFloat_3D.inversionVpInitFloat_3D(sys.argv)
@@ -289,13 +317,13 @@ if __name__ == '__main__':
 		nlSolver.stepper.alpha=initStep
 
 	nlSolver.setDefaults(save_obj=saveObjNl,save_res=saveResNl,save_grad=saveGradNl,save_model=saveModelNl,prefix=invPrefixNl,iter_buffer_size=bufferSizeNl,iter_sampling=iterSamplingNl,flush_memory=flushMemoryNl)
-	print("Main 9")
+
 	############################### Bounds #####################################
 	minBoundVector,maxBoundVector=Acoustic_iso_float_3D.createBoundVectors_3D(parObject,modelInit)
-	print("Main 10")
+
 	######################### Variable projection problem ######################
 	vpProb=Prblm.ProblemL2VpReg(modelInit,reflectivityExtInit,vpOp,data,linSolver,gInvOp,h_op_reg=vpRegOp,epsilon=epsilon,minBound=minBoundVector,maxBound=maxBoundVector,prec=Precond)
-	print("Main 11")
+
 	################################# Inversion ################################
 	# nlSolver.run(vpProb,verbose=info)
 

@@ -100,6 +100,17 @@ if __name__ == '__main__':
 	dataFile=parObject.getString("data")
 	dataFloat=genericIO.defaultIO.getVector(dataFile)
 
+	# Diagonal Preconditioning
+	PrecFile = parObject.getString("PrecFile","None")
+	Precond = None
+	if PrecFile != "None":
+		if(pyinfo): print("--- Using diagonal preconditioning ---")
+		inv_log.addToLog("--- Using diagonal preconditioning ---")
+		PrecVec=genericIO.defaultIO.getVector(PrecFile,ndims=5)
+		if not PrecVec.checkSame(modelInitFloat):
+			raise ValueError("ERROR! Preconditioning diagonal inconsistent with model vector")
+		Precond = pyOp.DiagonalOp(PrecVec)
+
 	############################################################################
 
 	# Data tapering
@@ -137,11 +148,11 @@ if __name__ == '__main__':
 			dsoOp=dsoGpuModule.dsoGpu(modelInitFloat,modelInitFloat,nz,nx,ny,nExt1,nExt2,fat,dsoZeroShift)
 
 			# Instanciate problem
-			invProb=Prblm.ProblemL2LinearReg(modelInitFloat,dataFloat,invOp,epsilon,reg_op=dsoOp)
+			invProb=Prblm.ProblemL2LinearReg(modelInitFloat,dataFloat,invOp,epsilon,reg_op=dsoOp,prec=Precond)
 		else:
 		    raise ValueError("**** ERROR [extLsrtmFloatMain_3D]: Requested regularization operator not available\n")
 	else:
-		invProb=Prblm.ProblemL2Linear(modelInitFloat,dataFloat,invOp)
+		invProb=Prblm.ProblemL2Linear(modelInitFloat,dataFloat,invOp,prec=Precond)
 
 	############################## Solver ######################################
 	# Solver

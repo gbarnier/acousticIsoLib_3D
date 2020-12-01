@@ -7,10 +7,14 @@ using namespace SEP;
 
 int main(int argc, char **argv) {
 
+	std::cout << "Here init" << std::endl;
+
 	// IO bullshit
 	ioModes modes(argc, argv);
 	std::shared_ptr <SEP::genericIO> io = modes.getDefaultIO();
 	std::shared_ptr <paramObj> par = io->getParamObj();
+
+	std::cout << "Here 0" << std::endl;
 
 	// Model
 	std::shared_ptr <genericRegFile> modelFile = io->getRegFile("model",usageIn);
@@ -18,10 +22,14 @@ int main(int argc, char **argv) {
 	std::shared_ptr<SEP::float3DReg> model(new SEP::float3DReg(modelHyper));
 	modelFile->readFloatStream(model);
 
+	std::cout << "Here 0.25" << std::endl;
+
 	// Model parameters
 	long long nz = model->getHyper()->getAxis(1).n;
 	long long nx = model->getHyper()->getAxis(2).n;
 	long long ny = model->getHyper()->getAxis(3).n;
+
+	std::cout << "Here 0.5" << std::endl;
 
 	// Parfile
 	int zPad = par->getInt("zPad");
@@ -30,6 +38,8 @@ int main(int argc, char **argv) {
 	int fat = par->getInt("fat", 4);
 	int blockSize = par->getInt("blockSize", 16);
 	int freeSurface = par->getInt("freeSurface", 0);
+
+	std::cout << "Here 0.75" << std::endl;
 
 	// Compute size of zPadPlus
 	int zPadPlus;
@@ -90,6 +100,8 @@ int main(int argc, char **argv) {
 	dataFile->writeDescription();
 	data->scale(0.0);
 
+	std::cout << "Here 1" << std::endl;
+
 	// Central part on the y-axis
 	for (long long iy=0; iy<ny; iy++){
 
@@ -135,6 +147,8 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
+
+	std::cout << "Here 2" << std::endl;
 
 	// Write model
 	dataFile->writeFloatStream(data);

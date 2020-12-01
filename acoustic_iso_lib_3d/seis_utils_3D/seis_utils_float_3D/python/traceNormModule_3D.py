@@ -26,16 +26,9 @@ class traceNorm_3D(Op.Operator):
 		dataNp=data.getNdArray()
 		if (not add):
 			data.zero()
-		# Loop over shots and receivers
-		nShot = model.getHyper().getAxis(3).n
-		nReceiver = model.getHyper().getAxis(2).n
-		for iShot in range(nShot):
-			for iReceiver in range(nReceiver):
-				# Compute model norm for this trace
-				modelNorm=LA.norm(modelNp[iShot][iReceiver][:])
-				predDatNormInvEps=1.0/(modelNorm+self.epsilonTraceNorm)
-				# Compute normalized data (trace)
-				dataNp[iShot][iReceiver][:]+=modelNp[iShot][iReceiver][:]*predDatNormInvEps
+		# Compute model norm for all traces
+		modelNorm=LA.norm(modelNp,axis=2)
+		dataNp[:]+=modelNp[:]/(np.expand_dims(modelNorm+self.epsilonTraceNorm,axis=2))
 		return
 
 ################################################################################
@@ -73,57 +66,22 @@ class traceNormDeriv_3D(Op.Operator):
 		if (not add):
 			data.zero()
 
-		# Loop over shots and receivers
-		nShot = model.getHyper().getAxis(3).n
-		nReceiver = model.getHyper().getAxis(2).n
-		for iShot in range(nShot):
-			for iReceiver in range(nReceiver):
-
-				# Compute inverse of predicted trace norm
-				predDatNorm=LA.norm(predDatNp[iShot][iReceiver][:])
-				predDatNormInv=1.0/predDatNorm
-				predDatNormInvEps=1.0/(predDatNorm+self.epsilonTraceNorm)
-
-				# Compute cube of inverse of predicted trace norm
-				predDatNormCubeInv=predDatNormInvEps*predDatNormInvEps*predDatNormInv
-
-				# Compute dot product between model and predicted trace
-				dotProdDatMod=np.dot(predDatNp[iShot][iReceiver][:],modelNp[iShot][iReceiver][:])
-
-				# Apply forward
-				dataNp[iShot][iReceiver][:]+=modelNp[iShot][iReceiver][:]*predDatNormInvEps-dotProdDatMod*predDatNormCubeInv*predDatNp[iShot][iReceiver][:]
+		# Compute inverse of predicted trace norm
+		predDatNorm = np.expand_dims(LA.norm(predDatNp,axis=2),axis=2)
+		predDatNormInv=1.0/predDatNorm
+		predDatNormInvEps=1.0/(predDatNorm+self.epsilonTraceNorm)
+		# Compute cube of inverse of predicted trace norm
+		predDatNormCubeInv=predDatNormInvEps*predDatNormInvEps*predDatNormInv
+		# Compute dot product between model and predicted trace
+		dotProdDatMod=np.expand_dims(np.sum(predDatNp*modelNp,axis=2),axis=2)
+		# Apply forward
+		dataNp[:]+=modelNp*predDatNormInvEps-dotProdDatMod*predDatNormCubeInv*predDatNp
 
 		return
 
 	def adjoint(self,add,model,data):
-		# Check domain/range
-		self.checkDomainRange(model,data)
-		modelNp=model.getNdArray()
-		dataNp=data.getNdArray()
-		predDatNp=self.predDat.getNdArray()
-		if (not add):
-			model.zero()
-
-		# Loop over shots and receivers
-		nShot = model.getHyper().getAxis(3).n
-		nReceiver = model.getHyper().getAxis(2).n
-		for iShot in range(nShot):
-			for iReceiver in range(nReceiver):
-
-				# Compute inverse of predicted trace norm
-				predDatNorm=LA.norm(predDatNp[iShot][iReceiver][:])
-				predDatNormInv=1.0/predDatNorm
-				predDatNormInvEps=1.0/(predDatNorm+self.epsilonTraceNorm)
-
-				# Compute cube of inverse of predicted trace norm
-				predDatNormCubeInv=predDatNormInvEps*predDatNormInvEps*predDatNormInv
-
-				# Compute dot product between model and predicted trace
-				dotProdDatMod=np.dot(predDatNp[iShot][iReceiver][:],dataNp[iShot][iReceiver][:])
-
-				# Apply forward
-				modelNp[iShot][iReceiver][:]+=dataNp[iShot][iReceiver][:]*predDatNormInvEps-dotProdDatMod*predDatNormCubeInv*predDatNp[iShot][iReceiver][:]
-
+		# Self-adjoint operator
+		self.forward(add,data,model)
 		return
 
 	def setData(self,data):

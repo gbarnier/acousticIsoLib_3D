@@ -340,13 +340,14 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 	int constantSrcSignal, constantRecGeom;
 
 	// Check whether we use the same source signals for all shots
-	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {constantSrcSignal = 1;}
-	else {constantSrcSignal=0;}
+	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
+		constantSrcSignal = 1;
+	} else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
 	if (_receiversVector.size() == 1) {
-		constantRecGeom=1;}
-	else {constantRecGeom=0;}
+		constantRecGeom=1;
+	} else {constantRecGeom=0;}
 
 	// Create vectors for each GPU
 	std::shared_ptr<SEP::hypercube> hyperModelSlice(new hypercube(model->getHyper()->getAxis(1), model->getHyper()->getAxis(2), model->getHyper()->getAxis(3)));
@@ -386,6 +387,8 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 	#pragma omp parallel for schedule(dynamic,1) num_threads(_nGpu)
 	for (int iShot=0; iShot<_nShot; iShot++){
 
+		// std::cout << "Adj1, iShot = " << iShot << std::endl;
+
 		int iGpu = omp_get_thread_num();
 		int iGpuId = _gpuList[iGpu];
 
@@ -393,15 +396,25 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 		std::shared_ptr<SEP::float2DReg> sourcesSignalsTemp;
 		axis dummyAxis(1);
 
+		// std::cout << "Adj2, iShot = " << iShot << std::endl;
+		// std::cout << "hyperDataSlice->getAxis(1).n = " << hyperDataSlice->getAxis(1).n << std::endl;
+		// std::cout << "hyperDataSlice->getAxis(2).n = " << hyperDataSlice->getAxis(2).n << std::endl;
+
 		// Copy data slice
-		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[iShot*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n]), sizeof(float)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
+		long long int data_idx = iShot*hyperDataSlice->getAxis(1).n;
+		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[data_idx*hyperDataSlice->getAxis(2).n]), sizeof(float)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
+		// std::cout << "Adj 2.5, iShot = " << iShot << std::endl;
 
 		// Temporary arrays/hypercube for the Ginsu
 		std::shared_ptr<SEP::float3DReg> modelTemp;
 
+		// std::cout << "Adj 2.75, iShot = " << iShot << std::endl;
+
 		// If no ginsu is used, use the full model
 		if (_ginsu == 0){
 			modelTemp = model;
+
+		// std::cout << "Adj3, iShot = " << iShot << std::endl;
 
 		// If ginsu is used, copy the part of the model into modelTemp
 		} else {
@@ -418,6 +431,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 
 		// Set acquisition geometry
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 1) ) {
+			// std::cout << "Adj4, iShot = " << iShot << std::endl;
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 1) && (constantSrcSignal == 0) ) {
@@ -430,6 +444,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], sourcesSignalsTemp, _receiversVector[0], modelTemp, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 1) ) {
+			// std::cout << "Adj5, iShot = " << iShot << std::endl;
 			BornObjectVector[iGpu]->setAcquisition_3D(_sourcesVector[iShot], _sourcesSignals, _receiversVector[iShot], modelTemp, dataSliceVector[iGpu]);
 		}
 		if ( (constantRecGeom == 0) && (constantSrcSignal == 0) ) {
@@ -447,8 +462,11 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 
 		// Launch modeling
 		if (_ginsu == 0){
+			// std::cout << "iShot = " << iShot << std::endl;
+			// std::cout << "iGpu = " << iGpu << std::endl;
 			// Launch adjoint
 			BornObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+			// std::cout << "Done iShot = " << iShot << std::endl;
 		} else {
 			// Launch adjoint
 			BornObjectVector[iGpu]->adjoint(false, modelTemp, dataSliceVector[iGpu]);
@@ -476,8 +494,11 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
+
+	// std::cout << "Done adjoint, stacking all shots" << std::endl;
 	// Stack models computed by each GPU
     for (int iGpu=0; iGpu<_nGpu; iGpu++){
+		// std::cout << "Stacking shots from gpu#" << iGpu << std::endl;
         #pragma omp parallel for
         for (int iy=0; iy<model->getHyper()->getAxis(3).n; iy++){
             for (int ix=0; ix<model->getHyper()->getAxis(2).n; ix++){
@@ -487,8 +508,11 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
             }
         }
     }
+
+	// std::cout << "Done adjoint" << std::endl;
 	// Deallocate memory on device
 	if (_ginsu == 0){
+		// std::cout << "Done adjoint + deallocation" << std::endl;
 		for (int iGpu=0; iGpu<_nGpu; iGpu++){
 			deallocateBornShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
