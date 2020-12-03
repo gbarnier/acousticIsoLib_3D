@@ -9,6 +9,8 @@ BornExtGpu_3D::BornExtGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_
 	_nGpu = nGpu; // Number of requested GPUs
 	_iGpuId = iGpuId;
 	_ginsu = _fdParam_3D->_par->getInt("ginsu");
+	_slowSquare = par->getInt("slowSquare");
+	std::cout << "Slowness squared = " << _slowSquare << std::endl;
 
 	// Initialize GPU
 	if (_ginsu == 0){
@@ -56,18 +58,10 @@ void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> m
 
 			// No Ginsu
 			if (_ginsu==0){
-				// std::cout << "Born model min inside = " << model->min() << std::endl;
-				// std::cout << "Born model max inside = " << model->max() << std::endl;
-				BornTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born dataRegDts min inside = " << dataRegDts->min() << std::endl;
-				// std::cout << "Born dataRegDts max inside = " << dataRegDts->max() << std::endl;
+				BornTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			// Ginsu
 			} else {
-				// std::cout << "Born model Ginsu min inside = " << model->min() << std::endl;
-				// std::cout << "Born model Ginsu max inside = " << model->max() << std::endl;
-				BornTauShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born dataRegDts Ginsu min inside = " << dataRegDts->min() << std::endl;
-				// std::cout << "Born dataRegDts Ginsu max inside = " << dataRegDts->max() << std::endl;
+				BornTauShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		}
 		// Subsurface offset extension
@@ -75,19 +69,10 @@ void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> m
 
 			// No Ginsu
 			if (_ginsu==0){
-				// std::cout << "Born model min inside = " << model->min() << std::endl;
-				// std::cout << "Born model max inside = " << model->max() << std::endl;
-				BornHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born dataRegDts min inside = " << dataRegDts->min() << std::endl;
-				// std::cout << "Born dataRegDts max inside = " << dataRegDts->max() << std::endl;
-
+				BornHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			// Ginsu
 			} else {
-				// std::cout << "Born model Ginsu min inside = " << model->min() << std::endl;
-				// std::cout << "Born model Ginsu max inside = " << model->max() << std::endl;
-				BornHxHyShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born dataRegDts Ginsu min inside = " << dataRegDts->min() << std::endl;
-				// std::cout << "Born dataRegDts Ginsu max inside = " << dataRegDts->max() << std::endl;
+				BornHxHyShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 
 		} else {
@@ -101,19 +86,11 @@ void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> m
 
 			// No Ginsu
 			if (_ginsu==0){
-				// std::cout << "Born time Fs model min inside = " << model->min() << std::endl;
-				// std::cout << "Born time Fs model max inside = " << model->max() << std::endl;
-				BornTauFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born time dataRegDts Fs min inside = " << dataRegDts->min() << std::endl;
-				// std::cout << "Born time dataRegDts Fs max inside = " << dataRegDts->max() << std::endl;
+				BornTauFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 			// Ginsu
 			else {
-				// std::cout << "Born time Fs Ginsu model min inside = " << model->min() << std::endl;
-				// std::cout << "Born time Fs Ginsu model max inside = " << model->max() << std::endl;
-				BornTauFreeSurfaceShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born time dataRegDts Fs Ginsu min inside = " << dataRegDts->min() << std::endl;
-				// std::cout << "Born time dataRegDts Fs Ginsu max inside = " << dataRegDts->max() << std::endl;
+				BornTauFreeSurfaceShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		}
 
@@ -121,19 +98,11 @@ void BornExtGpu_3D::forward(const bool add, const std::shared_ptr<double5DReg> m
 		else if (_fdParam_3D->_extension == "offset") {
 			// No Ginsu
 			if (_ginsu==0){
-				// std::cout << "Born offset Fs model min inside = " << model->min() << std::endl;
-				// std::cout << "Born offset Fs model max inside = " << model->max() << std::endl;
-				BornHxHyFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born offset dataRegDts Fs min inside = " << dataRegDts->min() << std::endl;
-				// std::cout << "Born offset dataRegDts Fs max inside = " << dataRegDts->max() << std::endl;
+				BornHxHyFreeSurfaceShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 			// Ginsu
 			else {
-				// std::cout << "Born offset Fs Ginsu model min inside = " << model->min() << std::endl;
-				// std::cout << "Born offset Fs Ginsu model max inside = " << model->max() << std::endl;
-				BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born offset dataRegDts Fs Ginsu min inside = " << dataRegDts->min() << std::endl;
-				// std::cout << "Born offset dataRegDts Fs Ginsu max inside = " << dataRegDts->max() << std::endl;
+				BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		}
 		else {
@@ -167,15 +136,11 @@ void BornExtGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> model, 
 
 			// No ginsu
 			if (_ginsu==0){
-				// std::cout << "Born time, model max inside = " << dataRegDts->max() << std::endl;
-				// std::cout << "Born time, model min inside = " << dataRegDts->min() << std::endl;
-				BornTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born time, modelTemp max inside = " << modelTemp->max() << std::endl;
-				// std::cout << "Born time, modelTemp min inside = " << modelTemp->min() << std::endl;
+				BornTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 			// Ginsu
 			else {
-				BornTauShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				BornTauShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 
 		// Subsurface offsets
@@ -183,15 +148,11 @@ void BornExtGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> model, 
 
 			// No ginsu
 			if (_ginsu==0){
-				// std::cout << "Born offset, model max inside = " << dataRegDts->max() << std::endl;
-				// std::cout << "Born offset, model min inside = " << dataRegDts->min() << std::endl;
-				BornHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born offset, data max inside = " << modelTemp->max() << std::endl;
-				// std::cout << "Born offset, data min inside = " << modelTemp->min() << std::endl;
+				BornHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 			// Ginsu
 			else {
-				BornHxHyShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				BornHxHyShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		} else {
 			std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of extension (time of offset) ****" << std::endl; throw std::runtime_error("");
@@ -205,14 +166,10 @@ void BornExtGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> model, 
 
 			// No ginsu
 			if (_ginsu==0) {
-				// std::cout << "Born time Fs, data max inside = " << dataRegDts->max() << std::endl;
-				// std::cout << "Born time Fs, data min inside = " << dataRegDts->min() << std::endl;
-				BornTauFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born time Fs, model max inside = " << modelTemp->max() << std::endl;
-				// std::cout << "Born time Fs, model min inside = " << modelTemp->min() << std::endl;
+				BornTauFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			// Ginsu
 			} else {
-				BornTauFreeSurfaceShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				BornTauFreeSurfaceShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		}
 
@@ -220,15 +177,11 @@ void BornExtGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> model, 
 		else if (_fdParam_3D->_extension == "offset") {
 			// No ginsu
 			if (_ginsu==0){
-				// std::cout << "Born offset, model max inside = " << modelTemp->max() << std::endl;
-				// std::cout << "Born offset, model min inside = " << modelTemp->min() << std::endl;
-				BornHxHyFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Born offset, data max inside = " << dataRegDts->max() << std::endl;
-				// std::cout << "Born offset, data min inside = " << dataRegDts->min() << std::endl;
+				BornHxHyFreeSurfaceShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 			// Ginsu
 			else {
-				BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		} else {
 			std::cout << "**** ERROR [BornExtGpu_3D]: Please specify the type of extension (time of offset) ****" << std::endl; throw std::runtime_error("");

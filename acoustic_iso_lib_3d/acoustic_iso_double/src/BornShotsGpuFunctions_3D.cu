@@ -1656,7 +1656,7 @@ void BornShotsFwdFreeSurfaceGinsuGpu_3D(double *model, double *dataRegDts, doubl
 /****************************** Born adjoint **********************************/
 /******************************************************************************/
 // Normal
-void BornShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1894,6 +1894,43 @@ void BornShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 	// Copy model back to host
 	cuda_call(cudaMemcpy(model, dev_modelBorn[iGpu], host_nModel*sizeof(double), cudaMemcpyDeviceToHost));
 
+	// Apply source wavefield cross-correlation illumination compensation for RTM image
+	if (rtm == 1){
+
+		// Declare and allocate source wavefield cross-correlation
+		double *sourceXcor = new double[host_nModel];
+		double host_epsilonXcor = 1e-10;
+
+		// Setting memory to zero
+		std::memset(sourceXcor, 0, host_nModel*sizeof(double));
+
+		// Compute cross-correlation
+		for (long long its = 0; its < host_nts; its++){
+			#pragma omp parallel for collapse(3)
+			for (long long iy = FAT; iy < host_ny-FAT; iy++){
+				for (long long ix = FAT; ix < host_nx-FAT; ix++){
+					for (long long iz = FAT; iz < host_nz-FAT; iz++){
+						long long indexWavefield = its * host_nModel + iy * host_nx * host_nz + ix * host_nz + iz;
+						long long indexXcor = iy * host_nx * host_nz + ix * host_nz + iz;
+						sourceXcor[indexXcor] += pin_wavefieldSlice[iGpu][indexWavefield] * pin_wavefieldSlice[iGpu][indexWavefield];
+					}
+				}
+			}
+		}
+		// Apply weighting to image
+		#pragma omp parallel for collapse(3)
+		for (long long iy = FAT; iy < host_ny-FAT; iy++){
+			for (long long ix = FAT; ix < host_nx-FAT; ix++){
+				for (long long iz = FAT; iz < host_nz-FAT; iz++){
+					long long indexImage = iy * host_nx * host_nz + ix * host_nz + iz;
+					model[indexImage] *= 1.0 / (sourceXcor[indexImage] + host_epsilonXcor);
+				}
+			}
+		}
+		// Deallocate array
+		delete[] sourceXcor;
+	}
+
 	/*************************** Memory deallocation **************************/
 	// Deallocate the array for sources/receivers' positions
     cuda_call(cudaFree(dev_sourcesPositionReg[iGpu]));
@@ -1905,7 +1942,7 @@ void BornShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignal
 }
 
 // Ginsu
-void BornShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int rtm, int nReceiversReg, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2149,7 +2186,7 @@ void BornShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesS
 }
 
 // Free surface
-void BornShotsAdjFreeSurfaceGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsAdjFreeSurfaceGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int rtm, int nReceiversReg, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2398,7 +2435,7 @@ void BornShotsAdjFreeSurfaceGpu_3D(double *model, double *dataRegDts, double *so
 }
 
 // Free surface + Ginsu
-void BornShotsAdjFreeSurfaceGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsAdjFreeSurfaceGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int rtm, int nReceiversReg, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number

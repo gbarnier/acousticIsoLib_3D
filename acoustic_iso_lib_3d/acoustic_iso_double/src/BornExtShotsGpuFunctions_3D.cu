@@ -560,7 +560,7 @@ void deallocatePinnedBornExtShotsGpu_3D(int iGpu, int iGpuId){
 
 /******************************* No free surface ******************************/
 // Time
-void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -736,11 +736,21 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 	// double duration;
 	// start = std::clock();
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+	// Apply scaling to reflectivity
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags)
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// std::cout << "Slowness squared" << std::endl;
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -913,7 +923,7 @@ void BornTauShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 }
 
 // Time Ginsu
-void BornTauShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -963,15 +973,6 @@ void BornTauShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourc
 
 	// Blocks data recording
 	int nblockData = (nReceiversReg+BLOCK_SIZE_DATA-1) / BLOCK_SIZE_DATA;
-
-	// std::cout << "host_nz_ginsu[iGpu] =" << host_nz_ginsu[iGpu] << std::endl;
-	// std::cout << "host_nx_ginsu[iGpu] =" << host_nx_ginsu[iGpu] << std::endl;
-	// std::cout << "host_ny_ginsu[iGpu] =" << host_ny_ginsu[iGpu] << std::endl;
-	// std::cout << "host_nExt1 =" << host_nExt1 << std::endl;
-	// std::cout << "host_hExt1 =" << host_hExt1 << std::endl;
-	// std::cout << "host_nExt2 =" << host_nExt2 << std::endl;
-	// std::cout << "host_hExt2 =" << host_hExt2 << std::endl;
-	// std::cout << "host_sub =" << host_sub << std::endl;
 
 	// Timer
 	std::clock_t start;
@@ -1086,11 +1087,19 @@ void BornTauShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourc
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize data on device
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -1254,7 +1263,7 @@ void BornTauShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourc
 }
 
 // Offset
-void BornHxHyShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1409,12 +1418,23 @@ void BornHxHyShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSi
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+	if (slowSquare == 0 ){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity in slowness squared -> multiply by (-1)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2);
+			}
 		}
 	}
 
@@ -1540,7 +1560,7 @@ void BornHxHyShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSi
 }
 
 // Offset Ginsu
-void BornHxHyShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1682,12 +1702,22 @@ void BornHxHyShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sour
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 
@@ -1814,7 +1844,7 @@ void BornHxHyShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sour
 
 /******************************* Free surface *********************************/
 // Time
-void BornTauFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1984,11 +2014,19 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double 
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize data on device
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -2157,7 +2195,7 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double 
 }
 
 // Time Ginsu
-void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2324,11 +2362,19 @@ void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, do
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize data on device
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -2497,7 +2543,7 @@ void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, do
 }
 
 // Offset
-void BornHxHyFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2648,12 +2694,23 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization in slowness squared: -1.0
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2);
+			}
 		}
 	}
 
@@ -2778,7 +2835,7 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(double *model, double *dataRegDts, double
 }
 
 // Offset
-void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2929,12 +2986,23 @@ void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, d
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(double))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(double))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization parametrized in slowness squared
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 
@@ -3065,7 +3133,7 @@ void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, d
 /************************** Born extended adjoint *****************************/
 /******************************************************************************/
 // Time
-void BornTauShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 
 		// We assume the source wavelet/signals already contain the second time derivative
@@ -3387,11 +3455,19 @@ void BornTauShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 			imagingTauAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 		}
 
-		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-		for (int iExt=0; iExt<host_nExt1; iExt++){
-			long long extStride = iExt * host_nVel;
-			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		if (slowSquare == 0){
+			// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+			// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+			for (int iExt=0; iExt<host_nExt1; iExt++){
+				long long extStride = iExt * host_nVel;
+				scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+			}
+		} else {
+			// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+			for (int iExt=0; iExt<host_nExt1; iExt++){
+				long long extStride = iExt * host_nVel;
+				scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride);
+			}
 		}
 
 		cuda_call(cudaDeviceSynchronize());
@@ -3410,7 +3486,7 @@ void BornTauShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSig
 }
 
 // Time Ginsu
-void BornTauShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -3727,11 +3803,19 @@ void BornTauShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourc
 		imagingTauAdjGinsuGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt, iGpu);
 	}
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	cuda_call(cudaDeviceSynchronize());
@@ -3750,7 +3834,7 @@ void BornTauShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourc
 }
 
 // Offset
-void BornHxHyShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -3993,19 +4077,26 @@ void BornHxHyShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSi
 	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
 	// }
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
 		}
-	}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization in slowness squared
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2);
+			}
+		}
 
-	// for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-	// 	long long extStride = iExt1 * host_nVel;
-	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
-	// }
+	}
 
 	cuda_call(cudaDeviceSynchronize());
 
@@ -4022,7 +4113,7 @@ void BornHxHyShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSi
 
 }
 
-void BornHxHyShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -4260,19 +4351,25 @@ void BornHxHyShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sour
 	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
 	// }
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization in slowness squared
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
-
-	// for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-	// 	long long extStride = iExt1 * host_nVel;
-	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
-	// }
 
 	cuda_call(cudaDeviceSynchronize());
 
@@ -4291,7 +4388,7 @@ void BornHxHyShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sour
 
 /******************************* Free surface *********************************/
 // Time
-void BornTauFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -4616,11 +4713,19 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double 
 		imagingTauAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 	}
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
 	}
 
 	cuda_call(cudaDeviceSynchronize());
@@ -4639,7 +4744,7 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double 
 }
 
 // Time Ginsu
-void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -4962,11 +5067,19 @@ void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, do
 		imagingTauAdjGinsuGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt, iGpu);
 	}
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	cuda_call(cudaDeviceSynchronize());
@@ -4985,7 +5098,7 @@ void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, do
 }
 
 // Offset
-void BornHxHyFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -5231,19 +5344,26 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double
 	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
 	// }
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
 		}
-	}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2);
+			}
+		}
 
-	// for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-	// 	long long extStride = iExt1 * host_nVel;
-	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
-	// }
+	}
 
 	cuda_call(cudaDeviceSynchronize());
 
@@ -5261,7 +5381,7 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(double *model, double *dataRegDts, double
 }
 
 // Offset
-void BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -5502,19 +5622,25 @@ void BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(double *model, double *dataRegDts, d
 	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
 	// }
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
-
-	// for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-	// 	long long extStride = iExt1 * host_nVel;
-	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
-	// }
 
 	cuda_call(cudaDeviceSynchronize());
 

@@ -23,6 +23,7 @@ class tomoExtGpu_3D : public seismicOperator_3D<SEP::double3DReg, SEP::double2DR
 
 	private:
 
+		int _slowSquare;
 		int _leg1, _leg2;
 		int _wavefieldSize;
 		std::shared_ptr<double5DReg> _extReflectivity;

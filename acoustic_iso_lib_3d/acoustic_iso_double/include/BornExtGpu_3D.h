@@ -23,6 +23,7 @@ class BornExtGpu_3D : public seismicOperator_3D<SEP::double5DReg, SEP::double2DR
 
 	private:
 
+		int _slowSquare;
 		int _wavefieldSize;
 
 	public:
