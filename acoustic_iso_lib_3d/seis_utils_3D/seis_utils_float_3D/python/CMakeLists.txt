@@ -41,6 +41,8 @@ pybind11_add_module(pyDataTaper_3D MODULE pyDataTaper_3D.cpp)
 target_link_libraries(pyDataTaper_3D PRIVATE SEIS_UTILS_FLOAT_LIB ${LIBS})
 pybind11_add_module(pyDsoGpu_3D MODULE pyDsoGpu_3D.cpp)
 target_link_libraries(pyDsoGpu_3D PRIVATE SEIS_UTILS_FLOAT_LIB ${LIBS})
+pybind11_add_module(pyTraceNorm_3D MODULE pyTraceNorm_3D.cpp)
+target_link_libraries(pyTraceNorm_3D PRIVATE SEIS_UTILS_FLOAT_LIB ${LIBS})
 
 # Installing library
 set(PYTHON_DIR "lib/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}")
@@ -52,6 +54,7 @@ install( FILES dataTaperModule_3D.py DESTINATION ${PYTHON_DIR})
 install( FILES traceNormModule_3D.py DESTINATION ${PYTHON_DIR})
 install( FILES dsoGpuModule_3D.py DESTINATION ${PYTHON_DIR})
 install( TARGETS pyDsoGpu_3D DESTINATION ${PYTHON_DIR})
+install( TARGETS pyTraceNorm_3D DESTINATION ${PYTHON_DIR})
 
 # Installing Python executables
 install( FILES interpBSplineIterMain_3D.py PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ DESTINATION bin)

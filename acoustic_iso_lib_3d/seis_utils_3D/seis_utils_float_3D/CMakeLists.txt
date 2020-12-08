@@ -15,17 +15,18 @@ include_directories(include)
 set(SRC_DIR src)
 #Files for nonLinear operator library
 set(SOURCE_NL ${SRC_DIR}/interpBSpline_3D.cpp
-			  ${SRC_DIR}/dataTaper_3D.cpp
-			  ${SRC_DIR}/dsoGpu_3D.cpp
+			  			${SRC_DIR}/dataTaper_3D.cpp
+			  			${SRC_DIR}/dsoGpu_3D.cpp
+							${SRC_DIR}/traceNorm_3D.cpp
 )
 
 #SEP LIBRARY DIRECTORIES
 link_directories(${Generic-cpp_BINARY_DIR}
-				 ${hypercube_BINARY_DIR}
-				 ${buffers-lib_BINARY_DIR}
-				 ${json_BINARY_DIR}
-				 ${sepVector-lib_BINARY_DIR}
-				 ${SEPlib_LIBDIR}
+				 				 ${hypercube_BINARY_DIR}
+				 				 ${buffers-lib_BINARY_DIR}
+				 				 ${json_BINARY_DIR}
+				 				 ${sepVector-lib_BINARY_DIR}
+				 				 ${SEPlib_LIBDIR}
 )
 
 #Setting io libraries

@@ -3,6 +3,7 @@ import pyOperator as Op
 import genericIO
 import SepVector
 import Hypercube
+import pyTraceNorm_3D
 import numpy as np
 from numpy import linalg as LA
 
@@ -13,23 +14,26 @@ from numpy import linalg as LA
 class traceNorm_3D(Op.Operator):
 
 	def __init__(self,domain,range,epsilonTraceNorm):
-		self.epsilonTraceNorm=epsilonTraceNorm
-		if (self.epsilonTraceNorm <= 0.0):
+		if (epsilonTraceNorm <= 0.0):
 		    raise ValueError("**** ERROR [phaseOnly_3D]: Epsilon-shift value must be > 0 ****\n")
 		self.setDomainRange(domain,range)
+		if("getCpp" in dir(domain)):
+			domain = domain.getCpp()
+		self.pyOp = pyTraceNorm_3D.traceNorm_3D(domain,epsilonTraceNorm)
 		return
 
 	def forward(self,add,model,data):
 		# Check domain/range
 		self.checkDomainRange(model,data)
-		modelNp=model.getNdArray()
-		dataNp=data.getNdArray()
 		if (not add):
 			data.zero()
-		# Compute model norm for all traces
-		modelNorm=LA.norm(modelNp,axis=2)
-		dataNp[:]+=modelNp[:]/(np.expand_dims(modelNorm+self.epsilonTraceNorm,axis=2))
-		del modelNorm
+		if("getCpp" in dir(model)):
+			model = model.getCpp()
+		if("getCpp" in dir(data)):
+			data = data.getCpp()
+		# Apply trace norm operator
+		with pyTraceNorm_3D.ostream_redirect():
+			self.pyOp.forward(add,model,data)
 		return
 
 ################################################################################
@@ -44,41 +48,34 @@ def traceNormDerivInit_3D(args):
 	epsilonTraceNorm=parObject.getFloat("epsilonTraceNorm",1.0e-10)
 	predDataFile=parObject.getString("predData")
 	predDat=genericIO.defaultIO.getVector(predDataFile,ndims=3)
-	predDatNp=predDat.getNdArray()
 
 	return predDat,epsilonTraceNorm
 
 class traceNormDeriv_3D(Op.Operator):
 
 	def __init__(self,predDat,epsilonTraceNorm):
-
 		# Set domain/range (same size as observed/predicted data)
 		self.setDomainRange(predDat,predDat)
-		self.epsilonTraceNorm=epsilonTraceNorm
-		self.predDat=predDat
+		if (epsilonTraceNorm <= 0.0):
+		    raise ValueError("**** ERROR [phaseOnly_3D]: Epsilon-shift value must be > 0 ****\n")
+		if("getCpp" in dir(predDat)):
+			predDat = predDat.getCpp()
+		self.pyOp = pyTraceNorm_3D.traceNormJac_3D(predDat,epsilonTraceNorm)
 		return
 
 	def forward(self,add,model,data):
 		# Check domain/range
 		self.checkDomainRange(model,data)
-		modelNp=model.getNdArray()
-		dataNp=data.getNdArray()
-		predDatNp=self.predDat.getNdArray()
 		if (not add):
 			data.zero()
-
-		# Compute inverse of predicted trace norm
-		predDatNorm = np.expand_dims(LA.norm(predDatNp,axis=2),axis=2)
-		predDatNormInv=1.0/predDatNorm
-		predDatNormInvEps=1.0/(predDatNorm+self.epsilonTraceNorm)
-		# Compute cube of inverse of predicted trace norm
-		predDatNormCubeInv=predDatNormInvEps*predDatNormInvEps*predDatNormInv
-		# Compute dot product between model and predicted trace
-		dotProdDatMod=np.expand_dims(np.sum(predDatNp*modelNp,axis=2),axis=2)
-		# Apply forward
-		for ishot in range(dataNp.shape[0]):
-			dataNp[ishot,:,:]+=modelNp[ishot,:,:]*predDatNormInvEps[ishot,:]-dotProdDatMod[ishot,:]*predDatNormCubeInv[ishot,:]*predDatNp[ishot,:,:]
-		del predDatNorm, predDatNormInv, predDatNormCubeInv
+		# Applying Jacobian trace norm operator
+		if("getCpp" in dir(model)):
+			model = model.getCpp()
+		if("getCpp" in dir(data)):
+			data = data.getCpp()
+		# Apply trace norm operator
+		with pyTraceNorm_3D.ostream_redirect():
+			self.pyOp.forward(add,model,data)
 		return
 
 	def adjoint(self,add,model,data):
@@ -88,4 +85,6 @@ class traceNormDeriv_3D(Op.Operator):
 
 	def setData(self,data):
 		# Pointer assignement
-		self.predDat=data
+		if("getCpp" in dir(data)):
+			data = data.getCpp()
+		self.pyOp.setDat(data)

@@ -15,11 +15,11 @@ PYBIND11_MODULE(pyDsoGpu_3D, clsGeneric) {
 
   py::class_<dsoGpu_3D, std::shared_ptr<dsoGpu_3D>>(clsGeneric,"dsoGpu_3D")
 
-      .def(py::init<int,int,int,int,int,int,double>(), "Initialize a DSO operator")
+      .def(py::init<int,int,int,int,int,int,float>(), "Initialize a DSO operator")
 
-      .def("forward", (void (dsoGpu_3D::*)(const bool, const std::shared_ptr<double5DReg>, std::shared_ptr<double5DReg>)) &dsoGpu_3D::forward, "Forward")
+      .def("forward", (void (dsoGpu_3D::*)(const bool, const std::shared_ptr<float5DReg>, std::shared_ptr<float5DReg>)) &dsoGpu_3D::forward, "Forward")
 
-      .def("adjoint", (void (dsoGpu_3D::*)(const bool, const std::shared_ptr<double5DReg>, std::shared_ptr<double5DReg>)) &dsoGpu_3D::adjoint, "Adjoint")
+      .def("adjoint", (void (dsoGpu_3D::*)(const bool, const std::shared_ptr<float5DReg>, std::shared_ptr<float5DReg>)) &dsoGpu_3D::adjoint, "Adjoint")
 
   ;
 }
