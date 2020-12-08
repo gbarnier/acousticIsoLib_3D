@@ -48,23 +48,23 @@ if __name__ == '__main__':
 
 	# Extension type
 	if (extension=="time"):
-		if(pyinfo==1): print("---- [extLsrtmFloatMain_3D]: User has requestd to use a time-lag extension ----\n")
-		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requestd to use a time-lag extension ----")
+		if(pyinfo==1): print("---- [extLsrtmFloatMain_3D]: User has requested to use a time-lag extension ----\n")
+		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requested to use a time-lag extension ----")
 	elif (extension=="offset"):
-		if(pyinfo==1): print("---- [extLsrtmFloatMain_3D]: User has requestd to use a horizontal subsurface offsets extension ----\n")
-		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requestd to use a horizontal subsurface offsets extension ----")
+		if(pyinfo==1): print("---- [extLsrtmFloatMain_3D]: User has requested to use a horizontal subsurface offsets extension ----\n")
+		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requested to use a horizontal subsurface offsets extension ----")
 
 	# Free surface
 	if (parObject.getInt("freeSurface",0) == 1):
 		if (pyinfo==1):
-			print("---- [extLsrtmFloatMain_3D]: User has requestd to use a free surface modeling ----")
-		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requestd to use a free surface modeling ----")
+			print("---- [extLsrtmFloatMain_3D]: User has requested to use a free surface modeling ----")
+		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requested to use a free surface modeling ----")
 
 	# Data tapering
 	if (dataTaper==1):
 		if (pyinfo==1):
-			print("--- [extLsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
-		inv_log.addToLog("--- [extLsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
+			print("--- [extLsrtmFloatMain_3D]: User has requested to use a data tapering mask for the data ---")
+		inv_log.addToLog("--- [extLsrtmFloatMain_3D]: User has requested to use a data tapering mask for the data ---")
 		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry,dataMask=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# Initialize Born
@@ -73,8 +73,8 @@ if __name__ == '__main__':
 	# Check if Ginsu is required
 	if (parObject.getInt("ginsu",0) == 1):
 		if (pyinfo==1):
-			print("---- [extLsrtmFloatMain_3D]: User has requestd to use a Ginsu modeling ----")
-		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requestd to use a Ginsu modeling ----")
+			print("---- [extLsrtmFloatMain_3D]: User has requested to use a Ginsu modeling ----")
+		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requested to use a Ginsu modeling ----")
 		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu=Acoustic_iso_float_3D.buildGeometryGinsu_3D(parObject,velFloat,sourcesVector,receiversVector)
 
 	# Construct Born operator object - No Ginsu
@@ -140,8 +140,8 @@ if __name__ == '__main__':
 		# Dso regularization
 		if (regType=="dso"):
 			if (pyinfo):
-				print("---- [extLsrtmFloatMain_3D]: User has requestd to use a DSO regularization ----")
-			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requestd to use a DSO regularization ----")
+				print("---- [extLsrtmFloatMain_3D]: User has requested to use a DSO regularization ----")
+			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requested to use a DSO regularization ----")
 
 			# Instanciate DSO operator
 			nz,nx,ny,nExt1,nExt2,fat,dsoZeroShift=dsoGpuModule.dsoGpuInit(sys.argv)

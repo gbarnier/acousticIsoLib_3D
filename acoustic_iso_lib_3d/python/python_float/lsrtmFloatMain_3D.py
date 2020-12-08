@@ -41,13 +41,13 @@ if __name__ == '__main__':
 	inv_log.addToLog("------------------ Linearized waveform inversion --------------")
 
 	if (parObject.getInt("freeSurface",0) == 1):
-		print("---- [lsrtmFloatMain_3D]: User has requestd to use a free surface modeling ----")
-		inv_log.addToLog("---- [lsrtmFloatMain_3D]: User has requestd to use a free surface modeling ----")
+		print("---- [lsrtmFloatMain_3D]: User has requested to use a free surface modeling ----")
+		inv_log.addToLog("---- [lsrtmFloatMain_3D]: User has requested to use a free surface modeling ----")
 
 	# Data tapering
 	if (dataTaper==1):
-		print("--- [lsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
-		inv_log.addToLog("--- [lsrtmFloatMain_3D]: User has requestd to use a data tapering mask for the data ---")
+		print("--- [lsrtmFloatMain_3D]: User has requested to use a data tapering mask for the data ---")
+		inv_log.addToLog("--- [lsrtmFloatMain_3D]: User has requested to use a data tapering mask for the data ---")
 		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,sourceGeometry,receiverGeometry,dataMask=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# Initialize Born
@@ -55,8 +55,8 @@ if __name__ == '__main__':
 
 	# Check if Ginsu is required
 	if (parObject.getInt("ginsu",0) == 1):
-		print("---- [lsrtmFloatMain_3D]: User has requestd to use a Ginsu modeling ----")
-		inv_log.addToLog("---- [lsrtmFloatMain_3D]: User has requestd to use a Ginsu modeling ----")
+		print("---- [lsrtmFloatMain_3D]: User has requested to use a Ginsu modeling ----")
+		inv_log.addToLog("---- [lsrtmFloatMain_3D]: User has requested to use a Ginsu modeling ----")
 		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu=Acoustic_iso_float_3D.buildGeometryGinsu_3D(parObject,velFloat,sourcesVector,receiversVector)
 
 	# Construct Born operator object - No Ginsu

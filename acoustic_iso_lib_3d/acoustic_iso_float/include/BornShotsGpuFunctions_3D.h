@@ -34,27 +34,27 @@ void deallocatePinnedBornShotsGpu_3D(int iGpu, int iGpuId);
 /****************************** Born forward **********************************/
 /******************************************************************************/
 // Normal
-void BornShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+void BornShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId);
 
 // Ginsu
-void BornShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+void BornShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId);
 
 // Free surface
-void BornShotsFwdFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+void BornShotsFwdFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId);
 
 // Free surface + Ginsu
-void BornShotsFwdFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+void BornShotsFwdFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId);
 
 /******************************************************************************/
 /****************************** Born adjoint **********************************/
 /******************************************************************************/
-void BornShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+void BornShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId);
 
-void BornShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+void BornShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId);
 
-void BornShotsAdjFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+void BornShotsAdjFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId);
 
-void BornShotsAdjFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId);
+void BornShotsAdjFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId);
 
 // void BornShotsAdjNoStreamGpu_3D(float *model, float *dataRegDtw, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, float *srcWavefield, int iGpu, int iGpuId);
 

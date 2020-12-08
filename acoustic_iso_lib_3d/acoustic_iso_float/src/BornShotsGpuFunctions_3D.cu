@@ -476,7 +476,7 @@ void deallocatePinnedBornShotsGpu_3D(int iGpu, int iGpuId){
 /****************************** Born forward **********************************/
 /******************************************************************************/
 // Normal
-void BornShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -598,9 +598,60 @@ void BornShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, 
 	cuda_call(cudaMemset(dev_pRight[iGpu], 0, host_nModel*sizeof(float)));
   	cuda_call(cudaMemset(dev_pStream[iGpu], 0, host_nModel*sizeof(float)));
 
+	// Apply source wavefield cross-correlation illumination compensation for RTM image
+	if (rtm == 1){
 
-	// Copy model to device
-	cuda_call(cudaMemcpy(dev_modelBorn[iGpu], model, host_nModel*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+		// Declare and allocate source wavefield cross-correlation
+		float *sourceXcor = new float[host_nModel];
+		float *tempModel = new float[host_nModel];
+		float host_epsilonXcor = 1.0e-5;
+		float maxXcor;
+
+		// Setting memory to zero
+		std::memset(sourceXcor, 0, host_nModel*sizeof(float));
+		std::memset(tempModel, 0, host_nModel*sizeof(float));
+
+		// Compute cross-correlation
+		for (long long its = 0; its < host_nts; its++){
+			#pragma omp parallel for collapse(3)
+			for (long long iy = FAT; iy < host_ny-FAT; iy++){
+				for (long long ix = FAT; ix < host_nx-FAT; ix++){
+					for (long long iz = FAT; iz < host_nz-FAT; iz++){
+						long long indexWavefield = its * host_nModel + iy * host_nx * host_nz + ix * host_nz + iz;
+						long long indexXcor = iy * host_nx * host_nz + ix * host_nz + iz;
+						sourceXcor[indexXcor] += pin_wavefieldSlice[iGpu][indexWavefield] * pin_wavefieldSlice[iGpu][indexWavefield];
+					}
+				}
+			}
+		}
+
+		// Compute maximum value of cross-correlation
+		maxXcor = *std::max_element(sourceXcor,sourceXcor+host_nModel);
+
+		// Apply weighting to image
+		#pragma omp parallel for collapse(3)
+		for (long long iy = FAT; iy < host_ny-FAT; iy++){
+			for (long long ix = FAT; ix < host_nx-FAT; ix++){
+				for (long long iz = FAT; iz < host_nz-FAT; iz++){
+					long long indexImage = iy * host_nx * host_nz + ix * host_nz + iz;
+					tempModel[indexImage] = model[indexImage] * 1.0 / (sourceXcor[indexImage] + maxXcor * host_epsilonXcor);
+				}
+			}
+		}
+
+		// Copy model to device
+		cuda_call(cudaMemcpy(dev_modelBorn[iGpu], tempModel, host_nModel*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+
+		// Deallocate array
+		delete[] sourceXcor;
+		delete[] tempModel;
+
+	}
+
+	if (rtm != 1){
+		// Copy model to device
+		cuda_call(cudaMemcpy(dev_modelBorn[iGpu], model, host_nModel*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+	}
 
 	// Allocate and initialize data
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
@@ -691,7 +742,7 @@ void BornShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, 
 }
 
 // Ginsu
-void BornShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -819,8 +870,59 @@ void BornShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSign
   	cuda_call(cudaMemset(dev_pStream[iGpu], 0, host_nModel_ginsu[iGpu]*sizeof(float)));
 	// cudaMemset(pin_wavefieldSlice[iGpu], 0, host_nModel_ginsu[iGpu]*sizeof(float));
 
-	// Copy model to device
-	cuda_call(cudaMemcpy(dev_modelBorn[iGpu], model, host_nModel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+	// Apply source wavefield cross-correlation illumination compensation for RTM image
+	if (rtm == 1){
+
+		// Declare and allocate source wavefield cross-correlation
+		float *sourceXcor = new float[host_nModel_ginsu[iGpu]];
+		float *tempModel = new float[host_nModel_ginsu[iGpu]];
+		float host_epsilonXcor = 1.0e-5;
+		float maxXcor;
+
+		// Setting memory to zero
+		std::memset(sourceXcor, 0, host_nModel_ginsu[iGpu]*sizeof(float));
+		std::memset(tempModel, 0, host_nModel_ginsu[iGpu]*sizeof(float));
+
+		// Compute cross-correlation
+		for (long long its = 0; its < host_nts; its++){
+			#pragma omp parallel for collapse(3)
+			for (long long iy = FAT; iy < host_ny_ginsu[iGpu]-FAT; iy++){
+				for (long long ix = FAT; ix < host_nx_ginsu[iGpu]-FAT; ix++){
+					for (long long iz = FAT; iz < host_nz_ginsu[iGpu]-FAT; iz++){
+						long long indexWavefield = its * host_nModel_ginsu[iGpu] + iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+						long long indexXcor = iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+						sourceXcor[indexXcor] += pin_wavefieldSlice[iGpu][indexWavefield] * pin_wavefieldSlice[iGpu][indexWavefield];
+					}
+				}
+			}
+		}
+
+		// Compute maximum value of cross-correlation
+		maxXcor = *std::max_element(sourceXcor,sourceXcor+host_nModel_ginsu[iGpu]);
+
+		// Apply weighting to image
+		#pragma omp parallel for collapse(3)
+		for (long long iy = FAT; iy < host_ny_ginsu[iGpu]-FAT; iy++){
+			for (long long ix = FAT; ix < host_nx_ginsu[iGpu]-FAT; ix++){
+				for (long long iz = FAT; iz < host_nz_ginsu[iGpu]-FAT; iz++){
+					long long indexImage = iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+					tempModel[indexImage]= model[indexImage] * 1.0 / (sourceXcor[indexImage] + maxXcor * host_epsilonXcor);
+				}
+			}
+		}
+
+		// Copy model to device
+		cuda_call(cudaMemcpy(dev_modelBorn[iGpu], tempModel, host_nModel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+
+		// Deallocate array
+		delete[] sourceXcor;
+		delete[] tempModel;
+	}
+
+	if (rtm != 1){
+		// Copy model to device
+		cuda_call(cudaMemcpy(dev_modelBorn[iGpu], model, host_nModel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+	}
 
 	// Allocate and initialize data
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
@@ -910,7 +1012,7 @@ void BornShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSign
 }
 
 // Free surface
-void BornShotsFwdFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsFwdFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1044,8 +1146,60 @@ void BornShotsFwdFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourc
   	cuda_call(cudaMemset(dev_pStream[iGpu], 0, host_nModel*sizeof(float)));
 	// cudaMemset(pin_wavefieldSlice[iGpu], 0, host_nModel*sizeof(float));
 
-	// Copy model to device
-	cuda_call(cudaMemcpy(dev_modelBorn[iGpu], model, host_nModel*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+	// Apply source wavefield cross-correlation illumination compensation for RTM image
+	if (rtm == 1){
+
+		// Declare and allocate source wavefield cross-correlation
+		float *sourceXcor = new float[host_nModel];
+		float *tempModel = new float[host_nModel];
+		float host_epsilonXcor = 1.0e-5;
+		float maxXcor;
+
+		// Setting memory to zero
+		std::memset(sourceXcor, 0, host_nModel*sizeof(float));
+		std::memset(tempModel, 0, host_nModel*sizeof(float));
+
+		// Compute cross-correlation
+		for (long long its = 0; its < host_nts; its++){
+			#pragma omp parallel for collapse(3)
+			for (long long iy = FAT; iy < host_ny-FAT; iy++){
+				for (long long ix = FAT; ix < host_nx-FAT; ix++){
+					for (long long iz = FAT; iz < host_nz-FAT; iz++){
+						long long indexWavefield = its * host_nModel + iy * host_nx * host_nz + ix * host_nz + iz;
+						long long indexXcor = iy * host_nx * host_nz + ix * host_nz + iz;
+						sourceXcor[indexXcor] += pin_wavefieldSlice[iGpu][indexWavefield] * pin_wavefieldSlice[iGpu][indexWavefield];
+					}
+				}
+			}
+		}
+
+		// Compute maximum value of cross-correlation
+		maxXcor = *std::max_element(sourceXcor,sourceXcor+host_nModel);
+
+		// Apply weighting to image
+		#pragma omp parallel for collapse(3)
+		for (long long iy = FAT; iy < host_ny-FAT; iy++){
+			for (long long ix = FAT; ix < host_nx-FAT; ix++){
+				for (long long iz = FAT; iz < host_nz-FAT; iz++){
+					long long indexImage = iy * host_nx * host_nz + ix * host_nz + iz;
+					tempModel[indexImage] = model[indexImage] * 1.0 / (sourceXcor[indexImage] + maxXcor * host_epsilonXcor);
+				}
+			}
+		}
+
+		// Copy model to device
+		cuda_call(cudaMemcpy(dev_modelBorn[iGpu], tempModel, host_nModel*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+
+		// Deallocate array
+		delete[] sourceXcor;
+		delete[] tempModel;
+
+	}
+
+	if (rtm != 1){
+		// Copy model to device
+		cuda_call(cudaMemcpy(dev_modelBorn[iGpu], model, host_nModel*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+	}
 
 	// Allocate and initialize data
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
@@ -1141,7 +1295,7 @@ void BornShotsFwdFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourc
 }
 
 // Free surface + Ginsu
-void BornShotsFwdFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsFwdFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1279,8 +1433,59 @@ void BornShotsFwdFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *
   	cuda_call(cudaMemset(dev_pStream[iGpu], 0, host_nModel_ginsu[iGpu]*sizeof(float)));
 	// cudaMemset(pin_wavefieldSlice[iGpu], 0, host_nModel_ginsu[iGpu]*sizeof(float));
 
-	// Copy model to device
-	cuda_call(cudaMemcpy(dev_modelBorn[iGpu], model, host_nModel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+	// Apply source wavefield cross-correlation illumination compensation for RTM image
+	if (rtm == 1){
+
+		// Declare and allocate source wavefield cross-correlation
+		float *sourceXcor = new float[host_nModel_ginsu[iGpu]];
+		float *tempModel = new float[host_nModel_ginsu[iGpu]];
+		float host_epsilonXcor = 1.0e-5;
+		float maxXcor;
+
+		// Setting memory to zero
+		std::memset(sourceXcor, 0, host_nModel_ginsu[iGpu]*sizeof(float));
+		std::memset(tempModel, 0, host_nModel_ginsu[iGpu]*sizeof(float));
+
+		// Compute cross-correlation
+		for (long long its = 0; its < host_nts; its++){
+			#pragma omp parallel for collapse(3)
+			for (long long iy = FAT; iy < host_ny_ginsu[iGpu]-FAT; iy++){
+				for (long long ix = FAT; ix < host_nx_ginsu[iGpu]-FAT; ix++){
+					for (long long iz = FAT; iz < host_nz_ginsu[iGpu]-FAT; iz++){
+						long long indexWavefield = its * host_nModel_ginsu[iGpu] + iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+						long long indexXcor = iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+						sourceXcor[indexXcor] += pin_wavefieldSlice[iGpu][indexWavefield] * pin_wavefieldSlice[iGpu][indexWavefield];
+					}
+				}
+			}
+		}
+
+		// Compute maximum value of cross-correlation
+		maxXcor = *std::max_element(sourceXcor,sourceXcor+host_nModel_ginsu[iGpu]);
+
+		// Apply weighting to image
+		#pragma omp parallel for collapse(3)
+		for (long long iy = FAT; iy < host_ny_ginsu[iGpu]-FAT; iy++){
+			for (long long ix = FAT; ix < host_nx_ginsu[iGpu]-FAT; ix++){
+				for (long long iz = FAT; iz < host_nz_ginsu[iGpu]-FAT; iz++){
+					long long indexImage = iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+					tempModel[indexImage]= model[indexImage] * 1.0 / (sourceXcor[indexImage] + maxXcor * host_epsilonXcor);
+				}
+			}
+		}
+
+		// Copy model to device
+		cuda_call(cudaMemcpy(dev_modelBorn[iGpu], tempModel, host_nModel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+
+		// Deallocate array
+		delete[] sourceXcor;
+		delete[] tempModel;
+	}
+
+	if (rtm != 1){
+		// Copy model to device
+		cuda_call(cudaMemcpy(dev_modelBorn[iGpu], model, host_nModel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+	}
 
 	// Allocate and initialize data
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
@@ -1374,7 +1579,7 @@ void BornShotsFwdFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *
 /****************************** Born adjoint **********************************/
 /******************************************************************************/
 // Normal
-void BornShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1568,6 +1773,48 @@ void BornShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, 
 	// Copy model back to host
 	cuda_call(cudaMemcpy(model, dev_modelBorn[iGpu], host_nModel*sizeof(float), cudaMemcpyDeviceToHost));
 
+	// Apply source wavefield cross-correlation illumination compensation for RTM image
+	if (rtm == 1){
+
+		// Declare and allocate source wavefield cross-correlation
+		float *sourceXcor = new float[host_nModel];
+		float host_epsilonXcor = 1.0e-5;
+		float maxXcor;
+
+		// Setting memory to zero
+		std::memset(sourceXcor, 0, host_nModel*sizeof(float));
+
+		// Compute cross-correlation
+		for (long long its = 0; its < host_nts; its++){
+			#pragma omp parallel for collapse(3)
+			for (long long iy = FAT; iy < host_ny-FAT; iy++){
+				for (long long ix = FAT; ix < host_nx-FAT; ix++){
+					for (long long iz = FAT; iz < host_nz-FAT; iz++){
+						long long indexWavefield = its * host_nModel + iy * host_nx * host_nz + ix * host_nz + iz;
+						long long indexXcor = iy * host_nx * host_nz + ix * host_nz + iz;
+						sourceXcor[indexXcor] += pin_wavefieldSlice[iGpu][indexWavefield] * pin_wavefieldSlice[iGpu][indexWavefield];
+					}
+				}
+			}
+		}
+
+		// Compute maximum value of cross-correlation
+		maxXcor = *std::max_element(sourceXcor,sourceXcor+host_nModel);
+
+		// Apply weighting to image
+		#pragma omp parallel for collapse(3)
+		for (long long iy = FAT; iy < host_ny-FAT; iy++){
+			for (long long ix = FAT; ix < host_nx-FAT; ix++){
+				for (long long iz = FAT; iz < host_nz-FAT; iz++){
+					long long indexImage = iy * host_nx * host_nz + ix * host_nz + iz;
+					model[indexImage] *= 1.0 / (sourceXcor[indexImage] + maxXcor * host_epsilonXcor);
+				}
+			}
+		}
+		// Deallocate array
+		delete[] sourceXcor;
+	}
+
 	/*************************** Memory deallocation **************************/
 	// Deallocate the array for sources/receivers' positions
     cuda_call(cudaFree(dev_sourcesPositionReg[iGpu]));
@@ -1579,7 +1826,7 @@ void BornShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, 
 }
 
 // Ginsu
-void BornShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1779,6 +2026,48 @@ void BornShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSign
 	// Copy model back to host
 	cuda_call(cudaMemcpy(model, dev_modelBorn[iGpu], host_nModel_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToHost));
 
+	// Apply source wavefield cross-correlation illumination compensation for RTM image
+	if (rtm == 1){
+
+		// Declare and allocate source wavefield cross-correlation
+		float *sourceXcor = new float[host_nModel_ginsu[iGpu]];
+		float host_epsilonXcor = 1.0e-5;
+		float maxXcor;
+
+		// Setting memory to zero
+		std::memset(sourceXcor, 0, host_nModel_ginsu[iGpu]*sizeof(float));
+
+		// Compute cross-correlation
+		for (long long its = 0; its < host_nts; its++){
+			#pragma omp parallel for collapse(3)
+			for (long long iy = FAT; iy < host_ny_ginsu[iGpu]-FAT; iy++){
+				for (long long ix = FAT; ix < host_nx_ginsu[iGpu]-FAT; ix++){
+					for (long long iz = FAT; iz < host_nz_ginsu[iGpu]-FAT; iz++){
+						long long indexWavefield = its * host_nModel_ginsu[iGpu] + iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+						long long indexXcor = iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+						sourceXcor[indexXcor] += pin_wavefieldSlice[iGpu][indexWavefield] * pin_wavefieldSlice[iGpu][indexWavefield];
+					}
+				}
+			}
+		}
+
+		// Compute maximum value of cross-correlation
+		maxXcor = *std::max_element(sourceXcor,sourceXcor+host_nModel_ginsu[iGpu]);
+
+		// Apply weighting to image
+		#pragma omp parallel for collapse(3)
+		for (long long iy = FAT; iy < host_ny_ginsu[iGpu]-FAT; iy++){
+			for (long long ix = FAT; ix < host_nx_ginsu[iGpu]-FAT; ix++){
+				for (long long iz = FAT; iz < host_nz_ginsu[iGpu]-FAT; iz++){
+					long long indexImage = iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+					model[indexImage] *= 1.0 / (sourceXcor[indexImage] + maxXcor * host_epsilonXcor);
+				}
+			}
+		}
+		// Deallocate array
+		delete[] sourceXcor;
+	}
+
 	/*************************** Memory deallocation **************************/
 	// Deallocate the array for sources/receivers' positions
     cuda_call(cudaFree(dev_sourcesPositionReg[iGpu]));
@@ -1790,7 +2079,7 @@ void BornShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSign
 }
 
 // Free surface
-void BornShotsAdjFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsAdjFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1991,7 +2280,49 @@ void BornShotsAdjFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourc
 	cuda_call(cudaDeviceSynchronize());
 
 	// Copy model back to host
-	cuda_call(cudaMemcpyAsync(model, dev_modelBorn[iGpu], host_nModel*sizeof(float), cudaMemcpyDeviceToHost, compStream[iGpu]));
+	cuda_call(cudaMemcpy(model, dev_modelBorn[iGpu], host_nModel*sizeof(float), cudaMemcpyDeviceToHost));
+
+	// Apply source wavefield cross-correlation illumination compensation for RTM image
+	if (rtm == 1){
+
+		// Declare and allocate source wavefield cross-correlation
+		float *sourceXcor = new float[host_nModel];
+		float host_epsilonXcor = 1e-5;
+		float maxXcor;
+
+		// Setting memory to zero
+		std::memset(sourceXcor, 0, host_nModel*sizeof(float));
+
+		// Compute cross-correlation
+		for (long long its = 0; its < host_nts; its++){
+			#pragma omp parallel for collapse(3)
+			for (long long iy = FAT; iy < host_ny-FAT; iy++){
+				for (long long ix = FAT; ix < host_nx-FAT; ix++){
+					for (long long iz = FAT; iz < host_nz-FAT; iz++){
+						long long indexWavefield = its * host_nModel + iy * host_nx * host_nz + ix * host_nz + iz;
+						long long indexXcor = iy * host_nx * host_nz + ix * host_nz + iz;
+						sourceXcor[indexXcor] += pin_wavefieldSlice[iGpu][indexWavefield] * pin_wavefieldSlice[iGpu][indexWavefield];
+					}
+				}
+			}
+		}
+
+		// Compute maximum value of cross-correlation
+		maxXcor = *std::max_element(sourceXcor,sourceXcor+host_nModel);
+
+		// Apply weighting to image
+		#pragma omp parallel for collapse(3)
+		for (long long iy = FAT; iy < host_ny-FAT; iy++){
+			for (long long ix = FAT; ix < host_nx-FAT; ix++){
+				for (long long iz = FAT; iz < host_nz-FAT; iz++){
+					long long indexImage = iy * host_nx * host_nz + ix * host_nz + iz;
+					model[indexImage] *= 1.0 / (sourceXcor[indexImage] + maxXcor * host_epsilonXcor);
+				}
+			}
+		}
+		// Deallocate array
+		delete[] sourceXcor;
+	}
 
 	/*************************** Memory deallocation **************************/
 	// Deallocate the array for sources/receivers' positions
@@ -2004,7 +2335,7 @@ void BornShotsAdjFreeSurfaceGpu_3D(float *model, float *dataRegDts, float *sourc
 }
 
 // Free surface + Ginsu
-void BornShotsAdjFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornShotsAdjFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int rtm, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2208,6 +2539,48 @@ void BornShotsAdjFreeSurfaceGinsuGpu_3D(float *model, float *dataRegDts, float *
 
 	// Copy model back to host
 	cuda_call(cudaMemcpy(model, dev_modelBorn[iGpu], host_nModel_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToHost));
+
+	// Apply source wavefield cross-correlation illumination compensation for RTM image
+	if (rtm == 1){
+
+		// Declare and allocate source wavefield cross-correlation
+		float *sourceXcor = new float[host_nModel_ginsu[iGpu]];
+		float host_epsilonXcor = 1.0e-5;
+		float maxXcor;
+
+		// Setting memory to zero
+		std::memset(sourceXcor, 0, host_nModel_ginsu[iGpu]*sizeof(float));
+
+		// Compute cross-correlation
+		for (long long its = 0; its < host_nts; its++){
+			#pragma omp parallel for collapse(3)
+			for (long long iy = FAT; iy < host_ny_ginsu[iGpu]-FAT; iy++){
+				for (long long ix = FAT; ix < host_nx_ginsu[iGpu]-FAT; ix++){
+					for (long long iz = FAT; iz < host_nz_ginsu[iGpu]-FAT; iz++){
+						long long indexWavefield = its * host_nModel_ginsu[iGpu] + iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+						long long indexXcor = iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+						sourceXcor[indexXcor] += pin_wavefieldSlice[iGpu][indexWavefield] * pin_wavefieldSlice[iGpu][indexWavefield];
+					}
+				}
+			}
+		}
+
+		// Compute maximum value of cross-correlation
+		maxXcor = *std::max_element(sourceXcor,sourceXcor+host_nModel_ginsu[iGpu]);
+
+		// Apply weighting to image
+		#pragma omp parallel for collapse(3)
+		for (long long iy = FAT; iy < host_ny_ginsu[iGpu]-FAT; iy++){
+			for (long long ix = FAT; ix < host_nx_ginsu[iGpu]-FAT; ix++){
+				for (long long iz = FAT; iz < host_nz_ginsu[iGpu]-FAT; iz++){
+					long long indexImage = iy * host_nx_ginsu[iGpu] * host_nz_ginsu[iGpu] + ix * host_nz_ginsu[iGpu] + iz;
+					model[indexImage] *= 1.0 / (sourceXcor[indexImage] + maxXcor * host_epsilonXcor);
+				}
+			}
+		}
+		// Deallocate array
+		delete[] sourceXcor;
+	}
 
 	/*************************** Memory deallocation **************************/
 	// Deallocate the array for sources/receivers' positions

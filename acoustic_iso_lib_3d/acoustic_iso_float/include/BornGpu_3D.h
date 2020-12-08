@@ -22,6 +22,7 @@ class BornGpu_3D : public seismicOperator_3D<SEP::float3DReg, SEP::float2DReg> {
 
 	private:
 
+		int _rtm;
 		int _wavefieldSize;
 
 	public:

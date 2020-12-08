@@ -108,7 +108,6 @@ if __name__ == '__main__':
 		# Read data for irregular geometry
 		if (dataHyperForOutput.getNdim() == 3):
 			dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
-			print("adj 0")
 		# Problem here - needs to be fixed by Bob (add readble 7 dimension hypercubes)
 		else:
 			dataFloatTemp=genericIO.defaultIO.getVector(dataFile,ndims=7)
@@ -117,9 +116,7 @@ if __name__ == '__main__':
 			dataFloatNp.flat[:]=dataFloatTempNp
 
 		# Apply adjoint
-		print("adj 1")
 		BornOp.adjoint(False,modelFloat,dataFloat)
-		print("adj 2")
 
 		# Write model
 		modelFile=parObject.getString("model","noModelFile")

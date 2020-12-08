@@ -29,6 +29,7 @@ class traceNorm_3D(Op.Operator):
 		# Compute model norm for all traces
 		modelNorm=LA.norm(modelNp,axis=2)
 		dataNp[:]+=modelNp[:]/(np.expand_dims(modelNorm+self.epsilonTraceNorm,axis=2))
+		del modelNorm
 		return
 
 ################################################################################
@@ -75,8 +76,9 @@ class traceNormDeriv_3D(Op.Operator):
 		# Compute dot product between model and predicted trace
 		dotProdDatMod=np.expand_dims(np.sum(predDatNp*modelNp,axis=2),axis=2)
 		# Apply forward
-		dataNp[:]+=modelNp*predDatNormInvEps-dotProdDatMod*predDatNormCubeInv*predDatNp
-
+		for ishot in range(dataNp.shape[0]):
+			dataNp[ishot,:,:]+=modelNp[ishot,:,:]*predDatNormInvEps[ishot,:]-dotProdDatMod[ishot,:]*predDatNormCubeInv[ishot,:]*predDatNp[ishot,:,:]
+		del predDatNorm, predDatNormInv, predDatNormCubeInv
 		return
 
 	def adjoint(self,add,model,data):

@@ -9,6 +9,7 @@ BornGpu_3D::BornGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<par
 	_nGpu = nGpu; // Number of requested GPUs
 	_iGpuId = iGpuId;
 	_ginsu = _fdParam_3D->_par->getInt("ginsu");
+	_rtm = _fdParam_3D->_par->getInt("rtm", 0);
 
 	// Initialize GPU
 	if (_ginsu == 0){
@@ -47,17 +48,16 @@ void BornGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> model
 	/* Launch Born forward */
 	if (_fdParam_3D->_freeSurface != 1){
 		if (_ginsu == 0){
-			BornShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			BornShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 
 		} else {
-
-			BornShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			BornShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 		}
 	} else {
 		if (_ginsu == 0){
-			BornShotsFwdFreeSurfaceGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			BornShotsFwdFreeSurfaceGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 		} else {
-			BornShotsFwdFreeSurfaceGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			BornShotsFwdFreeSurfaceGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 		}
 	}
 
@@ -80,21 +80,21 @@ void BornGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model, cons
 
 	if (_fdParam_3D->_freeSurface != 1){
 		if (_ginsu == 0){
-			BornShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			BornShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 		} else {
-			BornShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			BornShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 		}
 	} else {
 		if (_ginsu == 0){
 			// std::cout << "Inside born adjoint [before]" << std::endl;
 			// std::cout << "dataRegDts min before = " << dataRegDts->min() << std::endl;
 			// std::cout << "dataRegDts max before = " << dataRegDts->max() << std::endl;
-			BornShotsAdjFreeSurfaceGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			BornShotsAdjFreeSurfaceGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 			// std::cout << "modelTemp min after = " << modelTemp->min() << std::endl;
 			// std::cout << "modelTemp max after = " << modelTemp->max() << std::endl;
 			// std::cout << "Inside born adjoint [after]" << std::endl;
 		} else {
-			BornShotsAdjFreeSurfaceGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+			BornShotsAdjFreeSurfaceGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 		}
 	}
 
