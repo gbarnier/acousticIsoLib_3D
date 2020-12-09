@@ -29,7 +29,7 @@ PYBIND11_MODULE(pyTraceNorm_3D, clsGeneric) {
 
 			.def("adjoint", (void (traceNormJac_3D::*)(const bool, const std::shared_ptr<float3DReg>, std::shared_ptr<float3DReg>)) &traceNormJac_3D::adjoint, "Adjoint")
 
-			.def("setData", (void (traceNormJac_3D::*)(std::shared_ptr<float3DReg>, std::shared_ptr<float3DReg>)) &traceNormJac_3D::setData, "setData")
+			.def("setData", (void (traceNormJac_3D::*)(std::shared_ptr<float3DReg>)) &traceNormJac_3D::setData, "setData")
 
   ;
 }
