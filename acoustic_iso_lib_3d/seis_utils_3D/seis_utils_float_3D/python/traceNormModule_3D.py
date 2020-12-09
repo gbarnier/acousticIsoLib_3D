@@ -87,4 +87,4 @@ class traceNormDeriv_3D(Op.Operator):
 		# Pointer assignement
 		if("getCpp" in dir(data)):
 			data = data.getCpp()
-		self.pyOp.setDat(data)
+		self.pyOp.setData(data)
