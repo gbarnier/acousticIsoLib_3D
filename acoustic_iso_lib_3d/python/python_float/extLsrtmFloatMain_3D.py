@@ -10,7 +10,7 @@ import os
 # Modeling operators
 import Acoustic_iso_float_3D
 import dataTaperModule_3D
-# import dsoGpuModule_3D
+import dsoGpuModule_3D
 
 # Solver library
 import pyOperator as pyOp
@@ -144,13 +144,22 @@ if __name__ == '__main__':
 			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requested to use a DSO regularization ----")
 
 			# Instanciate DSO operator
-			nz,nx,ny,nExt1,nExt2,fat,dsoZeroShift=dsoGpuModule.dsoGpuInit(sys.argv)
-			dsoOp=dsoGpuModule.dsoGpu(modelInitFloat,modelInitFloat,nz,nx,ny,nExt1,nExt2,fat,dsoZeroShift)
+			nz,nx,ny,nExt1,nExt2,fat,zeroShift=dsoGpuModule_3D.dsoGpuInit_3D(sys.argv)
+			dsoOp=dsoGpuModule_3D.dsoGpu_3D(modelInitFloat,modelInitFloat,nz,nx,ny,nExt1,nExt2,fat,zeroShift)
 
 			# Instanciate problem
 			invProb=Prblm.ProblemL2LinearReg(modelInitFloat,dataFloat,invOp,epsilon,reg_op=dsoOp,prec=Precond)
 		else:
 		    raise ValueError("**** ERROR [extLsrtmFloatMain_3D]: Requested regularization operator not available\n")
+
+		# Evaluate Epsilon
+		if (epsilonEval==1):
+			if(pyinfo): print("--- Epsilon evaluation ---")
+			inv_log.addToLog("--- Epsilon evaluation ---")
+			epsilonOut=invProb.estimate_epsilon()
+			if(pyinfo): print("--- Epsilon value: ",epsilonOut," ---")
+			inv_log.addToLog("--- Epsilon value: %s ---"%(epsilonOut))
+			quit()
 	else:
 		invProb=Prblm.ProblemL2Linear(modelInitFloat,dataFloat,invOp,prec=Precond)
 
