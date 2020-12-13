@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
 	# Data
 	dataFile=parObject.getString("data")
-	dataFloat=genericIO.defaultIO.getVector(dataFile)
+	dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
 
 	# Diagonal Preconditioning
 	PrecFile = parObject.getString("PrecFile","None")
@@ -127,6 +127,20 @@ if __name__ == '__main__':
 			dataFloat=dataTapered
 		invOp=pyOp.ChainOperator(invOp,dataTaperOp)
 
+	############################################################################
+
+	# Model mask operator
+	MaskFile = parObject.getString("ModMask","None")
+	ModMask = None
+	if MaskFile != "None":
+		if(pyinfo): print("--- Using model mask ---")
+		inv_log.addToLog("--- Using model mask ---")
+		ModMask=genericIO.defaultIO.getVector(MaskFile)
+		if not ModMask.checkSame(modelInitFloat):
+			raise ValueError("ERROR! Model mask inconsistent with model vector")
+		ModMask = pyOp.DiagonalOp(ModMask)
+		invOp=pyOp.ChainOperator(ModMask,invOp)
+
 	############################# Regularization ###############################
 	# Regularization
 	if (reg==1):
@@ -143,11 +157,13 @@ if __name__ == '__main__':
 				print("---- [extLsrtmFloatMain_3D]: User has requested to use a DSO regularization ----")
 			inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requested to use a DSO regularization ----")
 
-			# Instanciate DSO operator
+			# Instantiate DSO operator
 			nz,nx,ny,nExt1,nExt2,fat,zeroShift=dsoGpuModule_3D.dsoGpuInit_3D(sys.argv)
 			dsoOp=dsoGpuModule_3D.dsoGpu_3D(modelInitFloat,modelInitFloat,nz,nx,ny,nExt1,nExt2,fat,zeroShift)
 
-			# Instanciate problem
+			# Instantiate problem
+			if ModMask is not None: 
+				dsoOp = pyOp.ChainOperator(ModMask,dsoOp)
 			invProb=Prblm.ProblemL2LinearReg(modelInitFloat,dataFloat,invOp,epsilon,reg_op=dsoOp,prec=Precond)
 		else:
 		    raise ValueError("**** ERROR [extLsrtmFloatMain_3D]: Requested regularization operator not available\n")

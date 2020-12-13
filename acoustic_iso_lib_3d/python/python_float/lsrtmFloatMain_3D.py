@@ -70,6 +70,8 @@ if __name__ == '__main__':
 	# Create inversion operator
 	invOp=BornOp
 
+	############################################################################
+
 	# Data tapering
 	if (dataTaper==1):
 		# Instantiate operator
@@ -84,6 +86,7 @@ if __name__ == '__main__':
 			dataFloat=dataTapered
 		invOp=pyOp.ChainOperator(invOp,dataTaperOp)
 
+
 	############################# Read files ###################################
 	# Read initial model
 	modelInitFile=parObject.getString("modelInit","None")
@@ -96,7 +99,9 @@ if __name__ == '__main__':
 	dataFile=parObject.getString("data")
 
     # User provided a source/receiver geometry file
-	dataFloat=genericIO.defaultIO.getVector(dataFile)
+	dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
+
+	############################################################################
 
 	# Diagonal Preconditioning
 	PrecFile = parObject.getString("PrecFile","None")
@@ -108,6 +113,20 @@ if __name__ == '__main__':
 		if not PrecVec.checkSame(modelInitFloat):
 			raise ValueError("ERROR! Preconditioning diagonal inconsistent with model vector")
 		Precond = pyOp.DiagonalOp(PrecVec)
+
+	############################################################################
+
+	# Model mask operator
+	MaskFile = parObject.getString("ModMask","None")
+	ModMask = None
+	if MaskFile != "None":
+		if(pyinfo): print("--- Using model mask ---")
+		inv_log.addToLog("--- Using model mask ---")
+		ModMask=genericIO.defaultIO.getVector(MaskFile)
+		if not ModMask.checkSame(modelInitFloat):
+			raise ValueError("ERROR! Model mask inconsistent with model vector")
+		ModMask = pyOp.DiagonalOp(ModMask)
+		invOp=pyOp.ChainOperator(ModMask,invOp)
 
 	# No regularization
 	invProb=Prblm.ProblemL2Linear(modelInitFloat,dataFloat,invOp,prec=Precond)
