@@ -21,11 +21,30 @@ if __name__ == '__main__':
 	# IO object
 	parObject=genericIO.io(params=sys.argv)
 
-	# Initialize operator
-	model,data,zOrder,xOrder,yOrder,zSplineMesh,xSplineMesh,ySplineMesh,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat=interpBSplineModule_3D.bSpline3dInit(sys.argv)
+	# Necessary for multi-parameter inversion
+	modelCheck = genericIO.defaultIO.getVector(parObject.getString("vel"))
 
-	# Construct operator
-	splineOp=interpBSplineModule_3D.bSpline3d(model,data,zOrder,xOrder,yOrder,zSplineMesh,xSplineMesh,ySplineMesh,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat)
+	if modelCheck.getHyper().getNdim() == 4:
+		# Initialize operator
+		model,data,zOrder,xOrder,yOrder,zSplineMesh,xSplineMesh,ySplineMesh,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat=interpBSplineModule_3D.bSplineIter3dInit(sys.argv)
+
+		# Construct operator
+		splineOp=interpBSplineModule_3D.bSplineIter3d(model,data,zOrder,xOrder,yOrder,zSplineMesh,xSplineMesh,ySplineMesh,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat)
+
+		# Read data
+		dataFile=parObject.getString("data")
+		data=genericIO.defaultIO.getVector(dataFile,ndims=4)
+	else:
+
+		# Initialize operator
+		model,data,zOrder,xOrder,yOrder,zSplineMesh,xSplineMesh,ySplineMesh,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat=interpBSplineModule_3D.bSpline3dInit(sys.argv)
+
+		# Construct operator
+		splineOp=interpBSplineModule_3D.bSpline3d(model,data,zOrder,xOrder,yOrder,zSplineMesh,xSplineMesh,ySplineMesh,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat)
+
+		# Read data
+		dataFile=parObject.getString("data")
+		data=genericIO.defaultIO.getVector(dataFile,ndims=3)
 
 	# Read starting model
 	modelStartFile=parObject.getString("modelStart","None")
@@ -34,10 +53,6 @@ if __name__ == '__main__':
 		modelStart.scale(0.0)
 	else:
 		modelStart=genericIO.defaultIO.getVector(modelStartFile,ndims=3)
-
-	# Read data
-	dataFile=parObject.getString("data")
-	data=genericIO.defaultIO.getVector(dataFile,ndims=3)
 
 	############################## Problem #####################################
 	# Problem

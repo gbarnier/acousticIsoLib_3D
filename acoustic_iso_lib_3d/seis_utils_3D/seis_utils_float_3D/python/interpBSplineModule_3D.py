@@ -543,17 +543,13 @@ class bSplineIter3d(Op.Operator):
 		yMeshAxis = domain.getHyper().getAxis(3)
 		self.modelTmp = SepVector.getSepVector(Hypercube.hypercube(axes=[zMeshAxis,xMeshAxis,yMeshAxis]))
 		self.dataTmp = SepVector.getSepVector(Hypercube.hypercube(axes=[zDataAxis,xDataAxis,yDataAxis]))
-		self.nIter = domain.getHyper().getAxis(3).n
+		self.nIter = domain.getHyper().getAxis(4).n
 		self.pyOp = pyInterpBSpline_3D.interpBSpline_3D(zOrder,xOrder,yOrder,zControlPoints,xControlPoints,yControlPoints,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat)
 		return
 
 	def forward(self,add,model,data):
 		modelTmp = self.modelTmp.getCpp() if ("getCpp" in dir(self.modelTmp)) else self.modelTmp
 		dataTmp = self.dataTmp.getCpp() if("getCpp" in dir(data)) else self.dataTmp
-		if("getCpp" in dir(model)):
-			model = model.getCpp()
-		if("getCpp" in dir(data)):
-			data = data.getCpp()
 		for iter in range(self.nIter):
 			self.modelTmp.getNdArray()[:] = model.getNdArray()[iter,:,:,:]
 			with pyInterpBSpline_3D.ostream_redirect():
@@ -564,17 +560,12 @@ class bSplineIter3d(Op.Operator):
 	def adjoint(self,add,model,data):
 		modelTmp = self.modelTmp.getCpp() if ("getCpp" in dir(self.modelTmp)) else self.modelTmp
 		dataTmp = self.dataTmp.getCpp() if("getCpp" in dir(data)) else self.dataTmp
-		if("getCpp" in dir(model)):
-			model = model.getCpp()
-		if("getCpp" in dir(data)):
-			data = data.getCpp()
-		with pyInterpBSpline_3D.ostream_redirect():
-			self.pyOp.adjoint(add,model,data)
+		modelNd = model.getNdArray()
 		for iter in range(self.nIter):
 			self.dataTmp.getNdArray()[:] = data.getNdArray()[iter,:,:,:]
 			with pyInterpBSpline_3D.ostream_redirect():
 				self.pyOp.adjoint(False,modelTmp,dataTmp)
-			model.getNdArray()[iter,:,:,:] += self.modelTmp.getNdArray()
+			modelNd[iter,:,:,:] += self.modelTmp.getNdArray()
 		return
 
 	def getZMeshModel(self):
