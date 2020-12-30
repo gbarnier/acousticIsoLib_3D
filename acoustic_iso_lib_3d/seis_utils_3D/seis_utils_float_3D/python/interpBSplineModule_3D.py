@@ -331,7 +331,7 @@ class bSpline3d(Op.Operator):
 
 
 # 3d spline iter for multi-d models
-def bSplineIter3dInit(args):
+def bSplineIter3dInit(args,,**kwargs):
 
 	# IO object
 	parObject=genericIO.io(params=args)
@@ -347,9 +347,9 @@ def bSplineIter3dInit(args):
 	zTolerance=parObject.getFloat("zTolerance",0.25)
 	xTolerance=parObject.getFloat("xTolerance",0.25)
 	yTolerance=parObject.getFloat("yTolerance",0.25)
-	zFat=parObject.getInt("zFat",4)
-	xFat=parObject.getInt("xFat",4)
-	yFat=parObject.getInt("yFat",4)
+	zFat=kwargs.get("zFat", parObject.getInt("zFat",4))
+	xFat=kwargs.get("xFat", parObject.getInt("xFat",4))
+	yFat=kwargs.get("yFat", parObject.getInt("yFat",4))
 	zSub=parObject.getInt("zSub",1)
 	xSub=parObject.getInt("xSub",1)
 	ySub=parObject.getInt("ySub",1)
