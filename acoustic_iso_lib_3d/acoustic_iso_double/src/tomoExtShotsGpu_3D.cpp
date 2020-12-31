@@ -31,7 +31,6 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 		for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 
 			std::cout << "Allocating wavefield # " << iGpu << std::endl;
-
 			allocatePinnedTomoExtGpu_3D(_par->getInt("nz"), _par->getInt("nx"), _par->getInt("ny"), _par->getInt("nts"), _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 		}
 
@@ -39,8 +38,10 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 	}
 	else {
 
-		// Initialize wavefield vector
-		_pinWavefieldVec.clear();
+
+		// Instanciate and initialize wavefield vector
+		_wavefieldVectorObj = std::make_shared<wavefieldVector_3D>();
+		_wavefieldVectorObj->_pinWavefieldVec.clear();
 
 		std::cout << "Allocating source wavefields on pinned memory for tomo (FWIME)" << std::endl;
 
@@ -55,7 +56,7 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 			allocatePinnedTomoExtGpuFwime_3D(_par->getInt("nz"), _par->getInt("nx"), _par->getInt("ny"), _par->getInt("nts"), arrayTemp, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 
 			// Add entry to vector
-			_pinWavefieldVec.push_back(arrayTemp);
+			_wavefieldVectorObj->_pinWavefieldVec.push_back(arrayTemp);
 
 			// Delete temporary pointer
 			arrayTemp = NULL;
@@ -106,7 +107,8 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 	}
 	else {
 		// Initialize wavefield vector
-		_pinWavefieldVec.clear();
+		_wavefieldVectorObj = std::make_shared<wavefieldVector_3D>();
+		_wavefieldVectorObj->_pinWavefieldVec.clear();
 
 		for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 
@@ -117,8 +119,8 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 			allocatePinnedTomoExtGpuFwime_3D(zAxisWavefield.n, xAxisWavefield.n, yAxisWavefield.n, timeAxis.n, arrayTemp, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 
 			// Add entry to vector
-			_pinWavefieldVec.push_back(arrayTemp);
-			std::cout << "_pinWavefieldVec[" << iGpu << "] = "<< _pinWavefieldVec[iGpu] << std::endl;
+			_wavefieldVectorObj->_pinWavefieldVec.push_back(arrayTemp);
+			std::cout << "_pinWavefieldVec[" << iGpu << "] = "<< _wavefieldVectorObj->_pinWavefieldVec[iGpu] << std::endl;
 
 			// Delete temporary array
 			// delete [] arrayTemp;

@@ -331,7 +331,7 @@ class bSpline3d(Op.Operator):
 
 
 # 3d spline iter for multi-d models
-def bSplineIter3dInit(args,,**kwargs):
+def bSplineIter3dInit(args,**kwargs):
 
 	# IO object
 	parObject=genericIO.io(params=args)

@@ -957,6 +957,7 @@ void tomoHxHyShotsFwdGpu_3D(double *model, double *dataRegDts, double *extReflec
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(double), cudaMemcpyHostToDevice));
 
 	if (slowSquare == 0){
+		// std::cout << "Cuda fwd 0" << std::endl;
 		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
 			long long extStride2 = iExt2 * host_extStride;
 			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
@@ -964,7 +965,9 @@ void tomoHxHyShotsFwdGpu_3D(double *model, double *dataRegDts, double *extReflec
 				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
 			}
 		}
-	} else {
+	}
+	else {
+		// std::cout << "Cuda fwd 1" << std::endl;
 		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
 			long long extStride2 = iExt2 * host_extStride;
 			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
@@ -1901,6 +1904,7 @@ void tomoHxHyShotsAdjGpu_3D(double *model, double *dataRegDts, double *extReflec
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(double), cudaMemcpyHostToDevice));
 
 	if (slowSquare == 0){
+		// std::cout << "Cuda adj 0" << std::endl;
 		// Scale extended reflectivity by 2/v^3 (linearization of wave-equation)
 		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
 			long long extStride2 = iExt2 * host_extStride;
@@ -1910,12 +1914,13 @@ void tomoHxHyShotsAdjGpu_3D(double *model, double *dataRegDts, double *extReflec
 			}
 		}
 	} else {
+		// std::cout << "Cuda adj 1" << std::endl;
 		// Scale extended reflectivity by -1.0 (linearization of wave-equation)
 		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
 			long long extStride2 = iExt2 * host_extStride;
 			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
 				long long extStride1 = iExt1 * host_nVel;
-				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], extStride1, extStride2);
 			}
 		}
 	}
@@ -2400,7 +2405,8 @@ void tomoHxHyShotsAdjFsGpu_3D(double *model, double *dataRegDts, double *extRefl
 				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
 			}
 		}
-	} else {
+	}
+	else {
 		// Scale extended reflectivity by -1.0 (linearization of wave-equation)
 		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
 			long long extStride2 = iExt2 * host_extStride;

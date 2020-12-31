@@ -31,7 +31,7 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 }
 
 // Constructor for Fwime
-BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<tomoExtShotsGpu_3D> tomoExtGpuObj){
+BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<wavefieldVector_3D> wavefieldVectorObj){
 
 	// Setup parameters
 	_par = par;
@@ -47,12 +47,13 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
+	_wavefieldVectorObj = wavefieldVectorObj;
 
 	// Allocate wavefields on pinned memory
 	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 		std::cout << "Allocating wavefield # " << iGpu << std::endl;
-		setPinnedBornExtGpuFwime_3D(tomoExtGpuObj->getPinWavefieldVec()[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+		setPinnedBornExtGpuFwime_3D(_wavefieldVectorObj->_pinWavefieldVec[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
 	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
 }
@@ -98,7 +99,7 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 }
 
 // Constructor for Ginsu + Fwime
-BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu, std::shared_ptr<tomoExtShotsGpu_3D> tomoExtGpuObj){
+BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::double2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu, std::shared_ptr<wavefieldVector_3D> wavefieldVectorObj){
 
 	// Setup parameters
 	_par = par;
@@ -114,12 +115,7 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
-
-	// Compute the dimension of the largest model we will have to allocate among all the different shots
-	// axis zAxisWavefield = axis(_vel->getHyper()->getAxis(1).n, 1.0, 1.0);
-	// axis xAxisWavefield = axis(nxMaxGinsu, 1.0, 1.0);
-	// axis yAxisWavefield = axis(nyMaxGinsu, 1.0, 1.0);
-	// axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
+	_wavefieldVectorObj = wavefieldVectorObj;
 
 	_velHyperVectorGinsu = velHyperVectorGinsu;
 	_xPadMinusVectorGinsu = xPadMinusVectorGinsu;
@@ -131,7 +127,7 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::double3DReg> vel, st
 	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 		std::cout << "Allocating wavefield # " << iGpu << std::endl;
-		setPinnedBornExtGpuFwime_3D(tomoExtGpuObj->getPinWavefieldVec()[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+		setPinnedBornExtGpuFwime_3D(_wavefieldVectorObj->_pinWavefieldVec[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
 	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
 

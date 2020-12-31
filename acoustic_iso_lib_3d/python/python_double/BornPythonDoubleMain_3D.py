@@ -15,21 +15,28 @@ if __name__ == '__main__':
 	if (parObject.getInt("fwime", 0) == 1):
 		_,_,_,_,_,_,_,reflectivityExtDouble,_=Acoustic_iso_double_3D.tomoExtOpInitDouble_3D(sys.argv)
 	else:
-		tomoExtOp=None
+		wavefieldVecObj=None
 
 	# Initialize Ginsu
 	if (parObject.getInt("ginsu", 0) == 1):
 		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu = Acoustic_iso_double_3D.buildGeometryGinsu_3D(parObject,velDouble,sourcesVector,receiversVector)
 
-	# Construct Born operator object
+	# Normal constructor
 	if (parObject.getInt("ginsu", 0) == 0):
 		if (parObject.getInt("fwime",0)==1):
+			# FWIME
 			tomoExtOp=Acoustic_iso_double_3D.tomoExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,reflectivityExtDouble)
-		BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,tomoExtOp=tomoExtOp)
+			wavefieldVecObj=tomoExtOp.getWavefieldVector()
+
+		BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,wavefieldVecFlag=wavefieldVecObj)
+
+	# Ginsu constructor
 	else:
 		if (parObject.getInt("fwime",0)==1):
+			# FWIME
 			tomoExtOp=Acoustic_iso_double_3D.tomoExtShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,reflectivityExtDouble,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
-		BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,tomoExtOp=tomoExtOp)
+			wavefieldVecObj=tomoExtOp.getWavefieldVector()
+		BornOp=Acoustic_iso_double_3D.BornShotsGpu_3D(modelDouble,dataDouble,velDouble,parObject,sourcesVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,wavefieldVecFlag=wavefieldVecObj)
 
 
 	# Testing dot-product test of the operator

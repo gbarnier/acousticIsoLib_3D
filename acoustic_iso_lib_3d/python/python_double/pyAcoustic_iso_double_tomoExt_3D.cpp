@@ -5,7 +5,6 @@
 #include <pybind11/stl.h>
 #include <pybind11/iostream.h>
 #include "tomoExtShotsGpu_3D.h"
-// #include "pinWavefieldGpu_3D.h"
 
 namespace py = pybind11;
 using namespace SEP;
@@ -34,6 +33,8 @@ PYBIND11_MODULE(pyAcoustic_iso_double_tomoExt_3D, clsGeneric) {
       .def("deallocatePinnedTomoExtGpu_3D",(void (tomoExtShotsGpu_3D::*)()) &tomoExtShotsGpu_3D::deallocatePinnedTomoExtGpu_3D,"Function to deallocate the pinned memory where the source wavefields are stored")
 
       .def("dotTest",(bool (tomoExtShotsGpu_3D::*)(const bool, const double)) &tomoExtShotsGpu_3D::dotTest,"Dot-Product Test")
+
+      .def("getWavefieldVector",(std::shared_ptr<wavefieldVector_3D> (tomoExtShotsGpu_3D::*)()) &tomoExtShotsGpu_3D::getWavefieldVector,"Function to get the object that contains the wavefield")
 
 ;
 }

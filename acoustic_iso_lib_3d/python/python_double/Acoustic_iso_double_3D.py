@@ -3,6 +3,7 @@ import pyAcoustic_iso_double_nl_3D
 import pyAcoustic_iso_double_Born_3D
 import pyAcoustic_iso_double_BornExt_3D
 import pyAcoustic_iso_double_tomoExt_3D
+import pyWavefieldVector_3D
 import pyOperator as Op
 import genericIO
 import SepVector
@@ -1144,7 +1145,7 @@ class BornShotsGpu_3D(Op.Operator):
 		rangeOp = args[1]
 		self.setDomainRange(domainOp,rangeOp)
 
-		tomoExtOp=kwargs.get("tomoExtOp",None)
+		wavefieldVecObj=kwargs.get("wavefieldVecFlag",None)
 		# print("dir(tomoExtOp) = ",dir(tomoExtOp))
 		# if("getCpp" in dir(tomoExtOp)):
 		# 	tomoExtOp = tomoExtOp.getCpp()
@@ -1216,24 +1217,14 @@ class BornShotsGpu_3D(Op.Operator):
 			ixVectorGinsu = args[12]
 			iyVectorGinsu = args[13]
 
-			# Allocate wavefield
-			# for iGpu in range(nGpu):
-			# 	newWavefield = SepVector.getSepVector(hyperWavefield,storage="dataDouble")
-			# 	if("getCpp" in dir(newWavefield)):
-			# 		newWavefield = newWavefield.getCpp()
-			# 	wavefieldVector.append(newWavefield)
-			# print("Done allocating Ginsu wavefields")
-			# if("getCpp" in dir(wavefieldVector)):
-			# 	wavefieldVector = wavefieldVector.getCpp()
-			if (tomoExtOp == None):
+			if (wavefieldVecObj == None):
 				print("Ginsu constructor")
 				# Ginsu constructor
 				self.pyOp = pyAcoustic_iso_double_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
 			else:
-				# Ginsu constructor for Fwime
+				# Ginsu constructor for FWIME
 				print("Ginsu constructor for FWIME")
-				self.pyOp = pyAcoustic_iso_double_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,tomoExtOp.pyOp)
-
+				self.pyOp = pyAcoustic_iso_double_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,wavefieldVecObj)
 		else:
 			# Create hypercube for wavefield
 			hyperWavefield = Hypercube.hypercube(axes=[zAxisWavefield,xAxisWavefield,yAxisWavefield,timeAxisWavefield])
@@ -1243,22 +1234,16 @@ class BornShotsGpu_3D(Op.Operator):
 			nyWav = yAxisWavefield.n
 			ntWav = timeAxisWavefield.n
 			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*8/(1024*1024*1024), " [GB]")
-			# for iGpu in range(nGpu):
-			# 	newWavefield = SepVector.getSepVector(hyperWavefield,storage="dataDouble")
-			# 	if("getCpp" in dir(newWavefield)):
-			# 		newWavefield = newWavefield.getCpp()
-			# 	wavefieldVector.append(newWavefield)
-			# print("Done allocating normal wavefields")
-			# if("getCpp" in dir(wavefieldVector)):
-			# 	wavefieldVector = wavefieldVector.getCpp()
-			if (tomoExtOp == None):
+			print("Normal constructor")
+			if (wavefieldVecObj == None):
 				print("Normal constructor")
 				# Normal constructor
 				self.pyOp = pyAcoustic_iso_double_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector)
 			else:
 				print("Normal constructor for FWIME")
 				# Normal constructor for FWIME
-				self.pyOp = pyAcoustic_iso_double_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,tomoExtOp.pyOp)
+				self.pyOp = pyAcoustic_iso_double_Born_3D.BornShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,wavefieldVecObj)
+
 		return
 
 	def __str__(self):
@@ -1499,7 +1484,7 @@ class BornExtShotsGpu_3D(Op.Operator):
 		range = args[1]
 		self.setDomainRange(domain,range)
 
-		tomoExtOp=kwargs.get("tomoExtOp",None)
+		wavefieldVecObj=kwargs.get("wavefieldVecFlag",None)
 		# print("tomoExtOp = ", tomoExtOp)
 		# print("length args = ", len(args))
 		# print("length kwargs = ", len(kwargs))
@@ -1565,14 +1550,16 @@ class BornExtShotsGpu_3D(Op.Operator):
 			ixVectorGinsu = args[12]
 			iyVectorGinsu = args[13]
 
-			if (tomoExtOp == None):
+			print("Ginsu constructor")
+			if (wavefieldVecObj == None):
 				print("Ginsu constructor")
 				# Ginsu constructor
 				self.pyOp = pyAcoustic_iso_double_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
 			else:
 				print("Ginsu constructor for FWIME")
-				# Ginsu constructor for FWIME
-				self.pyOp = pyAcoustic_iso_double_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,tomoExtOp.pyOp)
+				# Ginsu constructor
+				self.pyOp = pyAcoustic_iso_double_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,wavefieldVecObj)
+
 		else:
 
 			# Create hypercube for wavefield
@@ -1584,14 +1571,15 @@ class BornExtShotsGpu_3D(Op.Operator):
 			ntWav = timeAxisWavefield.n
 			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*8/(1024*1024*1024), " [GB]")
 
-			if (tomoExtOp == None):
+			if (wavefieldVecObj == None):
 				print("Normal constructor")
 				# Normal constructor
 				self.pyOp = pyAcoustic_iso_double_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector)
+
 			else:
 				print("Normal constructor for FWIME")
-				# Normal constructor for FWIME
-				self.pyOp = pyAcoustic_iso_double_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,tomoExtOp.pyOp)
+				# Normal constructor
+				self.pyOp = pyAcoustic_iso_double_BornExt_3D.BornExtShotsGpu_3D(velocity,paramP.param,sourceVector,sourcesSignalsDouble,receiversVector,wavefieldVecObj)
 
 		return
 
@@ -1981,10 +1969,9 @@ class tomoExtShotsGpu_3D(Op.Operator):
 			result=self.pyOp.dotTest(verb,maxError)
 		return result
 
-	def getPinWavefieldVec1(self):
+	def getWavefieldVector(self):
 		with pyAcoustic_iso_double_tomoExt_3D.ostream_redirect():
-			wfld1 = self.pyOp.getPinWavefieldVec1()
-			print("wfld1 = ",type(wfld1))
-			# print("wfld1[0] = ",type(wfld1))
-			# wfld1[0] = SepVector.floatVector(fromCpp=wfld1[0])
-		return wfld1[0]
+			print("Getting Vector object")
+			wfldVecObj = self.pyOp.getWavefieldVector()
+			print("Done getting Vector object")
+		return wfldVecObj
