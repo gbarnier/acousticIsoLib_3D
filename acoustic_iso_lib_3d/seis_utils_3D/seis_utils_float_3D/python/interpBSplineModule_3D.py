@@ -550,6 +550,8 @@ class bSplineIter3d(Op.Operator):
 	def forward(self,add,model,data):
 		modelTmp = self.modelTmp.getCpp() if ("getCpp" in dir(self.modelTmp)) else self.modelTmp
 		dataTmp = self.dataTmp.getCpp() if("getCpp" in dir(data)) else self.dataTmp
+		if not add:
+			data.zero()
 		for iter in range(self.nIter):
 			self.modelTmp.getNdArray()[:] = model.getNdArray()[iter,:,:,:]
 			with pyInterpBSpline_3D.ostream_redirect():
@@ -561,6 +563,8 @@ class bSplineIter3d(Op.Operator):
 		modelTmp = self.modelTmp.getCpp() if ("getCpp" in dir(self.modelTmp)) else self.modelTmp
 		dataTmp = self.dataTmp.getCpp() if("getCpp" in dir(data)) else self.dataTmp
 		modelNd = model.getNdArray()
+		if not add:
+			model.zero()
 		for iter in range(self.nIter):
 			self.dataTmp.getNdArray()[:] = data.getNdArray()[iter,:,:,:]
 			with pyInterpBSpline_3D.ostream_redirect():
