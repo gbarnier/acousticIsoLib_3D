@@ -920,9 +920,9 @@ void BornShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesS
 	// dummySliceRight = new double[host_nModel_ginsu[iGpu]];
 
 	// Timer
-	std::clock_t start;
-	double duration;
-	start = std::clock();
+	// std::clock_t start;
+	// double duration;
+	// start = std::clock();
 
 	/********************** Source wavefield computation **********************/
 	for (int its = 0; its < host_nts-1; its++){
@@ -1003,7 +1003,7 @@ void BornShotsFwdGinsuGpu_3D(double *model, double *dataRegDts, double *sourcesS
   		cuda_call(cudaMemsetAsync(dev_pRight[iGpu], 0, host_nModel_ginsu[iGpu]*sizeof(double), compStream[iGpu])); // Reinitialize dev_pRight to zero (because of the += in the kernel)
 	}
 
-	duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
+	// duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
 	// std::cout << "duration source Ginsu: " << duration << std::endl;
 
 	// At this point, pLeft contains the value of the wavefield at the last time sample, nts-1
