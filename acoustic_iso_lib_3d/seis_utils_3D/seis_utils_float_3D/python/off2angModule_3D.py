@@ -82,16 +82,17 @@ class off2ang3D(Op.Operator):
 		exp_arg_hx_phi = np.zeros((self.np,)+exp_arg.shape)
 		exp_arg_hy_phi = np.zeros((self.np,)+exp_arg.shape)
 		for p_idx,p_val in enumerate(p_vals):
-			exp_arg_hx_phi[p_idx,:] = exp_arg_hx_phi*np.cos(p_val)
-			exp_arg_hy_phi[p_idx,:] = exp_arg_hx_phi*np.sin(p_val)		
+			exp_arg_hx_phi[p_idx,:] = exp_arg*np.cos(p_val)
+			exp_arg_hy_phi[p_idx,:] = exp_arg*np.sin(p_val)	
 			# Applying anti-aliasing filter if requested
 			if self.anti_alias:
-				m_kz *= np.expand_dims(np.expand_dims((np.abs(np.outer(np.tan(g_vals),kz_axis)*np.cos(p_val)) <= khx_max).astype(np.int),axis=1),axis=1) * np.expand_dims(np.expand_dims((np.abs(np.outer(np.tan(g_vals),kz_axis)*np.sin(p_val)) <= khy_max).astype(np.int),axis=1),axis=1)
+				m_kz[p_idx,:] *= (np.abs(exp_arg_hx_phi[p_idx,:]) <= khx_max).astype(np.int) * (np.abs(exp_arg_hy_phi[p_idx,:]) <= khy_max).astype(np.int)
 		
 		for hy_idx,hy_val in enumerate(hy_axis):
-			for hx_idx,hx_val in enumerate(hy_axis):
-			d_tmp[hy_idx,hx_idx,:,:,:] = np.sum(m_kz[:,:,:,:,:]*np.exp(-1.0j*(exp_arg_hx_phi*hx_val-exp_arg_hy_phi*hy_val)),axis=(0,1))
+			for hx_idx,hx_val in enumerate(hx_axis):
+				d_tmp[hy_idx,hx_idx,:,:,:] = np.sum(m_kz[:,:,:,:,:]*np.exp(-1.0j*(exp_arg_hx_phi*hx_val-exp_arg_hy_phi*hy_val)),axis=(0,1))
 		d_arr += np.real(np.fft.irfft(d_tmp, n=self.nz, axis=-1, norm="ortho"))
+
 		return
 
 
@@ -131,7 +132,8 @@ class off2ang3D(Op.Operator):
 
 		for p_idx,p_val in enumerate(p_vals):
 			for g_idx,g_val in enumerate(g_vals):
-				scale = kz_axis*kz_axis*np.tan(g_val)/(np.cos(g_val)*np.cos(g_val)+epsilon) if self.p_inv else 1.0
+				# scale = kz_axis*kz_axis*np.tan(g_val)/(np.cos(g_val)*np.cos(g_val)+epsilon) if self.p_inv else 1.0
+				scale = kz_axis*kz_axis/(np.cos(g_val)*np.cos(g_val)+epsilon) if self.p_inv else 1.0
 				if self.anti_alias:
 					# Applying anti-aliasing filter if requested
 					mask_hy = (np.abs(np.tan(g_val)*np.sin(p_val)*kz_axis) <= khy_max).astype(np.int)
