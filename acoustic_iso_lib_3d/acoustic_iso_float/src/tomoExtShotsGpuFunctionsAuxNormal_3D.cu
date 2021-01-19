@@ -1597,6 +1597,10 @@ void computeTomoLeg2TauAdj_3D(float *dev_modelTomoIn, float *dev_extReflectivity
 
 		}
 
+		// Load source wavefield at its+1 from pinned -> pDt0
+		// cuda_call(cudaMemcpy(dev_pSourceWavefield[iGpu], pin_wavefieldSlice1[iGpu]+(its+1)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice));
+		// cuda_call(cudaMemcpy(dev_pSourceWavefield[iGpu], dev_pDt0[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice));
+
         // Wait until source wavefield slice has been copied into dev_pSourceWavefield
 		cuda_call(cudaStreamSynchronize(transferStreamH2DIn));
 

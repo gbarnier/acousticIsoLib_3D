@@ -3,6 +3,7 @@
 #include "BornExtShotsGpu_3D.h"
 #include "BornExtGpu_3D.h"
 
+// Normal constructor
 BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector){
 
 	// Setup parameters
@@ -30,7 +31,7 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 }
 
 // Constructor for Fwime
-BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<tomoExtShotsGpu_3D> tomoExtGpuObj){
+BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::shared_ptr<wavefieldVector_3D> wavefieldVectorObj){
 
 	// Setup parameters
 	_par = par;
@@ -46,21 +47,18 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
+	_wavefieldVectorObj = wavefieldVectorObj;
 
 	// Allocate wavefields on pinned memory
-	std::cout << "Allocating source wavefields on pinned memory for BornExt Fwime" << std::endl;
+	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 		std::cout << "Allocating wavefield # " << iGpu << std::endl;
-		std::cout << "tomoExtGpuObj->getPinWavefieldVec()[iGpu] " << tomoExtGpuObj->getPinWavefieldVec()[iGpu] << std::endl;
-		std::cout << "Here tomo" << iGpu << std::endl;
-		float * temp;
-		temp = tomoExtGpuObj->getPinWavefieldVec()[iGpu];
-		std::cout << "Temp = " << temp << std::endl;
-		setPinnedBornExtGpuFwime_3D(temp, _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+		setPinnedBornExtGpuFwime_3D(_wavefieldVectorObj->_pinWavefieldVec[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
 	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
 }
 
+// Constructor for Ginsu
 BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu){
 
 	// Setup parameters
@@ -101,7 +99,7 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 }
 
 // Constructor for Ginsu + Fwime
-BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu, std::shared_ptr<tomoExtShotsGpu_3D> tomoExtGpuObj){
+BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_ptr<paramObj> par, std::vector<std::shared_ptr<deviceGpu_3D>> sourcesVector, std::shared_ptr<SEP::float2DReg> sourcesSignals, std::vector<std::shared_ptr<deviceGpu_3D>> receiversVector, std::vector<std::shared_ptr<SEP::hypercube>> velHyperVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadMinusVectorGinsu, std::shared_ptr<SEP::int1DReg> xPadPlusVectorGinsu, int nxMaxGinsu, int nyMaxGinsu, std::vector<int> ixVectorGinsu, std::vector<int> iyVectorGinsu, std::shared_ptr<wavefieldVector_3D> wavefieldVectorObj){
 
 	// Setup parameters
 	_par = par;
@@ -117,12 +115,7 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
-
-	// Compute the dimension of the largest model we will have to allocate among all the different shots
-	// axis zAxisWavefield = axis(_vel->getHyper()->getAxis(1).n, 1.0, 1.0);
-	// axis xAxisWavefield = axis(nxMaxGinsu, 1.0, 1.0);
-	// axis yAxisWavefield = axis(nyMaxGinsu, 1.0, 1.0);
-	// axis timeAxis = _sourcesSignals->getHyper()->getAxis(1);
+	_wavefieldVectorObj = wavefieldVectorObj;
 
 	_velHyperVectorGinsu = velHyperVectorGinsu;
 	_xPadMinusVectorGinsu = xPadMinusVectorGinsu;
@@ -134,7 +127,7 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 		std::cout << "Allocating wavefield # " << iGpu << std::endl;
-		setPinnedBornExtGpuFwime_3D(tomoExtGpuObj->getPinWavefieldVec()[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
+		setPinnedBornExtGpuFwime_3D(_wavefieldVectorObj->_pinWavefieldVec[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
 	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
 
@@ -197,11 +190,15 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float5DRe
 	int constantSrcSignal, constantRecGeom;
 
 	// Check whether we use the same source signals for all shots
-	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {constantSrcSignal = 1;}
+	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
+			// std::cout << "Constant source signal over shots" << std::endl;
+			constantSrcSignal = 1; }
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
-	if (_receiversVector.size() == 1) {constantRecGeom=1;}
+	if (_receiversVector.size() == 1) {
+		// std::cout << "Constant receiver geometry over shots" << std::endl;
+		constantRecGeom=1;}
 	else {constantRecGeom=0;}
 
 	// Create vectors for each GPU
@@ -254,8 +251,13 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float5DRe
 
 			// Allocate and set Ginsu
 			BornExtObjectVector[iGpu]->setBornExtGinsuGpu_3D(_velHyperVectorGinsu[iShot], (*_xPadMinusVectorGinsu->_mat)[iShot], (*_xPadPlusVectorGinsu->_mat)[iShot], _ixVectorGinsu[iShot], _iyVectorGinsu[iShot], iGpu, iGpuId);
-
+			// std::cout << "_velHyperVectorGinsu[iShot] n1 = " << _velHyperVectorGinsu[iShot]->getAxis(1).n << std::endl;
+			// std::cout << "_velHyperVectorGinsu[iShot] n2 = " << _velHyperVectorGinsu[iShot]->getAxis(2).n << std::endl;
+			// std::cout << "_velHyperVectorGinsu[iShot] n3 = " << _velHyperVectorGinsu[iShot]->getAxis(3).n << std::endl;
+			// std::cout << "_velHyperVectorGinsu[iShot] n4 = " << _velHyperVectorGinsu[iShot]->getAxis(4).n << std::endl;
+			// std::cout << "_velHyperVectorGinsu[iShot] n5 = " << _velHyperVectorGinsu[iShot]->getAxis(5).n << std::endl;
 			// Allocate Ginsu model
+
 			// Temporary variables (for clarity purpose)
 			int fat = BornExtObjectVector[iGpu]->getFdParam_3D()->_fat;
 			int nzGinsu = BornExtObjectVector[iGpu]->getFdParam_3D()->_nzGinsu;
@@ -316,7 +318,11 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float5DRe
 
 		// Set GPU number for propagator object
 		BornExtObjectVector[iGpu]->setGpuNumber_3D(iGpu, iGpuId);
+		// std::cout << "Born modelTemp min before = " << modelTemp->min() << std::endl;
+		// std::cout << "Born modelTemp max before = " << modelTemp->max() << std::endl;
 		BornExtObjectVector[iGpu]->forward(false, modelTemp, dataSliceVector[iGpu]);
+		// std::cout << "Born dataSliceVector[iGpu] min after = " << dataSliceVector[iGpu]->min() << std::endl;
+		// std::cout << "Born dataSliceVector[iGpu] max after = " << dataSliceVector[iGpu]->max() << std::endl;
 
 		// Store dataSlice into data
 		#pragma omp parallel for
@@ -339,6 +345,9 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float5DRe
 		}
 	}
 
+	// std::cout << "Born extended forward, min data = " << data->min() << std::endl;
+	// std::cout << "Born extended forward, max data = " << data->max() << std::endl;
+
 }
 
 void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> model, const std::shared_ptr<float3DReg> data) const {
@@ -350,7 +359,9 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 	int constantSrcSignal, constantRecGeom;
 
 	// Check whether we use the same source signals for all shots
-	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {constantSrcSignal = 1;}
+	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
+		std::cout << "Constant source signal over shots" << std::endl;
+		constantSrcSignal = 1;}
 	else {constantSrcSignal=0;}
 
 	// Check if we have constant receiver geometry
@@ -404,11 +415,12 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 		axis dummyAxis(1);
 
 		// Copy data slice
-		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[iShot*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n]), sizeof(float)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
+		long long int data_idx = iShot*hyperDataSlice->getAxis(1).n;
+		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[data_idx*hyperDataSlice->getAxis(2).n]), sizeof(float)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
 
 		// Temporary arrays/hypercube for the Ginsu
 		std::shared_ptr<SEP::float5DReg> modelTemp;
-		// std::shared_ptr<SEP::hypercube> hyperTemp;
+		std::shared_ptr<SEP::hypercube> hyperTemp;
 
 		// If no ginsu is used, use the full model
 		if (_ginsu == 0){
@@ -477,7 +489,12 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 		// Launch modeling
 		if (_ginsu==0){
 			// Launch adjoint
+			// std::cout << "Shots ext adj" << std::endl;
+			// std::cout << "dataSliceVector[iGpu] max = " << dataSliceVector[iGpu]->max() << std::endl;
+			// std::cout << "dataSliceVector[iGpu] min = " << dataSliceVector[iGpu]->min() << std::endl;
 			BornExtObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
+			// std::cout << "modelSliceVector[iGpu] max = " << modelSliceVector[iGpu]->max() << std::endl;
+			// std::cout << "modelSliceVector[iGpu] min = " << modelSliceVector[iGpu]->min() << std::endl;
 		} else {
 			// Launch adjoint
 			BornExtObjectVector[iGpu]->adjoint(false, modelTemp, dataSliceVector[iGpu]);
@@ -532,4 +549,7 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 			deallocateBornExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
+	//
+	// std::cout << "Born extended adjoint, min model = " << model->min() << std::endl;
+	// std::cout << "Born extended adjoint, max model = " << model->max() << std::endl;
 }

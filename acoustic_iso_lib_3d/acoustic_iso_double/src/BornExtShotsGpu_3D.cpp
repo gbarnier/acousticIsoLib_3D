@@ -415,7 +415,8 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double5DReg> mo
 		axis dummyAxis(1);
 
 		// Copy data slice
-		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[iShot*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n]), sizeof(double)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
+		long long int data_idx = iShot*hyperDataSlice->getAxis(1).n;
+		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[data_idx*hyperDataSlice->getAxis(2).n]), sizeof(double)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
 
 		// Temporary arrays/hypercube for the Ginsu
 		std::shared_ptr<SEP::double5DReg> modelTemp;

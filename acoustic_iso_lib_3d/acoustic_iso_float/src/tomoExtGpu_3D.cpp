@@ -13,6 +13,7 @@ tomoExtGpu_3D::tomoExtGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_p
 	_nGpu = nGpu;
 	_iGpuId = iGpuId;
 	_ginsu = _fdParam_3D->_par->getInt("ginsu");
+	_slowSquare = par->getInt("slowSquare");
 
 	// Check parfile consistency for source and extended reflectivity
 	if (_fdParam_3D->checkParfileConsistencySpace_3D(_extReflectivity, "Extended reflectivity file") != true) {
@@ -61,35 +62,11 @@ void tomoExtGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> mo
 
 			// No Ginsu
 			if (_ginsu==0){
-				// for (long long is=0; is<_nSourcesReg; is++){
-				// 	std::cout << "source position #" << is << "= " << _sourcesPositionReg[is] << std::endl;
-				// }
-				// for (long long ir=0; ir<_nReceiversReg; ir++){
-				// 	std::cout << "receiver position #" << ir << "= " << _receiversPositionReg[ir] << std::endl;
-				// }
-				// std::cout << "Time-lags, Before model max = " << model->max() << std::endl;
-				// std::cout << "Time-lags, Before model min = " << model->min() << std::endl;
-	            tomoTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Time-lags, After data max = " << dataRegDts->max() << std::endl;
-				// std::cout << "Time-lags, After data min = " << dataRegDts->min() << std::endl;
+	            tomoTauShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 
 			// Ginsu
 			} else {
-				// for (long long is=0; is<_nSourcesReg; is++){
-				// 	std::cout << "source position #" << is << "= " << _sourcesPositionReg[is] << std::endl;
-				// }
-				// for (long long ir=0; ir<_nReceiversReg; ir++){
-				// 	std::cout << "receiver position #" << ir << "= " << _receiversPositionReg[ir] << std::endl;
-				// }
-				// std::cout << "model max = " << model->max() << std::endl;
-				// std::cout << "model min = " << model->min() << std::endl;
-				// std::cout << "_extReflectivity max = " << _extReflectivity->max() << std::endl;
-				// std::cout << "_extReflectivity min = " << _extReflectivity->min() << std::endl;
-				// std::cout << "_sourcesSignalsRegDtwDt2 max = " << _sourcesSignalsRegDtwDt2->max() << std::endl;
-				// std::cout << "_sourcesSignalsRegDtwDt2 min = " << _sourcesSignalsRegDtwDt2->min() << std::endl;
-	            tomoTauShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Time-lags, After data max = " << dataRegDts->max() << std::endl;
-				// std::cout << "Time-lags, After data min = " << dataRegDts->min() << std::endl;
+	            tomoTauShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		}
 
@@ -98,19 +75,16 @@ void tomoExtGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> mo
 
 			// No Ginsu
 			if (_ginsu==0){
-				// std::cout << "Offsets, Before model max = " << model->max() << std::endl;
-				// std::cout << "Offsets, Before model min = " << model->min() << std::endl;
-	            tomoHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Offsets, After data max = " << dataRegDts->max() << std::endl;
-				// std::cout << "Offsets, After data min = " << dataRegDts->min() << std::endl;
-
+				// std::cout << "fwd 1" << std::endl;
+				// std::cout << "slowSquare = " << _slowSquare << std::endl;
+				// std::cout << "model max" << model->max() << std::endl;
+				// std::cout << "model max" << model->min() << std::endl;
+	            tomoHxHyShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
+				// std::cout << "dataRegDts max" << dataRegDts->max() << std::endl;
+				// std::cout << "dataRegDts max" << dataRegDts->min() << std::endl;
 			// Ginsu
 			} else {
-				// std::cout << "Offsets, Before model max = " << model->max() << std::endl;
-				// std::cout << "Offsets, Before model min = " << model->min() << std::endl;
-	            tomoHxHyShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Offsets, After data max = " << dataRegDts->max() << std::endl;
-				// std::cout << "Offsets, After data min = " << dataRegDts->min() << std::endl;
+	            tomoHxHyShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		}
 		else {
@@ -118,7 +92,7 @@ void tomoExtGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> mo
 			assert(1==2);
 		}
 
-	// No free surface
+	// Free surface
 	} else {
 
 		// Time-lags extension
@@ -126,11 +100,11 @@ void tomoExtGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> mo
 
 			// No Ginsu
 			if (_ginsu==0){
-            	tomoTauShotsFwdFsGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+            	tomoTauShotsFwdFsGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 
 			// Ginsu
 			} else {
-            	tomoTauShotsFwdFsGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+            	tomoTauShotsFwdFsGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		}
 
@@ -139,11 +113,11 @@ void tomoExtGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> mo
 
 			// No Ginsu
 			if (_ginsu==0){
-            	tomoHxHyShotsFwdFsGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+            	tomoHxHyShotsFwdFsGpu_3D(model->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 
 			// Ginsu
 			} else {
-            	tomoHxHyShotsFwdFsGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+            	tomoHxHyShotsFwdFsGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		}
 		else {
@@ -176,19 +150,11 @@ void tomoExtGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model, c
 
 			// No Ginsu
 			if (_ginsu==0){
-				// std::cout << "Time-lags, Before data max = " << dataRegDts->max() << std::endl;
-				// std::cout << "Time-lags, Before data min = " << dataRegDts->min() << std::endl;
-				tomoTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Time-lags, After model max = " << modelTemp->max() << std::endl;
-				// std::cout << "Time-lags, After model min = " << modelTemp->min() << std::endl;
+				tomoTauShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 
 			// Ginsu
 			} else {
-				// std::cout << "Time-lags, Before data max = " << dataRegDts->max() << std::endl;
-				// std::cout << "Time-lags, Before data min = " << dataRegDts->min() << std::endl;
-				tomoTauShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Time-lags, After model max = " << modelTemp->max() << std::endl;
-				// std::cout << "Time-lags, After model min = " << modelTemp->min() << std::endl;
+				tomoTauShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 
 		// Subsurface offset extension
@@ -196,19 +162,18 @@ void tomoExtGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model, c
 
 			// No Ginsu
 			if (_ginsu==0){
-				// std::cout << "Offsets, Before data max = " << dataRegDts->max() << std::endl;
-				// std::cout << "Offsets, Before data min = " << dataRegDts->min() << std::endl;
-				tomoHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Offsets, After model max = " << modelTemp->max() << std::endl;
-				// std::cout << "Offsets, After model min = " << modelTemp->min() << std::endl;
+				// std::cout << "adj 1" << std::endl;
+				// std::cout << "slowSquare = " << _slowSquare << std::endl;
+				// std::cout << "data max" << dataRegDts->max() << std::endl;
+				// std::cout << "data max" << dataRegDts->min() << std::endl;
+				tomoHxHyShotsAdjGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
+				// std::cout << "model max" << modelTemp->max() << std::endl;
+				// std::cout << "model max" << modelTemp->min() << std::endl;
 
 			// Ginsu
 			} else {
-				// std::cout << "Offsets, Before data max = " << dataRegDts->max() << std::endl;
-				// std::cout << "Offsets, Before data min = " << dataRegDts->min() << std::endl;
-				tomoHxHyShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
-				// std::cout << "Offsets, After model max = " << modelTemp->max() << std::endl;
-				// std::cout << "Offsets, After model min = " << modelTemp->min() << std::endl;
+				// std::cout << "Time 2" << std::endl;
+				tomoHxHyShotsAdjGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		}
 		else {
@@ -220,25 +185,34 @@ void tomoExtGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model, c
 
 		// Time-lags extension
 		if (_fdParam_3D->_extension == "time") {
-
+			// std::cout << "Time 1" << std::endl;
 			// No Ginsu
 			if (_ginsu==0){
-				tomoTauShotsAdjFsGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				// std::cout << "Time 2" << std::endl;
+				tomoTauShotsAdjFsGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 
 			// Ginsu
 			} else {
-				tomoTauShotsAdjFsGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				// std::cout << "Time 3" << std::endl;
+				tomoTauShotsAdjFsGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
 		// Subsurface offset extension
 		} else if (_fdParam_3D->_extension == "offset") {
-
+			// std::cout << "Offset 1" << std::endl;
 			// No Ginsu
 			if (_ginsu==0){
-				tomoHxHyShotsAdjFsGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				// std::cout << "adj 1" << std::endl;
+				// std::cout << "slowSquare = " << _slowSquare << std::endl;
+				// std::cout << "data max" << dataRegDts->max() << std::endl;
+				// std::cout << "data max" << dataRegDts->min() << std::endl;
+				tomoHxHyShotsAdjFsGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _extReflectivity->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
+				// std::cout << "model max" << modelTemp->max() << std::endl;
+				// std::cout << "model max" << modelTemp->min() << std::endl;
 
 			// Ginsu
 			} else {
-				tomoHxHyShotsAdjFsGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _iGpu, _iGpuId);
+				// std::cout << "Offset2 1" << std::endl;
+				tomoHxHyShotsAdjFsGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _fdParam_3D->_extReflectivityGinsu, _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _slowSquare, _iGpu, _iGpuId);
 			}
  		} else {
 			std::cout << "**** ERROR [tomoExtGpu_3D]: Please specify the type of extension (time of offset) ****" << std::endl; throw std::runtime_error("");

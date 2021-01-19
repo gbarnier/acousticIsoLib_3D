@@ -358,6 +358,9 @@ void allocatePinnedTomoExtGpuFwime_3D(int nzWavefield, int nxWavefield, int nyWa
 	cuda_call(cudaHostAlloc((void**) &pin_wavefieldSlice1[iGpu], host_nWavefieldSpace*ntsWavefield*sizeof(float), cudaHostAllocDefault));
 	cuda_call(cudaHostAlloc((void**) &pin_wavefieldSlice2[iGpu], host_nWavefieldSpace*ntsWavefield*sizeof(float), cudaHostAllocDefault));
 
+	// std::cout << "iGpu = " << iGpu << std::endl;
+	// std::cout << "pin_wavefieldSlice1[iGpu] = " << pin_wavefieldSlice1[iGpu] << std::endl;
+
 	wavefield = pin_wavefieldSlice1[iGpu];
 }
 
@@ -646,7 +649,7 @@ void deallocatePinnedTomoExtShotsGpu_3D(int iGpu, int iGpuId){
 
 /******************************** Normal **************************************/
 // Time-lags
-void tomoTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -702,11 +705,20 @@ void tomoTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *extReflectivi
 	// Scale model (background perturbation) by 2/v^3 x v^2dtw^2
 	scaleReflectivity_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelTomo[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu]);
 
-	// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+
+	if (slowSquare == 0){
+		// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// Scale = -v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
 	}
 
 	// Allocate and initialize data to zero
@@ -747,7 +759,7 @@ void tomoTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *extReflectivi
 }
 
 // Time-lags + Ginsu
-void tomoTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -825,11 +837,20 @@ void tomoTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *extRefle
     // std::cout << "Max value extReflectivity = " << *std::max_element(extReflectivity,extReflectivity+host_nModelExt_ginsu[iGpu]) << std::endl;
     ////////////////////////////////////////////////////////////////////////
 
-	// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+
+	if (slowSquare == 0){
+		// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Scale = - v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	//////////////////////////////// Debug /////////////////////////////////
@@ -876,7 +897,7 @@ void tomoTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *extRefle
 }
 
 // Subsurface offsets
-void tomoHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -934,11 +955,25 @@ void tomoHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *extReflectiv
 
 	// Copy and scale extended reflectivity by 2/v^3 (linearization of wave-equation)
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+
+	if (slowSquare == 0){
+		// std::cout << "Cuda fwd 0" << std::endl;
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
+		}
+	}
+	else {
+		// std::cout << "Cuda fwd 1" << std::endl;
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], extStride1, extStride2);
+			}
 		}
 	}
 
@@ -980,7 +1015,7 @@ void tomoHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *extReflectiv
 }
 
 // Subsurface offsets + Ginsu
-void tomoHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1038,11 +1073,22 @@ void tomoHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *extRefl
 
 	// Copy and scale extended reflectivity by 2/v^3 (linearization of wave-equation)
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+
+	if (slowSquare == 0){
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 
@@ -1085,7 +1131,7 @@ void tomoHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *extRefl
 
 /****************************** Free surface **********************************/
 // Time-lags
-void tomoTauShotsFwdFsGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoTauShotsFwdFsGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1144,11 +1190,20 @@ void tomoTauShotsFwdFsGpu_3D(float *model, float *dataRegDts, float *extReflecti
 	// Scale model (background perturbation) by 2/v^3 x v^2dtw^2
 	scaleReflectivity_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelTomo[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu]);
 
-	// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+	// Copy extended reflectivity to device
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+	if (slowSquare == 0){
+		// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// Scale = -v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
 	}
 
 	// Allocate and initialize data to zero
@@ -1189,7 +1244,7 @@ void tomoTauShotsFwdFsGpu_3D(float *model, float *dataRegDts, float *extReflecti
 }
 
 // Time-lags + Ginsu
-void tomoTauShotsFwdFsGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoTauShotsFwdFsGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1248,11 +1303,21 @@ void tomoTauShotsFwdFsGinsuGpu_3D(float *model, float *dataRegDts, float *extRef
 	// Scale model (background perturbation) by 2/v^3 x v^2dtw^2
 	scaleReflectivityGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelTomo[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], iGpu);
 
-	// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+	// Copy extended reflectivity to device
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+
+	if (slowSquare == 0){
+		// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Scale = -v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	// Allocate and initialize data to zero
@@ -1293,7 +1358,7 @@ void tomoTauShotsFwdFsGinsuGpu_3D(float *model, float *dataRegDts, float *extRef
 }
 
 // Subsurface offsets
-void tomoHxHyShotsFwdFsGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoHxHyShotsFwdFsGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1352,13 +1417,26 @@ void tomoHxHyShotsFwdFsGpu_3D(float *model, float *dataRegDts, float *extReflect
 	// Scale model (background perturbation) by 2/v^3 x v^2dtw^2
 	scaleReflectivity_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelTomo[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu]);
 
-	// Copy and scale extended reflectivity by 2/v^3 (linearization of wave-equation)
+	// Copy extended reflectivity
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+
+	if (slowSquare == 0){
+		// Scale extended reflectivity by 2/v^3 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
+		}
+	} else {
+		// Scale extended reflectivity by -1.0 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu],extStride1, extStride2);
+			}
 		}
 	}
 
@@ -1400,7 +1478,7 @@ void tomoHxHyShotsFwdFsGpu_3D(float *model, float *dataRegDts, float *extReflect
 }
 
 // Subsurface offsets + Ginsu
-void tomoHxHyShotsFwdFsGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoHxHyShotsFwdFsGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1461,11 +1539,24 @@ void tomoHxHyShotsFwdFsGinsuGpu_3D(float *model, float *dataRegDts, float *extRe
 
 	// Copy and scale extended reflectivity by 2/v^3 (linearization of wave-equation)
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+
+	if (slowSquare == 0){
+		// Scale extended reflectivity by 2/v^3 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		// Scale extended reflectivity by -1.0 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 
@@ -1512,7 +1603,7 @@ void tomoHxHyShotsFwdFsGinsuGpu_3D(float *model, float *dataRegDts, float *extRe
 
 /******************************** Normal **************************************/
 // Time-lags
-void tomoTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1575,11 +1666,21 @@ void tomoTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *extReflectivi
 	// Set model to zero
 	cuda_call(cudaMemset(dev_modelTomo[iGpu], 0, host_nVel*sizeof(float)));
 
-	// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+	if (slowSquare == 0){
+		// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// Scale = -v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+
 	}
 
 	/**************************************************************************/
@@ -1619,7 +1720,7 @@ void tomoTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *extReflectivi
 }
 
 // Time-lags + Ginsu
-void tomoTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1682,11 +1783,20 @@ void tomoTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *extRefle
 	// Set model to zero
 	cuda_call(cudaMemset(dev_modelTomo[iGpu], 0, host_nVel_ginsu[iGpu]*sizeof(float)));
 
-	// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+	if (slowSquare == 0){
+		// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Scale = -v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	/**************************************************************************/
@@ -1726,7 +1836,7 @@ void tomoTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *extRefle
 }
 
 // Subsurface offsets
-void tomoHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1790,13 +1900,28 @@ void tomoHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *extReflectiv
 	// Set model to zero
 	cuda_call(cudaMemset(dev_modelTomo[iGpu], 0, host_nVel*sizeof(float)));
 
-	// Copy and scale extended reflectivity by 2/v^3 (linearization of wave-equation)
+	// Copy extended reflectivity to device
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+
+	if (slowSquare == 0){
+		// std::cout << "Cuda adj 0" << std::endl;
+		// Scale extended reflectivity by 2/v^3 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
+		}
+	} else {
+		// std::cout << "Cuda adj 1" << std::endl;
+		// Scale extended reflectivity by -1.0 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], extStride1, extStride2);
+			}
 		}
 	}
 
@@ -1837,7 +1962,7 @@ void tomoHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *extReflectiv
 }
 
 // Subsurface offsets + Ginsu
-void tomoHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1901,13 +2026,26 @@ void tomoHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *extRefl
 	// Set model to zero
 	cuda_call(cudaMemset(dev_modelTomo[iGpu], 0, host_nVel_ginsu[iGpu]*sizeof(float)));
 
-	// Copy and scale extended reflectivity by 2/v^3 (linearization of wave-equation)
+	// Copy extended reflectivity to device
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+
+	if (slowSquare == 0){
+		// Scale extended reflectivity by 2/v^3 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		// Scale extended reflectivity by -1.0 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 
@@ -1949,7 +2087,7 @@ void tomoHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *extRefl
 
 /****************************** Free surface **********************************/
 // Time-lags
-void tomoTauShotsAdjFsGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoTauShotsAdjFsGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2015,11 +2153,20 @@ void tomoTauShotsAdjFsGpu_3D(float *model, float *dataRegDts, float *extReflecti
 	// Set model to zero
 	cuda_call(cudaMemset(dev_modelTomo[iGpu], 0, host_nVel*sizeof(float)));
 
-	// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+	// Copy extended reflectivity to device
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+	if (slowSquare == 0){
+		// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// Scale = -v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
 	}
 
 	/**************************************************************************/
@@ -2059,7 +2206,7 @@ void tomoTauShotsAdjFsGpu_3D(float *model, float *dataRegDts, float *extReflecti
 }
 
 // Time-lags + Ginsu
-void tomoTauShotsAdjFsGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoTauShotsAdjFsGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2125,11 +2272,21 @@ void tomoTauShotsAdjFsGinsuGpu_3D(float *model, float *dataRegDts, float *extRef
 	// Set model to zero
 	cuda_call(cudaMemset(dev_modelTomo[iGpu], 0, host_nVel_ginsu[iGpu]*sizeof(float)));
 
-	// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+	// Copy extended reflectivity to device
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+
+	if (slowSquare == 0){
+		// Scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Scale = -v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	/**************************************************************************/
@@ -2169,7 +2326,7 @@ void tomoTauShotsAdjFsGinsuGpu_3D(float *model, float *dataRegDts, float *extRef
 }
 
 // Subsurface offsets
-void tomoHxHyShotsAdjFsGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoHxHyShotsAdjFsGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2236,13 +2393,27 @@ void tomoHxHyShotsAdjFsGpu_3D(float *model, float *dataRegDts, float *extReflect
 	// Set model to zero
 	cuda_call(cudaMemset(dev_modelTomo[iGpu], 0, host_nVel*sizeof(float)));
 
-	// Copy and scale extended reflectivity by 2/v^3 (linearization of wave-equation)
+	// Copy extended reflectivity to device
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+
+	if (slowSquare == 0){
+		// Scale extended reflectivity by 2/v^3 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
+		}
+	}
+	else {
+		// Scale extended reflectivity by -1.0 (linearization of wave-equation)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], extStride1, extStride2);
+			}
 		}
 	}
 
@@ -2283,7 +2454,7 @@ void tomoHxHyShotsAdjFsGpu_3D(float *model, float *dataRegDts, float *extReflect
 }
 
 // Subsurface offsets + Ginsu
-void tomoHxHyShotsAdjFsGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void tomoHxHyShotsAdjFsGinsuGpu_3D(float *model, float *dataRegDts, float *extReflectivity, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2352,11 +2523,22 @@ void tomoHxHyShotsAdjFsGinsuGpu_3D(float *model, float *dataRegDts, float *extRe
 
 	// Copy and scale extended reflectivity by 2/v^3 (linearization of wave-equation)
 	cuda_call(cudaMemcpy(dev_extReflectivity[iGpu], extReflectivity, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice));
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+
+	if (slowSquare){
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_extReflectivity[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 

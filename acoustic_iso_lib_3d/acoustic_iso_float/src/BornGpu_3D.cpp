@@ -49,7 +49,6 @@ void BornGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> model
 	if (_fdParam_3D->_freeSurface != 1){
 		if (_ginsu == 0){
 			BornShotsFwdGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
-
 		} else {
 			BornShotsFwdGinsuGpu_3D(model->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 		}
@@ -86,13 +85,7 @@ void BornGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model, cons
 		}
 	} else {
 		if (_ginsu == 0){
-			// std::cout << "Inside born adjoint [before]" << std::endl;
-			// std::cout << "dataRegDts min before = " << dataRegDts->min() << std::endl;
-			// std::cout << "dataRegDts max before = " << dataRegDts->max() << std::endl;
 			BornShotsAdjFreeSurfaceGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
-			// std::cout << "modelTemp min after = " << modelTemp->min() << std::endl;
-			// std::cout << "modelTemp max after = " << modelTemp->max() << std::endl;
-			// std::cout << "Inside born adjoint [after]" << std::endl;
 		} else {
 			BornShotsAdjFreeSurfaceGinsuGpu_3D(modelTemp->getVals(), dataRegDts->getVals(), _sourcesSignalsRegDtwDt2->getVals(), _sourcesPositionReg, _nSourcesReg, _receiversPositionReg, _nReceiversReg, _rtm, _iGpu, _iGpuId);
 		}

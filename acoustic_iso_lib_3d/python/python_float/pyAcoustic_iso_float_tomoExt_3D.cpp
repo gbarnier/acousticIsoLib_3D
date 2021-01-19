@@ -9,7 +9,7 @@
 namespace py = pybind11;
 using namespace SEP;
 
-//Definition of Born operator
+// Definition of Born operator
 PYBIND11_MODULE(pyAcoustic_iso_float_tomoExt_3D, clsGeneric) {
 
   py::add_ostream_redirect(clsGeneric, "ostream_redirect");
@@ -33,5 +33,8 @@ PYBIND11_MODULE(pyAcoustic_iso_float_tomoExt_3D, clsGeneric) {
       .def("deallocatePinnedTomoExtGpu_3D",(void (tomoExtShotsGpu_3D::*)()) &tomoExtShotsGpu_3D::deallocatePinnedTomoExtGpu_3D,"Function to deallocate the pinned memory where the source wavefields are stored")
 
       .def("dotTest",(bool (tomoExtShotsGpu_3D::*)(const bool, const float)) &tomoExtShotsGpu_3D::dotTest,"Dot-Product Test")
+
+      .def("getWavefieldVector",(std::shared_ptr<wavefieldVector_3D> (tomoExtShotsGpu_3D::*)()) &tomoExtShotsGpu_3D::getWavefieldVector,"Function to get the object that contains the wavefield")
+
 ;
 }

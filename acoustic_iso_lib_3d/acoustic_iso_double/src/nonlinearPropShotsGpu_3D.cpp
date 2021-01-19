@@ -316,7 +316,8 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<double2DR
 		int iGpuId = _gpuList[iGpu];
 
 		// Copy data slice
-		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[iShot*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n]), sizeof(double)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
+		long long int data_idx = iShot*hyperDataSlice->getAxis(1).n;
+		memcpy(dataSliceVector[iGpu]->getVals(), &(data->getVals()[data_idx*hyperDataSlice->getAxis(2).n]), sizeof(double)*hyperDataSlice->getAxis(1).n*hyperDataSlice->getAxis(2).n);
 
 		// Set acquisition geometry
 		if(constantRecGeom == 1) {

@@ -211,6 +211,18 @@ __global__ void scaleReflectivityTau_3D(float *dev_modelExtIn, float *dev_reflec
 	}
 }
 
+__global__ void scaleReflectivityTauSlowSquare_3D(float *dev_modelExtIn, float *dev_vel2Dtw2In, long long extStrideIn){
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+		dev_modelExtIn[iGlobal+extStrideIn] *= (-1.0*dev_vel2Dtw2In[iGlobal]);
+		iGlobal+=dev_yStride;
+	}
+}
+
 __global__ void scaleReflectivityLinHxHy_3D(float *dev_modelExtIn, float *dev_reflectivityScaleIn, long long extStride1In, long long extStride2In){
 
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
@@ -219,6 +231,18 @@ __global__ void scaleReflectivityLinHxHy_3D(float *dev_modelExtIn, float *dev_re
 
 	for (int iy=FAT; iy<dev_ny-FAT; iy++){
 		dev_modelExtIn[extStride2In+extStride1In+iGlobal] *= dev_reflectivityScaleIn[iGlobal];
+		iGlobal+=dev_yStride;
+	}
+}
+
+__global__ void scaleReflectivityLinHxHySlowSquare_3D(float *dev_modelExtIn, long long extStride1In, long long extStride2In){
+
+	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Global z-coordinate
+	long long ixGlobal = FAT + blockIdx.y * BLOCK_SIZE_X + threadIdx.y; // Global x-coordinate
+    long long iGlobal = FAT * dev_yStride + dev_nz * ixGlobal + izGlobal; // Global position on the cube
+
+	for (int iy=FAT; iy<dev_ny-FAT; iy++){
+		dev_modelExtIn[extStride2In+extStride1In+iGlobal] *= -1.0;
 		iGlobal+=dev_yStride;
 	}
 }

@@ -16,6 +16,7 @@
 #include "interpTimeLinTbb_3D.h"
 #include "secondTimeDerivative_3D.h"
 #include "tomoExtShotsGpuFunctions_3D.h"
+#include "wavefieldVector_3D.h"
 
 using namespace SEP;
 
@@ -35,7 +36,8 @@ class tomoExtShotsGpu_3D : public Operator<SEP::float3DReg, SEP::float3DReg> {
 		std::shared_ptr<SEP::int1DReg> _xPadMinusVectorGinsu, _xPadPlusVectorGinsu;
 		std::vector<int> _ixVectorGinsu, _iyVectorGinsu;
 		int _fwime;
-		std::vector<float*> _pinWavefieldVec;
+		// std::vector<float*> _pinWavefieldVec;
+		std::shared_ptr<wavefieldVector_3D> _wavefieldVectorObj;
 
 	public:
 
@@ -62,7 +64,7 @@ class tomoExtShotsGpu_3D : public Operator<SEP::float3DReg, SEP::float3DReg> {
 		void deallocatePinnedTomoExtGpu_3D();
 
 		/* Accessors */
-		std::vector<float*> getPinWavefieldVec(){return _pinWavefieldVec;}
+		std::shared_ptr<wavefieldVector_3D> getWavefieldVector(){return _wavefieldVectorObj;}
 };
 
 #endif

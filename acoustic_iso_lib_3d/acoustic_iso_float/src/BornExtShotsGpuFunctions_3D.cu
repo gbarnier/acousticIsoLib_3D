@@ -145,6 +145,10 @@ void initBornExtGpu_3D(float dz, float dx, float dy, int nz, int nx, int ny, int
         // Reflectivity
 		dev_modelBornExt = new float*[nGpu];
 
+		// Debug model and data
+		dev_modelDebug = new float*[nGpu];
+		dev_dataDebug = new float*[nGpu];
+
         // Streams
 		compStream = new cudaStream_t[nGpu];
 		transferStream = new cudaStream_t[nGpu];
@@ -300,14 +304,12 @@ void setPinnedBornExtGpuFwime_3D(float* wavefield, int nGpu, int iGpu, int iGpuI
 	// Get GPU number
 	cudaSetDevice(iGpuId);
 
-	std::cout << "Inside BornExt set pinned before" << std::endl;
 	// Only one GPU will perform the following
 	if (iGpuId == iGpuAlloc) {
 		pin_wavefieldSlice = new float*[nGpu];
 	}
 	// Set pointer to wavefield
 	pin_wavefieldSlice[iGpu] = wavefield;
-	std::cout << "Inside BornExt set pinned after" << std::endl;
 }
 
 // Init Ginsu
@@ -558,7 +560,7 @@ void deallocatePinnedBornExtShotsGpu_3D(int iGpu, int iGpuId){
 
 /******************************* No free surface ******************************/
 // Time
-void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -567,6 +569,7 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 	// Create streams
 	cudaStreamCreate(&compStream[iGpu]);
 	cudaStreamCreate(&transferStream[iGpu]);
+	// cudaStreamCreate(&transferStreamH2D[iGpu]);
 
 	// Sources geometry
 	cuda_call(cudaMemcpyToSymbol(dev_nSourcesReg, &nSourcesReg, sizeof(int), 0, cudaMemcpyHostToDevice));
@@ -581,6 +584,9 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 	cuda_call(cudaMemcpyToSymbol(dev_nReceiversReg, &nReceiversReg, sizeof(int), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMalloc((void**) &dev_receiversPositionReg[iGpu], nReceiversReg*sizeof(long long)));
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
+
+	// Transfer extended model from host to device
+	// cuda_call(cudaMemcpyAsync(dev_modelBornExt[iGpu], model, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice, transferStreamH2D[iGpu]));
 
 	// Initialize time-slices for time-stepping
   	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel*sizeof(float)));
@@ -606,6 +612,14 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 	// Blocks data recording
 	int nblockData = (nReceiversReg+BLOCK_SIZE_DATA-1) / BLOCK_SIZE_DATA;
 
+	// cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
+  	// cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
+
+	// Timer
+	// std::clock_t start;
+	// float duration;
+	// start = std::clock();
+
 	/********************** Source wavefield computation **********************/
 	for (int its = 0; its < host_nts-1; its++){
 
@@ -622,10 +636,14 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 			injectSourceLinear_3D<<<1, nSourcesReg, 0, compStream[iGpu]>>>(dev_sourcesSignals[iGpu], dev_p0[iGpu], itw-1, dev_sourcesPositionReg[iGpu]);
 
 			// Damp wavefields
+			// dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 			dampCosineEdge_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
 			// Spread energy to dev_pLeft and dev_pRight
+			// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 			interpFineToCoarseSlice_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
+
+			// recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]);
 
 			// Switch pointers
 			dev_temp1[iGpu] = dev_p0[iGpu];
@@ -676,6 +694,10 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 	/********************** Scattered wavefield computation *******************/
 	/**************************************************************************/
 
+	// float *dummySliceLeft, *dummySliceRight;
+	// dummySliceLeft = new float[host_nVel];
+	// dummySliceRight = new float[host_nVel];
+
 	// Reset the time slices to zero
 	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel*sizeof(float)));
   	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nVel*sizeof(float)));
@@ -693,6 +715,9 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 		// Load the source time-slices from its = 0,...,2*hExt1 (included)
 		if (iExt < 2*host_hExt1+1){
 
+			// // Copy slice from RAM -> pinned
+			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+iExt*host_nVel, host_nVel*sizeof(float));
+
 			// Transfer from pinned -> GPU
 			cuda_call(cudaMemcpy(dev_pSourceWavefieldTau[iGpu][iExt], pin_wavefieldSlice[iGpu]+iExt*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice));
 		}
@@ -706,11 +731,26 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+	// Timer
+	// std::clock_t start;
+	// float duration;
+	// start = std::clock();
+
+	// Apply scaling to reflectivity
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags)
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// std::cout << "Slowness squared" << std::endl;
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -730,6 +770,7 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 	// Imaging condition for its = 0
 	for (int iExt=iExtMin; iExt<iExtMax; iExt++){
 		int iSlice = its - 2 * (iExt-host_hExt1);
+		// imagingTauFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pLeft[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 		imagingTauFwdGpu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pLeft[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 	}
 
@@ -766,6 +807,7 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 			// Imaging condition for its+1
 			for (int iExt=iExtMin; iExt<iExtMax; iExt++){
 				int iSlice = (its+1) - 2 * (iExt-host_hExt1);
+				// imagingTauFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 				imagingTauFwdGpu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 			}
 
@@ -783,6 +825,7 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 
 				// Index of the wavefield slice corresponding to iExt
 				int iSlice = 4*host_hExt1 - 2*iExt;
+				// imagingTauFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 				imagingTauFwdGpu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 			}
 		}
@@ -793,9 +836,13 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 			for (int iExt=iExtMin; iExt<iExtMax; iExt++){
 
 				int iSlice = its + 2 + 6*host_hExt1 - 2*iExt - host_nts;
+				// imagingTauFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 				imagingTauFwdGpu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 			}
 		}
+
+		// QC
+		// cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefieldTau[iGpu][0], host_nVel*sizeof(float), cudaMemcpyDeviceToHost));
 
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
@@ -855,6 +902,9 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 		}
 	}
 
+	// duration = (std::clock() - start) / (float) CLOCKS_PER_SEC;
+	// std::cout << "Duration scattered fwd: " << duration << std::endl;
+
 	// Wait for all jobs on GPU to be done
 	cuda_call(cudaDeviceSynchronize());
 
@@ -868,11 +918,12 @@ void BornTauShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 	cuda_call(cudaFree(dev_dataRegDts[iGpu]));
     cuda_call(cudaStreamDestroy(compStream[iGpu]));
     cuda_call(cudaStreamDestroy(transferStream[iGpu]));
+	// cuda_call(cudaStreamDestroy(transferStreamH2D[iGpu]));
 
 }
 
 // Time Ginsu
-void BornTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -895,6 +946,9 @@ void BornTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 	cuda_call(cudaMemcpyToSymbol(dev_nReceiversReg, &nReceiversReg, sizeof(int), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMalloc((void**) &dev_receiversPositionReg[iGpu], nReceiversReg*sizeof(long long)));
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
+
+	// Transfer extended model from host to device
+	// cuda_call(cudaMemcpyAsync(dev_modelBornExt[iGpu], model, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStreamH2D[iGpu]));
 
 	// Initialize time-slices for time-stepping
   	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel_ginsu[iGpu]*sizeof(float)));
@@ -920,8 +974,15 @@ void BornTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 	// Blocks data recording
 	int nblockData = (nReceiversReg+BLOCK_SIZE_DATA-1) / BLOCK_SIZE_DATA;
 
+	// Timer
+	std::clock_t start;
+	float duration;
+	start = std::clock();
+
 	/********************** Source wavefield computation **********************/
 	for (int its = 0; its < host_nts-1; its++){
+
+		// std::cout << "its = " << its << std::endl;
 
 		// Loop within two values of its (coarse time grid)
 		for (int it2 = 1; it2 < host_sub+1; it2++){
@@ -936,10 +997,13 @@ void BornTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 			injectSourceLinear_3D<<<1, nSourcesReg, 0, compStream[iGpu]>>>(dev_sourcesSignals[iGpu], dev_p0[iGpu], itw-1, dev_sourcesPositionReg[iGpu]);
 
 			// Damp wavefields
+			// dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 			dampCosineEdgeGinsu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu], iGpu);
 
 			// Spread energy to dev_pLeft and dev_pRight
+			// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 			interpFineToCoarseSliceGinsu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2, iGpu);
+			// recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]);
 
 			// Switch pointers
 			dev_temp1[iGpu] = dev_p0[iGpu];
@@ -1007,23 +1071,35 @@ void BornTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 		// Load the source time-slices from its = 0,...,2*hExt1 (included)
 		if (iExt < 2*host_hExt1+1){
 
+			// // Copy slice from RAM -> pinned
+			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+iExt*host_nVel, host_nVel*sizeof(float));
+
 			// Transfer from pinned -> GPU
 			cuda_call(cudaMemcpy(dev_pSourceWavefieldTau[iGpu][iExt], pin_wavefieldSlice[iGpu]+iExt*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice));
 		}
 	}
 
 	// Copy model to device
+	// cuda_call(cudaStreamSynchronize(transferStreamH2D[iGpu]));
 	cuda_call(cudaMemcpy(dev_modelBornExt[iGpu], model, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
 
 	// Allocate and initialize data
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -1108,6 +1184,9 @@ void BornTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 			}
 		}
 
+		// QC
+		// cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefieldTau[iGpu][0], host_nVel*sizeof(float), cudaMemcpyDeviceToHost));
+
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
 			// Step forward
@@ -1184,7 +1263,7 @@ void BornTauShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 }
 
 // Offset
-void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1233,6 +1312,10 @@ void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 	dim3 dimGrid32(nblockx32, nblocky32);
 	dim3 dimBlock32(32, 32);
 
+	// Allocate and initialize data
+  	// cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
+  	// cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
+
 	// Blocks data recording
 	int nblockData = (nReceiversReg+BLOCK_SIZE_DATA-1) / BLOCK_SIZE_DATA;
 
@@ -1252,10 +1335,15 @@ void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 			injectSourceLinear_3D<<<1, nSourcesReg, 0, compStream[iGpu]>>>(dev_sourcesSignals[iGpu], dev_p0[iGpu], itw-1, dev_sourcesPositionReg[iGpu]);
 
 			// Damp wavefields
+			// dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 			dampCosineEdge_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
 			// Spread energy to dev_pLeft and dev_pRight
+			// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 			interpFineToCoarseSlice_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
+
+			// Extract data
+			// recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]);
 
 			// Switch pointers
 			dev_temp1[iGpu] = dev_p0[iGpu];
@@ -1318,22 +1406,43 @@ void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 	// cuda_call(cudaStreamSynchronize(transferStreamH2D[iGpu]));
 	cuda_call(cudaMemcpy(dev_modelBornExt[iGpu], model, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
 
+	// float *dummySlice, *dummyModel, *dummyData;
+	// dummySlice = new float[host_nVel];
+	// dummyModel = new float[host_nModelExt];
+	// dummyData = new float[nReceiversReg*host_nts*sizeof(float)];
+	// cudaMemcpy(dummyModel, dev_modelBornExt[iGpu], host_nModelExt*sizeof(float), cudaMemcpyDeviceToHost);
+	// std::cout << "Dummy model min #0 = " << *std::min_element(dummyModel,dummyModel+host_nModelExt) << std::endl;
+	// std::cout << "Dummy model max #0 = " << *std::max_element(dummyModel,dummyModel+host_nModelExt) << std::endl;
+
 	// Allocate and initialize data
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+	if (slowSquare == 0 ){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity in slowness squared -> multiply by (-1)
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2);
+			}
 		}
 	}
 
 	/************************ Streaming stuff starts **************************/
 
 	// Copy wavefield time-slice its = 0: RAM -> pinned -> dev_pStream -> dev_pSourceWavefield
+	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nVel*sizeof(float));
+	// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nVel*sizeof(float), cudaMemcpyHostToHost, transferStream[iGpu]));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], dev_pStream[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
@@ -1345,11 +1454,11 @@ void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 			imagingHxHyFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pLeft[iGpu], dev_pSourceWavefield[iGpu], ihx, iExt1, ihy, iExt2);
 		}
 	}
-
 	// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
 	scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_vel2Dtw2[iGpu]);
 
 	// Copy new slice from RAM -> pinned for time its = 1 -> transfer to pStream
+	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+host_nVel, host_nVel*sizeof(float));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu]+host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
 
@@ -1361,6 +1470,8 @@ void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 
 		if (its < host_nts-2){
 			// Copy wavefield slice its+2 from RAM > dev_pStream
+			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2)*host_nVel, host_nVel*sizeof(float)); // -> this should be done with transfer stream
+			// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToHost, transferStream[iGpu]));
 			cuda_call(cudaStreamSynchronize(compStream[iGpu]));
 			cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu]+(its+2)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 		}
@@ -1374,9 +1485,22 @@ void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 			}
 		}
 
+		// imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #0 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #0 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #1 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #1 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
 
 		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
 		scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #2 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #2 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
 
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
@@ -1387,7 +1511,12 @@ void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 			injectSecondarySource_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2-1);
 
 			// Damp wavefields
+			// dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 			dampCosineEdge_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
+
+			// cudaMemcpy(dummyModel, dev_p0[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+			// std::cout << "Dummy p0 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+			// std::cout << "Dummy p0 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
 
 			// Extract data
 			recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]);
@@ -1399,6 +1528,11 @@ void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 			dev_temp1[iGpu] = NULL;
 
 		}
+
+		// cudaMemcpy(dummyData, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy data min = " << *std::min_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "Dummy data max = " << *std::max_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "---------------------" << std::endl;
 
 		// Switch pointers for secondary source
 		dev_pTemp[iGpu] = dev_pLeft[iGpu];
@@ -1426,7 +1560,7 @@ void BornHxHyShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 }
 
 // Offset Ginsu
-void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1435,6 +1569,7 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 	// Create streams
 	cudaStreamCreate(&compStream[iGpu]);
 	cudaStreamCreate(&transferStream[iGpu]);
+	// cudaStreamCreate(&transferStreamH2D[iGpu]);
 
 	// Sources geometry
 	cuda_call(cudaMemcpyToSymbol(dev_nSourcesReg, &nSourcesReg, sizeof(int), 0, cudaMemcpyHostToDevice));
@@ -1449,6 +1584,9 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 	cuda_call(cudaMemcpyToSymbol(dev_nReceiversReg, &nReceiversReg, sizeof(int), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMalloc((void**) &dev_receiversPositionReg[iGpu], nReceiversReg*sizeof(long long)));
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
+
+	// Transfer extended model from host to device
+	// cuda_call(cudaMemcpyAsync(dev_modelBornExt[iGpu], model, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStreamH2D[iGpu]));
 
 	// Initialize time-slices for time-stepping
   	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel_ginsu[iGpu]*sizeof(float)));
@@ -1470,6 +1608,10 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 	int nblocky32 = (host_nx_ginsu[iGpu]-2*FAT+32-1) / 32;
 	dim3 dimGrid32(nblockx32, nblocky32);
 	dim3 dimBlock32(32, 32);
+
+	// Allocate and initialize data
+  	// cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
+  	// cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
 
 	// Blocks data recording
 	int nblockData = (nReceiversReg+BLOCK_SIZE_DATA-1) / BLOCK_SIZE_DATA;
@@ -1560,18 +1702,30 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 
 	/************************ Streaming stuff starts **************************/
 
 	// Copy wavefield time-slice its = 0: RAM -> pinned -> dev_pStream -> dev_pSourceWavefield
+	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nVel*sizeof(float));
+	// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nVel*sizeof(float), cudaMemcpyHostToHost, transferStream[iGpu]));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
@@ -1587,6 +1741,7 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 	scaleSecondarySourceFdGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_vel2Dtw2[iGpu], iGpu);
 
 	// Copy new slice from RAM -> pinned for time its = 1 -> transfer to pStream
+	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+host_nVel, host_nVel*sizeof(float));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu]+host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
 
@@ -1598,6 +1753,8 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 
 		if (its < host_nts-2){
 			// Copy wavefield slice its+2 from RAM > dev_pStream
+			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2)*host_nVel, host_nVel*sizeof(float)); // -> this should be done with transfer stream
+			// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToHost, transferStream[iGpu]));
 			cuda_call(cudaStreamSynchronize(compStream[iGpu]));
 			cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu]+(its+2)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 		}
@@ -1611,8 +1768,22 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 			}
 		}
 
+		// imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #0 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #0 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #1 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #1 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
+
 		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
 		scaleSecondarySourceFdGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu], iGpu);
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #2 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #2 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
 
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
@@ -1625,6 +1796,10 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 			// Damp wavefields
 			dampCosineEdgeGinsu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu], iGpu);
 
+			// cudaMemcpy(dummyModel, dev_p0[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+			// std::cout << "Dummy p0 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+			// std::cout << "Dummy p0 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
+
 			// Extract data
 			recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]);
 
@@ -1635,6 +1810,11 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 			dev_temp1[iGpu] = NULL;
 
 		}
+
+		// cudaMemcpy(dummyData, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy data min = " << *std::min_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "Dummy data max = " << *std::max_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "---------------------" << std::endl;
 
 		// Switch pointers for secondary source
 		dev_pTemp[iGpu] = dev_pLeft[iGpu];
@@ -1658,12 +1838,13 @@ void BornHxHyShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 	cuda_call(cudaFree(dev_dataRegDts[iGpu]));
     cuda_call(cudaStreamDestroy(compStream[iGpu]));
     cuda_call(cudaStreamDestroy(transferStream[iGpu]));
+	// cuda_call(cudaStreamDestroy(transferStreamH2D[iGpu]));
 
 }
 
 /******************************* Free surface *********************************/
 // Time
-void BornTauFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -1687,6 +1868,9 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *so
 	cuda_call(cudaMemcpyToSymbol(dev_nReceiversReg, &nReceiversReg, sizeof(int), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMalloc((void**) &dev_receiversPositionReg[iGpu], nReceiversReg*sizeof(long long)));
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
+
+	// Transfer extended model from host to device
+	// cuda_call(cudaMemcpyAsync(dev_modelBornExt[iGpu], model, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice, transferStreamH2D[iGpu]));
 
 	// Initialize time-slices for time-stepping
   	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel*sizeof(float)));
@@ -1793,6 +1977,10 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *so
 	/********************** Scattered wavefield computation *******************/
 	/**************************************************************************/
 
+	// float *dummySliceLeft, *dummySliceRight;
+	// dummySliceLeft = new float[host_nVel];
+	// dummySliceRight = new float[host_nVel];
+
 	// Reset the time slices to zero
 	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel*sizeof(float)));
   	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nVel*sizeof(float)));
@@ -1804,10 +1992,14 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *so
 	for (int iExt=0; iExt<4*host_hExt1+1; iExt++){
 
 		// Allocate source wavefield slice
+		// cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(float)));
 		cuda_call(cudaMemset(dev_pSourceWavefieldTau[iGpu][iExt], 0, host_nVel*sizeof(float))); // Useless
 
 		// Load the source time-slices from its = 0,...,2*hExt1 (included)
 		if (iExt < 2*host_hExt1+1){
+
+			// // Copy slice from RAM -> pinned
+			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+iExt*host_nVel, host_nVel*sizeof(float));
 
 			// Transfer from pinned -> GPU
 			cuda_call(cudaMemcpy(dev_pSourceWavefieldTau[iGpu][iExt], pin_wavefieldSlice[iGpu]+iExt*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice));
@@ -1822,11 +2014,19 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *so
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -1913,6 +2113,9 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *so
 			}
 		}
 
+		// QC
+		// cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefieldTau[iGpu][0], host_nVel*sizeof(float), cudaMemcpyDeviceToHost));
+
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
 			// Apply free surface conditions for Laplacian
@@ -1987,11 +2190,12 @@ void BornTauFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *so
 	cuda_call(cudaFree(dev_dataRegDts[iGpu]));
     cuda_call(cudaStreamDestroy(compStream[iGpu]));
     cuda_call(cudaStreamDestroy(transferStream[iGpu]));
+    // cuda_call(cudaStreamDestroy(transferStreamH2D[iGpu]));
 
 }
 
 // Time Ginsu
-void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2015,6 +2219,9 @@ void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, floa
 	cuda_call(cudaMemcpyToSymbol(dev_nReceiversReg, &nReceiversReg, sizeof(int), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMalloc((void**) &dev_receiversPositionReg[iGpu], nReceiversReg*sizeof(long long)));
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
+
+	// Transfer extended model from host to device
+	// cuda_call(cudaMemcpyAsync(dev_modelBornExt[iGpu], model, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStreamH2D[iGpu]));
 
 	// Initialize time-slices for time-stepping
   	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel_ginsu[iGpu]*sizeof(float)));
@@ -2121,6 +2328,10 @@ void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, floa
 	/********************** Scattered wavefield computation *******************/
 	/**************************************************************************/
 
+	// float *dummySliceLeft, *dummySliceRight;
+	// dummySliceLeft = new float[host_nVel];
+	// dummySliceRight = new float[host_nVel];
+
 	// Reset the time slices to zero
 	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel_ginsu[iGpu]*sizeof(float)));
   	cuda_call(cudaMemset(dev_p1[iGpu], 0, host_nVel_ginsu[iGpu]*sizeof(float)));
@@ -2132,6 +2343,7 @@ void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, floa
 	for (int iExt=0; iExt<4*host_hExt1+1; iExt++){
 
 		// Allocate source wavefield slice
+		// cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(float)));
 		cuda_call(cudaMemset(dev_pSourceWavefieldTau[iGpu][iExt], 0, host_nVel_ginsu[iGpu]*sizeof(float))); // Useless
 
 		// Load the source time-slices from its = 0,...,2*hExt1 (included)
@@ -2143,17 +2355,26 @@ void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, floa
 	}
 
 	// Copy model to device
+	// cuda_call(cudaStreamSynchronize(transferStreamH2D[iGpu]));
 	cuda_call(cudaMemcpy(dev_modelBornExt[iGpu], model, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
 
 	// Allocate and initialize data
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	/****************************** its = 0 ***********************************/
@@ -2240,6 +2461,9 @@ void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, floa
 			}
 		}
 
+		// QC
+		// cuda_call(cudaMemcpy(dummySliceRight, dev_pSourceWavefieldTau[iGpu][0], host_nVel*sizeof(float), cudaMemcpyDeviceToHost));
+
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
 			// Apply free surface conditions for Laplacian
@@ -2314,11 +2538,12 @@ void BornTauFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, floa
 	cuda_call(cudaFree(dev_dataRegDts[iGpu]));
     cuda_call(cudaStreamDestroy(compStream[iGpu]));
     cuda_call(cudaStreamDestroy(transferStream[iGpu]));
+    // cuda_call(cudaStreamDestroy(transferStreamH2D[iGpu]));
 
 }
 
 // Offset
-void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2327,6 +2552,7 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *s
 	// Create streams
 	cudaStreamCreate(&compStream[iGpu]);
 	cudaStreamCreate(&transferStream[iGpu]);
+	// cudaStreamCreate(&transferStreamH2D[iGpu]);
 
 	// Sources geometry
 	cuda_call(cudaMemcpyToSymbol(dev_nSourcesReg, &nSourcesReg, sizeof(int), 0, cudaMemcpyHostToDevice));
@@ -2341,6 +2567,9 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *s
 	cuda_call(cudaMemcpyToSymbol(dev_nReceiversReg, &nReceiversReg, sizeof(int), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMalloc((void**) &dev_receiversPositionReg[iGpu], nReceiversReg*sizeof(long long)));
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
+
+	// Transfer extended model from host to device
+	// cuda_call(cudaMemcpyAsync(dev_modelBornExt[iGpu], model, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice, transferStreamH2D[iGpu]));
 
 	// Initialize time-slices for time-stepping
   	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel*sizeof(float)));
@@ -2450,24 +2679,46 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *s
   	cuda_call(cudaMemset(dev_pStream[iGpu], 0, host_nVel*sizeof(float)));
 
 	// Copy model to device
+	// cuda_call(cudaStreamSynchronize(transferStreamH2D[iGpu]));
 	cuda_call(cudaMemcpy(dev_modelBornExt[iGpu], model, host_nModelExt*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
+
+	// float *dummySlice, *dummyModel, *dummyData;
+	// dummySlice = new float[host_nVel];
+	// dummyModel = new float[host_nModelExt];
+	// dummyData = new float[nReceiversReg*host_nts*sizeof(float)];
+	// cudaMemcpy(dummyModel, dev_modelBornExt[iGpu], host_nModelExt*sizeof(float), cudaMemcpyDeviceToHost);
+	// std::cout << "Dummy model min #0 = " << *std::min_element(dummyModel,dummyModel+host_nModelExt) << std::endl;
+	// std::cout << "Dummy model max #0 = " << *std::max_element(dummyModel,dummyModel+host_nModelExt) << std::endl;
 
 	// Allocate and initialize data
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization in slowness squared: -1.0
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2);
+			}
 		}
 	}
 
 	/************************ Streaming stuff starts **************************/
 
 	// Copy wavefield time-slice its = 0: RAM -> pinned -> dev_pStream -> dev_pSourceWavefield
+	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nVel*sizeof(float));
+	// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nVel*sizeof(float), cudaMemcpyHostToHost, transferStream[iGpu]));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], dev_pStream[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
@@ -2483,6 +2734,7 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *s
 	scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_vel2Dtw2[iGpu]);
 
 	// Copy new slice from RAM -> pinned for time its = 1 -> transfer to pStream
+	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+host_nVel, host_nVel*sizeof(float));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu]+host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
 
@@ -2494,6 +2746,8 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *s
 
 		if (its < host_nts-2){
 			// Copy wavefield slice its+2 from RAM > dev_pStream
+			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2)*host_nVel, host_nVel*sizeof(float)); // -> this should be done with transfer stream
+			// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToHost, transferStream[iGpu]));
 			cuda_call(cudaStreamSynchronize(compStream[iGpu]));
 			cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu]+(its+2)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 		}
@@ -2507,8 +2761,22 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *s
 			}
 		}
 
+		// imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #0 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #0 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #1 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #1 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
+
 		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
 		scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #2 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #2 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
 
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
@@ -2535,6 +2803,11 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *s
 
 		}
 
+		// cudaMemcpy(dummyData, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy data min = " << *std::min_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "Dummy data max = " << *std::max_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "---------------------" << std::endl;
+
 		// Switch pointers for secondary source
 		dev_pTemp[iGpu] = dev_pLeft[iGpu];
 		dev_pLeft[iGpu] = dev_pRight[iGpu];
@@ -2557,11 +2830,12 @@ void BornHxHyFreeSurfaceShotsFwdGpu_3D(float *model, float *dataRegDts, float *s
 	cuda_call(cudaFree(dev_dataRegDts[iGpu]));
     cuda_call(cudaStreamDestroy(compStream[iGpu]));
     cuda_call(cudaStreamDestroy(transferStream[iGpu]));
+    // cuda_call(cudaStreamDestroy(transferStreamH2D[iGpu]));
 
 }
 
 // Offset
-void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -2584,6 +2858,9 @@ void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, flo
 	cuda_call(cudaMemcpyToSymbol(dev_nReceiversReg, &nReceiversReg, sizeof(int), 0, cudaMemcpyHostToDevice));
 	cuda_call(cudaMalloc((void**) &dev_receiversPositionReg[iGpu], nReceiversReg*sizeof(long long)));
 	cuda_call(cudaMemcpy(dev_receiversPositionReg[iGpu], receiversPositionReg, nReceiversReg*sizeof(long long), cudaMemcpyHostToDevice));
+
+	// Transfer extended model from host to device
+	// cuda_call(cudaMemcpyAsync(dev_modelBornExt[iGpu], model, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStreamH2D[iGpu]));
 
 	// Initialize time-slices for time-stepping
   	cuda_call(cudaMemset(dev_p0[iGpu], 0, host_nVel_ginsu[iGpu]*sizeof(float)));
@@ -2696,22 +2973,44 @@ void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, flo
 	// cuda_call(cudaStreamSynchronize(transferStreamH2D[iGpu]));
 	cuda_call(cudaMemcpy(dev_modelBornExt[iGpu], model, host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on device
 
+	// float *dummySlice, *dummyModel, *dummyData;
+	// dummySlice = new float[host_nVel_ginsu[iGpu]];
+	// dummyModel = new float[host_nModelExt_ginsu[iGpu]];
+	// dummyData = new float[nReceiversReg*host_nts*sizeof(float)];
+
+	// cudaMemcpy(dummyModel, dev_modelBornExt[iGpu], host_nModelExt_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToHost);
+	// std::cout << "Dummy model min #0 = " << *std::min_element(dummyModel,dummyModel+host_nModelExt_ginsu[iGpu]) << std::endl;
+	// std::cout << "Dummy model max #0 = " << *std::max_element(dummyModel,dummyModel+host_nModelExt_ginsu[iGpu]) << std::endl;
+
 	// Allocate and initialize data
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
   	cuda_call(cudaMemset(dev_dataRegDts[iGpu], 0, nReceiversReg*host_nts*sizeof(float))); // Initialize data on device
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization parametrized in slowness squared
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 
 	/************************ Streaming stuff starts **************************/
 
 	// Copy wavefield time-slice its = 0: RAM -> pinned -> dev_pStream -> dev_pSourceWavefield
+	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nVel*sizeof(float));
+	// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts, host_nVel*sizeof(float), cudaMemcpyHostToHost, transferStream[iGpu]));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], dev_pStream[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
@@ -2727,6 +3026,7 @@ void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, flo
 	scaleSecondarySourceFdGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_vel2Dtw2[iGpu], iGpu);
 
 	// Copy new slice from RAM -> pinned for time its = 1 -> transfer to pStream
+	// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+host_nVel, host_nVel*sizeof(float));
 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu]+host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 	cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
 
@@ -2738,6 +3038,8 @@ void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, flo
 
 		if (its < host_nts-2){
 			// Copy wavefield slice its+2 from RAM > dev_pStream
+			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2)*host_nVel, host_nVel*sizeof(float)); // -> this should be done with transfer stream
+			// cuda_call(cudaMemcpyAsync(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its+2)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToHost, transferStream[iGpu]));
 			cuda_call(cudaStreamSynchronize(compStream[iGpu]));
 			cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu]+(its+2)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
 		}
@@ -2751,8 +3053,26 @@ void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, flo
 			}
 		}
 
+		// imagingFwdGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #0 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #0 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #1 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #1 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
+
 		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
 		scaleSecondarySourceFdGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu], iGpu);
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy secondary source min #0 = " << *std::min_element(dummySlice,dummySlice+host_nVel_ginsu[iGpu]) << std::endl;
+		// std::cout << "Dummy secondary max #0 = " << *std::max_element(dummySlice,dummySlice+host_nVel_ginsu[iGpu]) << std::endl;
+
+		// cudaMemcpy(dummySlice, dev_pRight[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy slice #2 min = " << *std::min_element(dummySlice,dummySlice+host_nVel) << std::endl;
+		// std::cout << "Dummy slice #2 max = " << *std::max_element(dummySlice,dummySlice+host_nVel) << std::endl;
 
 		for (int it2 = 1; it2 < host_sub+1; it2++){
 
@@ -2778,6 +3098,11 @@ void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, flo
 			dev_temp1[iGpu] = NULL;
 
 		}
+
+		// cudaMemcpy(dummyData, dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float), cudaMemcpyDeviceToHost);
+		// std::cout << "Dummy data min = " << *std::min_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "Dummy data max = " << *std::max_element(dummyData,dummyData+nReceiversReg*host_nts) << std::endl;
+		// std::cout << "---------------------" << std::endl;
 
 		// Switch pointers for secondary source
 		dev_pTemp[iGpu] = dev_pLeft[iGpu];
@@ -2808,7 +3133,7 @@ void BornHxHyFreeSurfaceShotsFwdGinsuGpu_3D(float *model, float *dataRegDts, flo
 /************************** Born extended adjoint *****************************/
 /******************************************************************************/
 // Time
-void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 
 		// We assume the source wavelet/signals already contain the second time derivative
@@ -2873,9 +3198,11 @@ void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 				injectSourceLinear_3D<<<1, nSourcesReg, 0, compStream[iGpu]>>>(dev_sourcesSignals[iGpu], dev_p0[iGpu], itw-1, dev_sourcesPositionReg[iGpu]);
 
 				// Damp wavefields
+				// dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 				dampCosineEdge_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
 				// Spread energy to dev_pLeft and dev_pRight
+				// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 				interpFineToCoarseSlice_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 
 				// Switch pointers
@@ -2895,6 +3222,11 @@ void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 			cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 			// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
 
+			// if (its>0) {
+			// 	// Standard library
+			// 	std::memcpy(srcWavefieldDts+(its-1)*host_nVel, pin_wavefieldSlice[iGpu], host_nVel*sizeof(float));
+			//
+			// }
 			// The CPU has to wait until the memcpy from pinned -> RAM is done to launch next command
 			// Synchronize [compute] (make sure the copy from dev_pLeft => dev_pStream is done)
 			cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -2940,6 +3272,7 @@ void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 		for (int iExt=4*host_hExt1; iExt>-1; iExt--){
 
 			// Allocate source wavefield slice
+			// cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(float)));
 			cuda_call(cudaMemset(dev_pSourceWavefieldTau[iGpu][iExt], 0, host_nVel*sizeof(float))); // Useless
 
 			// Load the source time-slices from its = 2*hExt1,...,4*hExt1 (included)
@@ -2964,8 +3297,26 @@ void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 		// Start propagating adjoint wavefield
 		for (int its = host_nts-2; its > -1; its--){
 
+			// First part of the adjoint propagation
+			// if (its > host_nts-2-2*host_hExt1){
+			//
+			// 	// Copy slice from RAM -> pinned for its-2hExt1
+			// 	std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its-2*host_hExt1)*host_nVel, host_nVel*sizeof(float));
+			//
+			// 	// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
+			// 	cuda_call(cudaStreamSynchronize(compStream[iGpu]));
+			//
+			// 	// Copy slice its from pin -> pStream
+			// 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
+			//
+			// }
+
 			// First and middle part of the adjoint propagation
+			// else if (its <= host_nts-2-2*host_hExt1 && its >= 2*host_hExt1){
 			if (its > 2*host_hExt1-1){
+
+				// Copy slice from RAM -> pinned for its-2hExt1
+				// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its-2*host_hExt1)*host_nVel, host_nVel*sizeof(float));
 
 				// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
 				cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -2985,9 +3336,11 @@ void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 				interpLinearInjectData_3D<<<nblockData, BLOCK_SIZE_DATA, 0, compStream[iGpu]>>>(dev_dataRegDts[iGpu], dev_p0[iGpu], its, it2, dev_receiversPositionReg[iGpu]);
 
 				// Damp wavefields
+				// dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 				dampCosineEdge_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
 				// Interpolate and record time slices of receiver wavefield at coarse sampling (no scaling applied yet)
+				// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 				interpFineToCoarseSlice_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 
 				// Switch pointers
@@ -2997,6 +3350,9 @@ void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 				dev_temp1[iGpu] = NULL;
 
 			}
+
+			// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
+			// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
 
 			// Lower bound for imaging condition at its+1
 			iExtMin = (its+2-host_nts)/2;
@@ -3078,6 +3434,9 @@ void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 
 		}
 
+		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme for its = 0
+		// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+
 		// Lower bound for imaging condition at its = 0
 		int its = 0;
 		iExtMin = (its+1-host_nts)/2;
@@ -3096,11 +3455,19 @@ void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 			imagingTauAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 		}
 
-		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-		for (int iExt=0; iExt<host_nExt1; iExt++){
-			long long extStride = iExt * host_nVel;
-			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		if (slowSquare == 0){
+			// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+			// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+			for (int iExt=0; iExt<host_nExt1; iExt++){
+				long long extStride = iExt * host_nVel;
+				scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+			}
+		} else {
+			// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+			for (int iExt=0; iExt<host_nExt1; iExt++){
+				long long extStride = iExt * host_nVel;
+				scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride);
+			}
 		}
 
 		cuda_call(cudaDeviceSynchronize());
@@ -3119,7 +3486,7 @@ void BornTauShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignal
 }
 
 // Time Ginsu
-void BornTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -3186,6 +3553,7 @@ void BornTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 			dampCosineEdgeGinsu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu], iGpu);
 
 			// Spread energy to dev_pLeft and dev_pRight
+			// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 			interpFineToCoarseSliceGinsu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2, iGpu);
 
 			// Switch pointers
@@ -3205,6 +3573,11 @@ void BornTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 		cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 		// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
 
+		// if (its>0) {
+		// 	// Standard library
+		// 	std::memcpy(srcWavefieldDts+(its-1)*host_nVel, pin_wavefieldSlice[iGpu], host_nVel*sizeof(float));
+		//
+		// }
 		// The CPU has to wait until the memcpy from pinned -> RAM is done to launch next command
 		// Synchronize [compute] (make sure the copy from dev_pLeft => dev_pStream is done)
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -3274,8 +3647,26 @@ void BornTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 	// Start propagating adjoint wavefield
 	for (int its = host_nts-2; its > -1; its--){
 
+		// First part of the adjoint propagation
+		// if (its > host_nts-2-2*host_hExt1){
+		//
+		// 	// Copy slice from RAM -> pinned for its-2hExt1
+		// 	std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its-2*host_hExt1)*host_nVel, host_nVel*sizeof(float));
+		//
+		// 	// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
+		// 	cuda_call(cudaStreamSynchronize(compStream[iGpu]));
+		//
+		// 	// Copy slice its from pin -> pStream
+		// 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
+		//
+		// }
+
 		// First and middle part of the adjoint propagation
+		// else if (its <= host_nts-2-2*host_hExt1 && its >= 2*host_hExt1){
 		if (its > 2*host_hExt1-1){
+
+			// Copy slice from RAM -> pinned for its-2hExt1
+			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its-2*host_hExt1)*host_nVel, host_nVel*sizeof(float));
 
 			// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
 			cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -3307,6 +3698,9 @@ void BornTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 			dev_temp1[iGpu] = NULL;
 
 		}
+
+		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
+		// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
 
 		// Lower bound for imaging condition at its+1
 		iExtMin = (its+2-host_nts)/2;
@@ -3388,6 +3782,9 @@ void BornTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 
 	}
 
+	// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme for its = 0
+	// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+
 	// Lower bound for imaging condition at its = 0
 	int its = 0;
 	iExtMin = (its+1-host_nts)/2;
@@ -3406,11 +3803,19 @@ void BornTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 		imagingTauAdjGinsuGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt, iGpu);
 	}
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	cuda_call(cudaDeviceSynchronize());
@@ -3429,7 +3834,7 @@ void BornTauShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesS
 }
 
 // Offset
-void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -3493,11 +3898,16 @@ void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 			injectSourceLinear_3D<<<1, nSourcesReg, 0, compStream[iGpu]>>>(dev_sourcesSignals[iGpu], dev_p0[iGpu], itw-1, dev_sourcesPositionReg[iGpu]);
 
 			// Damp wavefields
+			// dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 			dampCosineEdge_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
 
 			// Spread energy to dev_pLeft and dev_pRight
+			// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 			interpFineToCoarseSlice_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
+
+			// Extract and interpolate data
+			// kernel_exec(recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
 
 			// Switch pointers
 			dev_temp1[iGpu] = dev_p0[iGpu];
@@ -3516,6 +3926,11 @@ void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 		cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 		// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
 
+		// if (its>0) {
+		// 	// Standard library
+		// 	std::memcpy(srcWavefieldDts+(its-1)*host_nVel, pin_wavefieldSlice[iGpu], host_nVel*sizeof(float));
+		//
+		// }
 		// The CPU has to wait until the memcpy from pinned -> RAM is done to launch next command
 		// Synchronize [compute] (make sure the copy from dev_pLeft => dev_pStream is done)
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -3558,6 +3973,11 @@ void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
 	cuda_call(cudaMemcpy(dev_dataRegDts[iGpu], dataRegDts, nReceiversReg*host_nts*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on devic
 
+	// float *dummySlice, *dummyModel, *dummyData;
+	// dummySlice = new float[host_nVel];
+	// dummyModel = new float[host_nModelExt];
+	// dummyData = new float[nReceiversReg*host_nts*sizeof(float)];
+
 	/************************ Streaming stuff starts **************************/
 	// Copy source wavefield slice nts-1 from pinned -> dev_pSourceWavefield
 	cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], pin_wavefieldSlice[iGpu]+(host_nts-1)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
@@ -3565,6 +3985,9 @@ void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 
 	// Start propagating adjoint wavefield
 	for (int its = host_nts-2; its > -1; its--){
+
+		// Copy slice its from RAM -> pinned
+		// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+its*host_nVel, host_nVel*sizeof(float));
 
 		// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -3581,9 +4004,11 @@ void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 			interpLinearInjectData_3D<<<nblockData, BLOCK_SIZE_DATA, 0, compStream[iGpu]>>>(dev_dataRegDts[iGpu], dev_p0[iGpu], its, it2, dev_receiversPositionReg[iGpu]);
 
 			// Damp wavefields
+			// dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 			dampCosineEdge_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
 			// Interpolate and record time slices of receiver wavefield at coarse sampling (no scaling applied yet)
+			// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 			interpFineToCoarseSlice_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 
 			// Switch pointers
@@ -3605,6 +4030,14 @@ void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 				imagingHxHyAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, iExt1, ihy, iExt2);
 			}
 		}
+
+		// Apply imaging condition for its+1
+		// for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+		// 	long long extStride = (ihx + host_hExt1) * host_nVel;
+		// 	imagingHxAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, extStride);
+		// }
+
+		// imagingAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
 
 		// Wait until transfer stream has finished copying slice its from pinned -> pStream
 		cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
@@ -3633,13 +4066,36 @@ void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 		}
 	}
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+	// for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+	// 	int extStride = (ihx + host_hExt1) * host_nVel;
+	// 	imagingHxAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, extStride);
+	// }
+
+
+	// for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+	// 	long long extStride = iExt1 * host_nVel;
+	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
+	// }
+
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
 		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization in slowness squared
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2);
+			}
+		}
+
 	}
 
 	cuda_call(cudaDeviceSynchronize());
@@ -3657,7 +4113,7 @@ void BornHxHyShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSigna
 
 }
 
-void BornHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -3726,6 +4182,9 @@ void BornHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 			// Spread energy to dev_pLeft and dev_pRight
 			interpFineToCoarseSliceGinsu_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2, iGpu);
 
+			// Extract and interpolate data
+			// kernel_exec(recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
+
 			// Switch pointers
 			dev_temp1[iGpu] = dev_p0[iGpu];
 			dev_p0[iGpu] = dev_p1[iGpu];
@@ -3743,6 +4202,11 @@ void BornHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 		cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 		// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
 
+		// if (its>0) {
+		// 	// Standard library
+		// 	std::memcpy(srcWavefieldDts+(its-1)*host_nVel, pin_wavefieldSlice[iGpu], host_nVel*sizeof(float));
+		//
+		// }
 		// The CPU has to wait until the memcpy from pinned -> RAM is done to launch next command
 		// Synchronize [compute] (make sure the copy from dev_pLeft => dev_pStream is done)
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -3785,6 +4249,11 @@ void BornHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sources
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
 	cuda_call(cudaMemcpy(dev_dataRegDts[iGpu], dataRegDts, nReceiversReg*host_nts*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on devic
 
+	// float *dummySlice, *dummyModel, *dummyData;
+	// dummySlice = new float[host_nVel];
+	// dummyModel = new float[host_nModelExt];
+	// dummyData = new float[nReceiversReg*host_nts*sizeof(float)];
+
 	/************************ Streaming stuff starts **************************/
 	// Copy source wavefield slice nts-1 from pinned -> dev_pSourceWavefield
 	cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], pin_wavefieldSlice[iGpu]+(host_nts-1)*host_nVel_ginsu[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
@@ -3792,6 +4261,9 @@ void BornHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 
 	// Start propagating adjoint wavefield
 	for (int its = host_nts-2; its > -1; its--){
+
+		// Copy slice its from RAM -> pinned
+		// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+its*host_nVel, host_nVel*sizeof(float));
 
 		// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -3833,6 +4305,13 @@ void BornHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 			}
 		}
 
+		// Apply imaging condition for its+1
+		// for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+		// 	long long extStride = (ihx + host_hExt1) * host_nVel;
+		// 	imagingHxAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, extStride);
+		// }
+
+		// imagingAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
 
 		// Wait until transfer stream has finished copying slice its from pinned -> pStream
 		cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
@@ -3861,12 +4340,34 @@ void BornHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 		}
 	}
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+	// for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+	// 	int extStride = (ihx + host_hExt1) * host_nVel;
+	// 	imagingHxAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, extStride);
+	// }
+
+
+	// for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+	// 	long long extStride = iExt1 * host_nVel;
+	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
+	// }
+
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization in slowness squared
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 
@@ -3887,7 +4388,7 @@ void BornHxHyShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sources
 
 /******************************* Free surface *********************************/
 // Time
-void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -3957,9 +4458,11 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *so
 			injectSourceLinear_3D<<<1, nSourcesReg, 0, compStream[iGpu]>>>(dev_sourcesSignals[iGpu], dev_p0[iGpu], itw-1, dev_sourcesPositionReg[iGpu]);
 
 			// Damp wavefields
+			// dampCosineEdge_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 			dampCosineEdgeFreeSurface_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
 			// Spread energy to dev_pLeft and dev_pRight
+			// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 			interpFineToCoarseSlice_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 
 			// Switch pointers
@@ -3979,6 +4482,11 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *so
 		cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 		// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
 
+		// if (its>0) {
+		// 	// Standard library
+		// 	std::memcpy(srcWavefieldDts+(its-1)*host_nVel, pin_wavefieldSlice[iGpu], host_nVel*sizeof(float));
+		//
+		// }
 		// The CPU has to wait until the memcpy from pinned -> RAM is done to launch next command
 		// Synchronize [compute] (make sure the copy from dev_pLeft => dev_pStream is done)
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -4024,6 +4532,7 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *so
 	for (int iExt=4*host_hExt1; iExt>-1; iExt--){
 
 		// Allocate source wavefield slice
+		// cuda_call(cudaMalloc((void**) &dev_pSourceWavefieldTau[iGpu][iExt], host_nVel*sizeof(float)));
 		cuda_call(cudaMemset(dev_pSourceWavefieldTau[iGpu][iExt], 0, host_nVel*sizeof(float))); // Useless
 
 		// Load the source time-slices from its = 2*hExt1,...,4*hExt1 (included)
@@ -4048,7 +4557,22 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *so
 	// Start propagating adjoint wavefield
 	for (int its = host_nts-2; its > -1; its--){
 
+		// First part of the adjoint propagation
+		// if (its > host_nts-2-2*host_hExt1){
+		//
+		// 	// Copy slice from RAM -> pinned for its-2hExt1
+		// 	std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its-2*host_hExt1)*host_nVel, host_nVel*sizeof(float));
+		//
+		// 	// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
+		// 	cuda_call(cudaStreamSynchronize(compStream[iGpu]));
+		//
+		// 	// Copy slice its from pin -> pStream
+		// 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
+		//
+		// }
+
 		// First and middle part of the adjoint propagation
+		// else if (its <= host_nts-2-2*host_hExt1 && its >= 2*host_hExt1){
 		if (its > 2*host_hExt1-1){
 
 			// Copy slice from RAM -> pinned for its-2hExt1
@@ -4084,6 +4608,9 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *so
 			dev_temp1[iGpu] = NULL;
 
 		}
+
+		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
+		// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
 
 		// Lower bound for imaging condition at its+1
 		iExtMin = (its+2-host_nts)/2;
@@ -4165,6 +4692,9 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *so
 
 	}
 
+	// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme for its = 0
+	// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+
 	// Lower bound for imaging condition at its = 0
 	int its = 0;
 	iExtMin = (its+1-host_nts)/2;
@@ -4183,11 +4713,19 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *so
 		imagingTauAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt);
 	}
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel;
-		scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTau_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel;
+			scaleReflectivityTauSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride);
+		}
 	}
 
 	cuda_call(cudaDeviceSynchronize());
@@ -4206,7 +4744,7 @@ void BornTauFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *so
 }
 
 // Time Ginsu
-void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -4298,6 +4836,12 @@ void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, floa
 		cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 		// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
 
+		// if (its>0) {
+		// 	// Standard library
+		// 	std::memcpy(srcWavefieldDts+(its-1)*host_nVel, pin_wavefieldSlice[iGpu], host_nVel*sizeof(float));
+		//
+		// }
+		// The CPU has to wait until the memcpy from pinned -> RAM is done to launch next command
 		// Synchronize [compute] (make sure the copy from dev_pLeft => dev_pStream is done)
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
 		// Asynchronous transfer of pStream => pin [its] [transfer]
@@ -4367,8 +4911,26 @@ void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, floa
 	// Start propagating adjoint wavefield
 	for (int its = host_nts-2; its > -1; its--){
 
+		// First part of the adjoint propagation
+		// if (its > host_nts-2-2*host_hExt1){
+		//
+		// 	// Copy slice from RAM -> pinned for its-2hExt1
+		// 	std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its-2*host_hExt1)*host_nVel, host_nVel*sizeof(float));
+		//
+		// 	// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
+		// 	cuda_call(cudaStreamSynchronize(compStream[iGpu]));
+		//
+		// 	// Copy slice its from pin -> pStream
+		// 	cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], pin_wavefieldSlice[iGpu], host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
+		//
+		// }
+
 		// First and middle part of the adjoint propagation
+		// else if (its <= host_nts-2-2*host_hExt1 && its >= 2*host_hExt1){
 		if (its > 2*host_hExt1-1){
+
+			// Copy slice from RAM -> pinned for its-2hExt1
+			// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+(its-2*host_hExt1)*host_nVel, host_nVel*sizeof(float));
 
 			// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
 			cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -4400,6 +4962,9 @@ void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, floa
 			dev_temp1[iGpu] = NULL;
 
 		}
+
+		// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme
+		// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
 
 		// Lower bound for imaging condition at its+1
 		iExtMin = (its+2-host_nts)/2;
@@ -4481,6 +5046,9 @@ void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, floa
 
 	}
 
+	// Apply second scaling to secondary source: v^2 * dtw^2 coming from the finite difference scheme for its = 0
+	// scaleSecondarySourceFd_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pRight[iGpu], dev_vel2Dtw2[iGpu]);
+
 	// Lower bound for imaging condition at its = 0
 	int its = 0;
 	iExtMin = (its+1-host_nts)/2;
@@ -4499,11 +5067,19 @@ void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, floa
 		imagingTauAdjGinsuGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefieldTau[iGpu][iSlice], iExt, iGpu);
 	}
 
-	// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
-	// scale = 2.0 * 1/v^3 * v^2 * dtw^2
-	for (int iExt=0; iExt<host_nExt1; iExt++){
-		long long extStride = iExt * host_nVel_ginsu[iGpu];
-		scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+	if (slowSquare == 0){
+		// Apply both scalings to reflectivity coming from for the wave-equation linearization and the finite-difference propagation (we can do them simultaneously because the extension is in time-lags):
+		// scale = 2.0 * 1/v^3 * v^2 * dtw^2
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
+	} else {
+		// Apply scaling for slowness squared parametrization (only scale by -v^2 * dtw^2)
+		for (int iExt=0; iExt<host_nExt1; iExt++){
+			long long extStride = iExt * host_nVel_ginsu[iGpu];
+			scaleReflectivityTauGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_vel2Dtw2[iGpu], extStride, iGpu);
+		}
 	}
 
 	cuda_call(cudaDeviceSynchronize());
@@ -4522,7 +5098,7 @@ void BornTauFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, floa
 }
 
 // Offset
-void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -4594,8 +5170,13 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *s
 			// Damp wavefields
 			dampCosineEdgeFreeSurface_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_p0[iGpu], dev_p1[iGpu]);
 
+
 			// Spread energy to dev_pLeft and dev_pRight
+			// interpFineToCoarseSlice_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
 			interpFineToCoarseSlice_32_3D<<<dimGrid32, dimBlock32, 0, compStream[iGpu]>>>(dev_pLeft[iGpu], dev_pRight[iGpu], dev_p0[iGpu], it2);
+
+			// Extract and interpolate data
+			// kernel_exec(recordLinearInterpData_3D<<<nblockData, BLOCK_SIZE_DATA>>>(dev_p0[iGpu], dev_dataRegDts[iGpu], its, it2, dev_receiversPositionReg[iGpu]));
 
 			// Switch pointers
 			dev_temp1[iGpu] = dev_p0[iGpu];
@@ -4614,6 +5195,11 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *s
 		cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nVel*sizeof(float), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 		// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
 
+		// if (its>0) {
+		// 	// Standard library
+		// 	std::memcpy(srcWavefieldDts+(its-1)*host_nVel, pin_wavefieldSlice[iGpu], host_nVel*sizeof(float));
+		//
+		// }
 		// The CPU has to wait until the memcpy from pinned -> RAM is done to launch next command
 		// Synchronize [compute] (make sure the copy from dev_pLeft => dev_pStream is done)
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -4656,6 +5242,11 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *s
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
 	cuda_call(cudaMemcpy(dev_dataRegDts[iGpu], dataRegDts, nReceiversReg*host_nts*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on devic
 
+	// float *dummySlice, *dummyModel, *dummyData;
+	// dummySlice = new float[host_nVel];
+	// dummyModel = new float[host_nModelExt];
+	// dummyData = new float[nReceiversReg*host_nts*sizeof(float)];
+
 	/************************ Streaming stuff starts **************************/
 	// Copy source wavefield slice nts-1 from pinned -> dev_pSourceWavefield
 	cuda_call(cudaMemcpyAsync(dev_pSourceWavefield[iGpu], pin_wavefieldSlice[iGpu]+(host_nts-1)*host_nVel, host_nVel*sizeof(float), cudaMemcpyHostToDevice, transferStream[iGpu]));
@@ -4663,6 +5254,9 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *s
 
 	// Start propagating adjoint wavefield
 	for (int its = host_nts-2; its > -1; its--){
+
+		// Copy slice its from RAM -> pinned
+		// std::memcpy(pin_wavefieldSlice[iGpu], srcWavefieldDts+its*host_nVel, host_nVel*sizeof(float));
 
 		// Wait until compStream has done copying wavefield value its+1 from pStream -> dev_pSourceWavefield
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -4704,6 +5298,14 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *s
 			}
 		}
 
+		// Apply imaging condition for its+1
+		// for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+		// 	long long extStride = (ihx + host_hExt1) * host_nVel;
+		// 	imagingHxAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, extStride);
+		// }
+
+		// imagingAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
+
 		// Wait until transfer stream has finished copying slice its from pinned -> pStream
 		cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
 
@@ -4731,13 +5333,36 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *s
 		}
 	}
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride;
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel;
-			scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+	// for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+	// 	int extStride = (ihx + host_hExt1) * host_nVel;
+	// 	imagingHxAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, extStride);
+	// }
+
+
+	// for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+	// 	long long extStride = iExt1 * host_nVel;
+	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
+	// }
+
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
+			}
 		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride;
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel;
+				scaleReflectivityLinHxHySlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2);
+			}
+		}
+
 	}
 
 	cuda_call(cudaDeviceSynchronize());
@@ -4756,7 +5381,7 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *s
 }
 
 // Offset
-void BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int iGpu, int iGpuId){
+void BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, float *sourcesSignals, long long *sourcesPositionReg, int nSourcesReg, long long *receiversPositionReg, int nReceiversReg, int slowSquare, int iGpu, int iGpuId){
 
 	// We assume the source wavelet/signals already contain the second time derivative
 	// Set device number
@@ -4848,6 +5473,11 @@ void BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, flo
 		cuda_call(cudaMemcpyAsync(dev_pStream[iGpu], dev_pLeft[iGpu], host_nVel_ginsu[iGpu]*sizeof(float), cudaMemcpyDeviceToDevice, compStream[iGpu]));
 		// At the same time, request CPU to memcpy the pin_wavefieldSlice to wavefield [its-1] [host]
 
+		// if (its>0) {
+		// 	// Standard library
+		// 	std::memcpy(srcWavefieldDts+(its-1)*host_nVel, pin_wavefieldSlice[iGpu], host_nVel*sizeof(float));
+		//
+		// }
 		// The CPU has to wait until the memcpy from pinned -> RAM is done to launch next command
 		// Synchronize [compute] (make sure the copy from dev_pLeft => dev_pStream is done)
 		cuda_call(cudaStreamSynchronize(compStream[iGpu]));
@@ -4889,6 +5519,11 @@ void BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, flo
 	// Allocate and copy data from host -> device
   	cuda_call(cudaMalloc((void**) &dev_dataRegDts[iGpu], nReceiversReg*host_nts*sizeof(float))); // Allocate data at coarse time-sampling on device
 	cuda_call(cudaMemcpy(dev_dataRegDts[iGpu], dataRegDts, nReceiversReg*host_nts*sizeof(float), cudaMemcpyHostToDevice)); // Copy model (reflectivity) on devic
+
+	// float *dummySlice, *dummyModel, *dummyData;
+	// dummySlice = new float[host_nVel];
+	// dummyModel = new float[host_nModelExt];
+	// dummyData = new float[nReceiversReg*host_nts*sizeof(float)];
 
 	/************************ Streaming stuff starts **************************/
 	// Copy source wavefield slice nts-1 from pinned -> dev_pSourceWavefield
@@ -4941,6 +5576,14 @@ void BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, flo
 			}
 		}
 
+		// Apply imaging condition for its+1
+		// for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+		// 	long long extStride = (ihx + host_hExt1) * host_nVel;
+		// 	imagingHxAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, extStride);
+		// }
+
+		// imagingAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu]);
+
 		// Wait until transfer stream has finished copying slice its from pinned -> pStream
 		cuda_call(cudaStreamSynchronize(transferStream[iGpu]));
 
@@ -4968,12 +5611,34 @@ void BornHxHyFreeSurfaceShotsAdjGinsuGpu_3D(float *model, float *dataRegDts, flo
 		}
 	}
 
-	// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
-	for (int iExt2=0; iExt2<host_nExt2; iExt2++){
-		long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
-		for (int iExt1=0; iExt1<host_nExt1; iExt1++){
-			long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
-			scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+	// for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
+	// 	int extStride = (ihx + host_hExt1) * host_nVel;
+	// 	imagingHxAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, extStride);
+	// }
+
+
+	// for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+	// 	long long extStride = iExt1 * host_nVel;
+	// 	scaleReflectivityLin_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride);
+	// }
+
+	if (slowSquare == 0){
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2, iGpu);
+			}
+		}
+	} else {
+		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
+		for (int iExt2=0; iExt2<host_nExt2; iExt2++){
+			long long extStride2 = iExt2 * host_extStride_ginsu[iGpu];
+			for (int iExt1=0; iExt1<host_nExt1; iExt1++){
+				long long extStride1 = iExt1 * host_nVel_ginsu[iGpu];
+				scaleReflectivityLinHxHyGinsuSlowSquare_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], extStride1, extStride2, iGpu);
+			}
 		}
 	}
 
