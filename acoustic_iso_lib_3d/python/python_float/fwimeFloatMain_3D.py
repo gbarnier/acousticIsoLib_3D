@@ -40,9 +40,9 @@ if __name__ == '__main__':
 	gradientMask=parObject.getInt("gradientMask")
 	print("gradientMask = ",gradientMask)
 	rawData=parObject.getInt("rawData",1)
-	fwimeFlag=parObject.getInt("fwime",0)
-	if (fwimeFlag != 1):
-		raise ValueError("**** ERROR [fwimeFloatMain_3D]: Please set 'fwime' parameter value to 1 ****\n")
+	# fwimeFlag=parObject.getInt("fwime",0)
+	# if (fwimeFlag != 1):
+	# 	raise ValueError("**** ERROR [fwimeFloatMain_3D]: Please set 'fwime' parameter value to 1 ****\n")
 
 	# Regularization
 	regType=parObject.getString("reg")
@@ -94,6 +94,7 @@ if __name__ == '__main__':
 		print("--- [fwimeFloatMain_3D]: User has requestd to use a MASK for the gradient ---")
 		inv_log.addToLog("--- [fwimeFloatMain_3D]: User has requestd to use a MASK for the gradient ---")
 		velDummy,bufferUp,bufferDown,taperExp,fat,wbShift,gradientMaskFile,bathymetryFile=maskGradientModule_3D.maskGradientInit_3D(sys.argv)
+		print("gradientMaskFile: ", gradientMaskFile)
 	else:
 		print("--- [fwimeFloatMain_3D]: User has NOT requestd to use a MASK for the gradient ---")
 		inv_log.addToLog("--- [fwimeFloatMain_3D]: User has NOT requestd to use a MASK for the gradient ---")
@@ -156,31 +157,34 @@ if __name__ == '__main__':
 	if (parObject.getInt("ginsu",0) == 0):
 		# Tomo
 		tomoExtOp=Acoustic_iso_float_3D.tomoExtShotsGpu_3D(modelFineInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,reflectivityExtInit)
+		wavefieldVecObj=tomoExtOp.getWavefieldVector()
 		print("Main 4.1")
 		# Born extended
-		BornExtOp=Acoustic_iso_float_3D.BornExtShotsGpu_3D(reflectivityExtInit,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,tomoExtOp=tomoExtOp)
+		BornExtOp=Acoustic_iso_float_3D.BornExtShotsGpu_3D(reflectivityExtInit,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,wavefieldVecFlag=wavefieldVecObj)
 		# Nonlinear
 		print("Main 4.2")
 		nonlinearFwdOp=Acoustic_iso_float_3D.nonlinearFwiPropShotsGpu_3D(modelFineInitFloat,dataFloat,sourcesSignalsFloat,parObject,sourcesVector,receiversVector)
 		# Born
 		print("Main 4.3")
-		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFineInitFloat,dataFloat,modelFineInitFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,tomoExtOp=tomoExtOp)
+		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFineInitFloat,dataFloat,modelFineInitFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,wavefieldVecFlag=wavefieldVecObj)
 		print("Main 4.4")
 	# Ginsu
 	else:
 		# Tomo
 		tomoExtOp=Acoustic_iso_float_3D.tomoExtShotsGpu_3D(modelFineInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,reflectivityExtInit,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu)
+		wavefieldVecObj=tomoExtOp.getWavefieldVector()
 		# Born extended
-		BornExtOp=Acoustic_iso_float_3D.BornExtShotsGpu_3D(reflectivityExtInit,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,tomoExtOp=tomoExtOp)
+		BornExtOp=Acoustic_iso_float_3D.BornExtShotsGpu_3D(reflectivityExtInit,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,wavefieldVecFlag=wavefieldVecObj)
 		# Nonlinear
 		nonlinearFwdOp=Acoustic_iso_float_3D.nonlinearFwiPropShotsGpu_3D(modelFineInitFloat,dataFloat,sourcesSignalsFloat,parObject,sourcesVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,ixVectorGinsu,iyVectorGinsu)
 		# Born
-		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFineInitFloat,dataFloat,modelFineInitFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,tomoExtOp=tomoExtOp)
+		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFineInitFloat,dataFloat,modelFineInitFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,nxMaxGinsu,nyMaxGinsu,ixVectorGinsu,iyVectorGinsu,wavefieldVecFlag=wavefieldVecObj)
 	print("Main 5")
 	# Born operator pointer for inversion
 	BornInvOp=BornOp
 
 	if (gradientMask==1):
+		print("Main, gradientMaskFile: ",gradientMaskFile)
 		maskGradientOp=maskGradientModule_3D.maskGradient_3D(modelFineInitFloat,modelFineInitFloat,velDummy,bufferUp,bufferDown,taperExp,fat,wbShift,gradientMaskFile,bathymetryFile)
 		BornInvOp=pyOp.ChainOperator(maskGradientOp,BornOp)
 		gMask=maskGradientOp.getMask_3D()
@@ -188,7 +192,7 @@ if __name__ == '__main__':
 	# g nonlinear (same as conventional FWI operator)
 	gOp=pyOp.NonLinearOperator(nonlinearFwdOp,BornInvOp,BornOp.setVel_3D)
 	gInvOp=gOp
-
+	print("Main 6")
 	# Diagonal Preconditioning
 	PrecFile = parObject.getString("PrecFile","None")
 	Precond = None
@@ -224,7 +228,7 @@ if __name__ == '__main__':
 			traceNormOp.forward(False,dataFloat,dataNormalized)
 			dataFloat=dataNormalized
 		# fwiInvOp=pyOp.CombNonlinearOp(fwiInvOp,traceNormNlFwiOp)
-
+	print("Main 7")
 	# Data taper
 	if (dataTaper==1):
 		# Instantiate operator
@@ -239,11 +243,12 @@ if __name__ == '__main__':
 			dataFloat=dataTapered
 		dataTaperNlOp=pyOp.NonLinearOperator(dataTaperOp,dataTaperOp) # Create dataTaper nonlinear operator
 
+	print("Main 8")
 	# Concatenate operators
 	if (spline==1):
 		gInvOp=pyOp.CombNonlinearOp(splineNlOp,gInvOp)
 	if (traceNorm==1):
-		gInvOp=pyOp.CombNonlinearOp(gInvOp,traceNormOp)		
+		gInvOp=pyOp.CombNonlinearOp(gInvOp,traceNormNlFwimeOp)
 	if (dataTaper==1):
 		gInvOp=pyOp.CombNonlinearOp(gInvOp,dataTaperNlOp)
 
@@ -264,6 +269,7 @@ if __name__ == '__main__':
 		BornExtInvOp=pyOp.ChainOperator(BornExtInvOp,dataTaperOp)
 		tomoExtInvOp=pyOp.ChainOperator(tomoExtInvOp,dataTaperOp)
 
+	print("Main 9")
 	# Dso
 	dsoOp=dsoGpuModule_3D.dsoGpu_3D(reflectivityExtInit,reflectivityExtInit,nz,nx,ny,nExt1,nExt2,fat,zeroShift)
 
@@ -276,7 +282,7 @@ if __name__ == '__main__':
 
 	# Variable projection operator for the data fitting term
 	vpOp=pyOp.VpOperator(hNonlinearInvOp,BornExtInvOp,BornExtOp.setVel_3D,tomoExtOp.setExtReflectivity_3D)
-
+	print("Main 10")
 	# Regularization operators
 	dsoNonlinearJacobian=pyOp.ZeroOp(modelInit,reflectivityExtInit)
 	dsoNonlinearDummy=pyOp.ZeroOp(modelInit,reflectivityExtInit)
@@ -287,12 +293,12 @@ if __name__ == '__main__':
 
 	############################### solver #####################################
 	# Initialize solvers
-	# stopNl,logFileNl,saveObjNl,saveResNl,saveGradNl,saveModelNl,invPrefixNl,bufferSizeNl,iterSamplingNl,restartFolderNl,flushMemoryNl,stopLin,logFileLin,saveObjLin,saveResLin,saveGradLin,saveModelLin,invPrefixLin,bufferSizeLin,iterSamplingLin,restartFolderLin,flushMemoryLin,epsilon,info=inversionUtlisFloat_3D.inversionVpInitFloat_3D(sys.argv)
-
+	stopNl,logFileNl,saveObjNl,saveResNl,saveGradNl,saveModelNl,invPrefixNl,bufferSizeNl,iterSamplingNl,restartFolderNl,flushMemoryNl,stopLin,logFileLin,saveObjLin,saveResLin,saveGradLin,saveModelLin,invPrefixLin,bufferSizeLin,iterSamplingLin,restartFolderLin,flushMemoryLin,epsilon,info=inversionUtilsFloat_3D.inversionVpInitFloat_3D(sys.argv)
+	print("Main 11")
 	# linear solver
 	linSolver=LCG(stopLin,logger=logger(logFileLin))
 	linSolver.setDefaults(save_obj=saveObjLin,save_res=saveResLin,save_grad=saveGradLin,save_model=saveModelLin,prefix=invPrefixLin,iter_buffer_size=bufferSizeLin,iter_sampling=iterSamplingLin,flush_memory=flushMemoryLin)
-
+	print("Main 12")
 	# Nonlinear solver
 	if (nlSolverType=="nlcg"):
 		nlSolver=NLCG(stopNl,logger=logger(logFileNl))
@@ -310,7 +316,7 @@ if __name__ == '__main__':
 	else:
 		print("**** ERROR: User did not provide a nonlinear solver type ****")
 		quit()
-
+	print("Main 13")
 	# Manual step length for the nonlinear solver
 	initStep=parObject.getFloat("initStep",-1)
 	if (initStep>0):
@@ -320,10 +326,10 @@ if __name__ == '__main__':
 
 	############################### Bounds #####################################
 	minBoundVector,maxBoundVector=Acoustic_iso_float_3D.createBoundVectors_3D(parObject,modelInit)
-
+	print("Main 14")
 	######################### Variable projection problem ######################
 	vpProb=Prblm.ProblemL2VpReg(modelInit,reflectivityExtInit,vpOp,data,linSolver,gInvOp,h_op_reg=vpRegOp,epsilon=epsilon,minBound=minBoundVector,maxBound=maxBoundVector,prec=Precond)
-
+	print("Main 15")
 	################################# Inversion ################################
 	# nlSolver.run(vpProb,verbose=info)
 

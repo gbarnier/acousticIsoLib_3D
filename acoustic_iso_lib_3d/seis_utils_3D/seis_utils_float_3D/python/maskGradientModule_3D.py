@@ -126,6 +126,9 @@ class maskGradient_3D(Op.Operator):
 
 		return
 
+	def getMask_3D(self):
+		return self.mask
+
 	def adjoint(self,add,model,data):
 		self.checkDomainRange(model,data)
 		dataNp=data.getNdArray()
@@ -134,8 +137,4 @@ class maskGradient_3D(Op.Operator):
 			model.zero()
 		modelNp=model.getNdArray()
 		modelNp+=dataNp*maskNp
-
 		return
-
-	def getMask(self):
-		return self.mask

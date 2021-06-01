@@ -51,12 +51,12 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shar
 	_wavefieldVectorObj = wavefieldVectorObj;
 
 	// Allocate wavefields on pinned memory
-	std::cout << "Allocating source wavefields on pinned memory for Born" << std::endl;
+	// std::cout << "Allocating source wavefields on pinned memory for Born" << std::endl;
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 		std::cout << "Allocating wavefield # " << iGpu << std::endl;
 		setPinnedBornGpuFwime_3D(_wavefieldVectorObj->_pinWavefieldVec[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
-	std::cout << "Done allocating source wavefields on pinned memory for Born" << std::endl;
+	// std::cout << "Done allocating source wavefields on pinned memory for Born" << std::endl;
 }
 
 // Constructor for Ginsu

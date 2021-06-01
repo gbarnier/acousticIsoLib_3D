@@ -1189,7 +1189,7 @@ class BornShotsGpu_3D(Op.Operator):
 			nxWav = xAxisWavefield.n
 			nyWav = yAxisWavefield.n
 			ntWav = timeAxisWavefield.n
-			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*8/(1024*1024*1024), " [GB]")
+			print("Size wavefield = ", nzWav*nxWav*nyWav*ntWav*4/(1024*1024*1024), " [GB]")
 			# for iGpu in range(nGpu):
 			# 	newWavefield = SepVector.getSepVector(hyperWavefield,storage="dataDouble")
 			# 	if("getCpp" in dir(newWavefield)):
@@ -1427,7 +1427,7 @@ class BornExtShotsGpu_3D(Op.Operator):
 		range = args[1]
 		self.setDomainRange(domain,range)
 
-		wavefieldVecObj=kwargs.get("wavefieldVecFlag",None)
+		wavefieldVecObj=kwargs.get("wavefieldVecFlag", None)
 
 		# Get wavefield dimensions
 		zAxisWavefield = domain.getHyper().axes[0]
@@ -1884,3 +1884,10 @@ class tomoExtShotsGpu_3D(Op.Operator):
 		with pyAcoustic_iso_float_tomoExt_3D.ostream_redirect():
 			result=self.pyOp.dotTest(verb,maxError)
 		return result
+
+	def getWavefieldVector(self):
+		with pyAcoustic_iso_float_tomoExt_3D.ostream_redirect():
+			print("Getting Vector object")
+			wfldVecObj = self.pyOp.getWavefieldVector()
+			print("Done getting Vector object")
+		return wfldVecObj
