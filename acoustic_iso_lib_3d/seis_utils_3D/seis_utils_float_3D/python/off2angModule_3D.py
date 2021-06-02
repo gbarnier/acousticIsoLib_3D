@@ -133,7 +133,7 @@ class off2ang3D(Op.Operator):
 		for p_idx,p_val in enumerate(p_vals):
 			for g_idx,g_val in enumerate(g_vals):
 				# scale = kz_axis*kz_axis*np.tan(g_val)/(np.cos(g_val)*np.cos(g_val)+epsilon) if self.p_inv else 1.0
-				scale = kz_axis*kz_axis/(np.cos(g_val)*np.cos(g_val)+epsilon) if self.p_inv else 1.0
+				scale = kz_axis/(np.cos(g_val)*np.cos(g_val)+epsilon) if self.p_inv else 1.0
 				if self.anti_alias:
 					# Applying anti-aliasing filter if requested
 					mask_hy = (np.abs(np.tan(g_val)*np.sin(p_val)*kz_axis) <= khy_max).astype(np.int)

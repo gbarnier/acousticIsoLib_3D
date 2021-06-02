@@ -12,11 +12,186 @@ import numpy as np
 import math
 from pyAcoustic_iso_float_nl_3D import deviceGpu_3D
 
+############################ Dask interface ####################################
+#Dask-related modules and functions
+import dask.distributed as daskD
+from dask_util import DaskClient
+import pyDaskVector
+import re
+
+def create_client(parObject):
+	"""
+	   Function to create Dask client if requested
+	"""
+	hostnames = parObject.getString("hostnames","noHost")
+	pbs_args = parObject.getString("pbs_args","noPBS")
+	lsf_args = parObject.getString("lsf_args","noLSF")
+	slurm_args = parObject.getString("slurm_args","noSLURM")
+	cluster_args = None
+	if pbs_args != "noPBS":
+		cluster_args = pbs_args
+		cluster_name = "pbs_params"
+	elif lsf_args != "noLSF":
+		cluster_args = lsf_args
+		cluster_name = "lsf_params"
+	elif slurm_args != "noSLURM":
+		cluster_args = slurm_args
+		cluster_name = "slurm_params"
+	if hostnames != "noHost" and cluster_args is not None:
+		raise ValueError("Only one interface can be used for a client! User provided both SSH and PBS/LSF/SLURM parameters!")
+	#Starting Dask client if requested
+	client = None
+	nWrks = None
+	args = None
+	if hostnames != "noHost":
+		args = {"hostnames":hostnames.split(",")}
+		scheduler_file = parObject.getString("scheduler_file","noFile")
+		if scheduler_file != "noFile":
+			args.update({"scheduler_file_prefix":scheduler_file})
+		print("Starting Dask client using the following workers: %s"%(hostnames))
+	elif cluster_args:
+		n_wrks = parObject.getInt("n_wrks",1)
+		n_jobs = parObject.getInt("n_jobs")
+		args = {"n_jobs":n_jobs}
+		args.update({"n_wrks":n_wrks})
+		cluster_dict={elem.split(";")[0] : elem.split(";")[1] for elem in cluster_args.split(",")}
+		if "cores" in cluster_dict.keys():
+			cluster_dict.update({"cores":int(cluster_dict["cores"])})
+		if "mem" in cluster_dict.keys():
+			cluster_dict.update({"mem":int(cluster_dict["mem"])})
+		if "ncpus" in cluster_dict.keys():
+			cluster_dict.update({"ncpus":int(cluster_dict["ncpus"])})
+		if "nanny" in cluster_dict.keys():
+			nanny_flag = True
+			if cluster_dict["nanny"] in "0falseFalse":
+				nanny_flag = False
+			cluster_dict.update({"nanny":nanny_flag})
+		if "dashboard_address" in cluster_dict.keys():
+			if cluster_dict["dashboard_address"] in "Nonenone":
+				cluster_dict.update({"dashboard_address":None})
+		if "env_extra" in cluster_dict.keys():
+			cluster_dict.update({"env_extra":cluster_dict["env_extra"].split(":")})
+		if "job_extra" in cluster_dict.keys():
+			cluster_dict.update({"job_extra":cluster_dict["job_extra"].split("|")})
+		cluster_dict={cluster_name:cluster_dict}
+		args.update(cluster_dict)
+		print("Starting jobqueue Dask client using %s workers on %s jobs"%(n_wrks,n_jobs))
+
+	if args:
+		client = DaskClient(**args)
+		print("Client has started!")
+		nWrks = client.getNworkers()
+	return client, nWrks
+
+def parfile2pars(args):
+	"""Function to expand arguments in parfile to parameters"""
+	#Check if par argument was provided
+	par_arg = None
+	reg_comp = re.compile("(^par=)(.*)")
+	match = []
+	for arg in args:
+		find = reg_comp.search(arg)
+		if find:
+			match.append(find.group(2))
+	if len(match) > 0:
+		par_arg = "par="+match[-1] #Taking last par argument
+	#If par was found expand arguments
+	if par_arg:
+		par_file = par_arg.split("=")[-1]
+		with open(par_file) as fid:
+			lines = fid.read().splitlines()
+		#Substitute par with its arguments
+		idx = args.index(par_arg)
+		args = args[:idx] + lines + args[idx+1:]
+	return args
+
+def create_parObj(args):
+	"""Function to call genericIO correctly"""
+	obj = genericIO.io(params=args)
+	return obj
+
+def spreadParObj(client,args,par):
+	"""Function to spread parameter object to workers"""
+	#Spreading/Instantiating the parameter objects
+	List_Shots = par.getInts("nShot",0)
+	parObject = []
+	args1=parfile2pars(args)
+	#Finding index of nShot parameter
+	idx_nshot = [ii for ii,el in enumerate(args1) if "nShot" in el]
+	#Removing all other nExp parameters
+	for idx in idx_nshot[:-1]:
+		args1.pop(idx)
+	#Correcting idx_nshot
+	idx_nshot = [ii for ii,el in enumerate(args1) if "nShot" in el]
+	for idx,wrkId in enumerate(client.getWorkerIds()):
+		#Substituting nShot with the correct number of shots
+		args1[idx_nshot[-1]]="nShot=%s"%(List_Shots[idx])
+		parObject.append(client.getClient().submit(create_parObj,args1,workers=[wrkId],pure=False))
+	daskD.wait(parObject)
+	return parObject
+
+
+def call_deviceGpu(nzDevice, ozDevice, dzDevice, nxDevice, oxDevice, dxDevice, nyDevice, oyDevice, dyDevice, vel, nts, parObject, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d):
+	"""Function instantiate a deviceGpu_3D object (first constructor)"""
+	obj = deviceGpu_3D(nzDevice, ozDevice, dzDevice, nxDevice, oxDevice, dxDevice, nyDevice, oyDevice, dyDevice, vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift)
+	return obj
+
+def get_axes(vecObj):
+	"""Function to return Axes from vector"""
+	return vecObj.getHyper().axes
+
+def call_deviceGpu1(z_dev, x_dev, y_dev, vel, nts, parObject, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d):
+	"""Function to construct device using its absolute position"""
+	zCoordFloat=SepVector.getSepVector(ns=[1])
+	xCoordFloat=SepVector.getSepVector(ns=[1])
+	yCoordFloat=SepVector.getSepVector(ns=[1])
+	zCoordFloat.set(z_dev)
+	xCoordFloat.set(x_dev)
+	yCoordFloat.set(y_dev)
+	obj = deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d)
+	return obj
+
+def call_deviceGpu2(z_dev, x_dev, y_dev, vel, nts, parObject, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d):
+	"""Function to construct device using its absolute positions"""
+	zCoordFloat=SepVector.getSepVector(ns=[z_dev.shape[0]])
+	xCoordFloat=SepVector.getSepVector(ns=[x_dev.shape[0]])
+	yCoordFloat=SepVector.getSepVector(ns=[y_dev.shape[0]])
+	zCoordFloat.getNdArray()[:]=z_dev
+	xCoordFloat.getNdArray()[:]=x_dev
+	yCoordFloat.getNdArray()[:]=y_dev
+	obj = deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d)
+	return obj
+
+def chunkData(dataVecLocal,dataSpaceRemote):
+	"""Function to chunk and spread the data vector across dask workers"""
+	dask_client = dataSpaceRemote.dask_client #Getting Dask client
+	client = dask_client.getClient()
+	wrkIds = dask_client.getWorkerIds()
+	dataAxes = client.gather(client.map(get_axes,dataSpaceRemote.vecDask,pure=False)) #Getting hypercubes of remote vector chunks
+	List_Shots = [axes[-1].n for axes in dataAxes]
+	dataNd = dataVecLocal.getNdArray()
+	if(np.sum(List_Shots) != dataNd.shape[0]):
+		raise ValueError("Number of shot within provide data vector (%s) not consistent with total number of shots from nShot parameter (%s)"%(dataNd.shape[0],np.sum(List_Shots)))
+	#Pointer-wise chunking
+	dataArrays = []
+	firstShot = 0
+	for nShot in List_Shots:
+		dataArrays.append(dataNd[firstShot:firstShot+nShot,:,:])
+		firstShot += nShot
+	#Copying the data to remove vector
+	dataVecRemote = dataSpaceRemote.clone()
+	for idx,wrkId in enumerate(wrkIds):
+		arrD = client.scatter(dataArrays[idx],workers=[wrkId])
+		daskD.wait(arrD)
+		daskD.wait(client.submit(pyDaskVector.copy_from_NdArray,dataVecRemote.vecDask[idx],arrD,workers=[wrkId],pure=False))
+	# daskD.wait(client.map(pyDaskVector.copy_from_NdArray,dataVecRemote.vecDask,dataArrays,pure=False))
+	return dataVecRemote
+
 ################################################################################
 ############################## Sources geometry ################################
 ################################################################################
 # Build source geometry
-def buildSourceGeometry_3D(parObject,vel):
+def buildSourceGeometry_3D(parObject, vel, client=None, parObjDist=None, velDist=None):
 
 	# Common parameters
 	info = parObject.getInt("info",0)
@@ -28,11 +203,6 @@ def buildSourceGeometry_3D(parObject,vel):
 	yDipoleShift = parObject.getInt("yDipoleShift",0)
 	sourcesVector=[] # Sources vector stores deviceGpu objects for each source
 	spaceInterpMethod = parObject.getString("spaceInterpMethod","linear")
-
-	# Get total number of shots
-	nShot = parObject.getInt("nShot",-1)
-	if (nShot==-1):
-		raise ValueError("**** ERROR [buildSourceGeometry_3D]: User must provide the total number of shots ****\n")
 
 	# Read parameters for spatial interpolation
 	if (spaceInterpMethod == "linear"):
@@ -66,112 +236,173 @@ def buildSourceGeometry_3D(parObject,vel):
 	if ( (spaceInterpMethod == "sinc") and (sourceGeomFile != "None")):
 		raise ValueError("**** ERROR [buildSourceGeometry_3D]: User can not request sinc spatial interpolation for a regular source geometry ****\n")
 
-	# Irregular source geometry => Reading source geometry from file
-	if(sourceGeomFile != "None"):
+	# Using Dask interface
+	if client:
 
-		# Set the flag to irregular
-		# regSourceGeom = 0
+		List_Shots = parObject.getInts("nShot",0)
 
-		# Read geometry file
-		# 2 axes:
-		# First (fast) axis: shot index
-		# Second (slow) axis: spatial coordinates
-		sourceGeomVectorNd = genericIO.defaultIO.getVector(sourceGeomFile,ndims=2).getNdArray()
+		# Get total number of shots
+		if (List_Shots==0):
+			raise ValueError("**** ERROR [buildSourceGeometry_3D]: User must provide the total number of shots ****\n")
 
-		# Check for consistency between number of shots and provided coordinates
-		if (nShot != sourceGeomVectorNd.shape[1]):
-			raise ValueError("**** ERROR [buildSourceGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with geometry file (#shots=%s)! ****\n" %(nShot,sourceGeomVectorNd.shape[1]))
+		#Checking if list of shots is consistent with number of workers
+		nWrks = client.getNworkers()
+		wrkIds = client.getWorkerIds()
+		if len(List_Shots) != nWrks:
+			raise ValueError("Number of workers (#nWrk=%s) not consistent with length of the provided list of shots (nShot=%s)"%(nWrks,parObject.getString("nShot")))
 
-		# Generate vector containing deviceGpu_3D objects
-		for ishot in range(nShot):
+		sourcesVector = [[] for ii in range(nWrks)]
+		shotHyper = []
 
-			# Create inputs for devceGpu_3D constructor
-			# We assume point sources -> zCoordFloat is a 1D array of length 1
-			zCoord=SepVector.getSepVector(ns=[1])
-			xCoord=SepVector.getSepVector(ns=[1])
-			yCoord=SepVector.getSepVector(ns=[1])
+		# Irregular source geometry => Reading source geometry from file
+		if(sourceGeomFile != "None"):
 
-			# Setting z, x and y-positions of the source for the given experiment
-			zCoord.set(sourceGeomVectorNd[2,ishot]) # n2, n1
-			xCoord.set(sourceGeomVectorNd[0,ishot])
-			yCoord.set(sourceGeomVectorNd[1,ishot])
+			# Set the flag to irregular
+			# regSourceGeom = 0
 
-			# Create a deviceGpu_3D for this source and append to sources vector
-			sourcesVector.append(deviceGpu_3D(zCoord.getCpp(), xCoord.getCpp(), yCoord.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
+			# Read geometry file
+			# 2 axes:
+			# First (fast) axis: shot index
+			# Second (slow) axis: spatial coordinates
+			sourceGeomVectorNd = genericIO.defaultIO.getVector(sourceGeomFile,ndims=2).getNdArray()
 
-		# Generate hypercube with one axis which has the length of the number of shots
-		shotAxis=Hypercube.axis(n=nShot,o=0.0,d=1.0)
-		shotHyper=Hypercube.hypercube(axes=[shotAxis])
+			nShot = np.sum(List_Shots)
+		
+			# Check for consistency between number of shots and provided coordinates
+			if (nShot != sourceGeomVectorNd.shape[1]):
+				raise ValueError("**** ERROR [buildSourceGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with geometry file (#shots=%s)! ****\n" %(nShot,sourceGeomVectorNd.shape[1]))
 
-	# Reading regular source geometry from parameters
-	# Assumes all acquisition devices are located on finite-difference grid points
+			shotIdx = 0
+			for idx,nShot in enumerate(List_Shots):
+				#Setting source geometry
+				for _ in range(nShot):
+					sourcesVector[idx].append(client.getClient().submit(call_deviceGpu1, sourceGeomVectorNd[2,shotIdx],sourceGeomVectorNd[0,shotIdx], sourceGeomVectorNd[1,shotIdx], velDist.vecDask[idx], nts, parObjDist[idx], dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d, workers=wrkIds[idx], pure=False))
+					shotIdx += 1
+				daskD.wait(sourcesVector[idx])
+				shotAxis = Hypercube.axis(n=nShot,o=1.0,d=1.0)
+				shotHyper.append(Hypercube.hypercube(axes=[shotAxis]))
+
+		# Reading regular source geometry from parameters
+		# Assumes all acquisition devices are located on finite-difference grid points
+		else:
+
+			# Set the source geometry flag to "reg"
+			# regSourceGeom = 1
+
+			raise NotImplementedError("Regular shot geometry currently not supported with Dask interface!")
 	else:
+		
+		# Get total number of shots
+		nShot = parObject.getInt("nShot",-1)
+		if (nShot==-1):
+			raise ValueError("**** ERROR [buildSourceGeometry_3D]: User must provide the total number of shots ****\n")
 
-		# Set the source geometry flag to "reg"
-		# regSourceGeom = 1
+		# Irregular source geometry => Reading source geometry from file
+		if(sourceGeomFile != "None"):
 
-		# z-axis
-		nzShot = parObject.getInt("nzShot")
-		ozShot = parObject.getInt("ozShot") # ozShot is in sample number (i.e., 1 means on the first grid point)
-		dzShot = parObject.getInt("dzShot")
+			# Set the flag to irregular
+			# regSourceGeom = 0
 
-		# x-axis
-		nxShot = parObject.getInt("nxShot")
-		oxShot = parObject.getInt("oxShot")
-		dxShot = parObject.getInt("dxShot")
+			# Read geometry file
+			# 2 axes:
+			# First (fast) axis: shot index
+			# Second (slow) axis: spatial coordinates
+			sourceGeomVectorNd = genericIO.defaultIO.getVector(sourceGeomFile,ndims=2).getNdArray()
 
-		# y-axis
-		nyShot = parObject.getInt("nyShot")
-		oyShot = parObject.getInt("oyShot")
-		dyShot = parObject.getInt("dyShot")
+			# Check for consistency between number of shots and provided coordinates
+			if (nShot != sourceGeomVectorNd.shape[1]):
+				raise ValueError("**** ERROR [buildSourceGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with geometry file (#shots=%s)! ****\n" %(nShot,sourceGeomVectorNd.shape[1]))
 
-		# Position of first shot on each axis (convert to grid point index)
-		ozShot = ozShot-1 + parObject.getInt("zPadMinus") + parObject.getInt("fat")
-		oxShot = oxShot-1 + parObject.getInt("xPadMinus") + parObject.getInt("fat")
-		oyShot = oyShot-1 + parObject.getInt("yPad") + parObject.getInt("fat")
+			# Generate vector containing deviceGpu_3D objects
+			for ishot in range(nShot):
 
-		# Model coordinates + dimensions
-		dz=vel.getHyper().axes[0].d
-		oz=vel.getHyper().axes[0].o
-		dx=vel.getHyper().axes[1].d
-		ox=vel.getHyper().axes[1].o
-		dy=vel.getHyper().axes[2].d
-		oy=vel.getHyper().axes[2].o
+				# Create inputs for devceGpu_3D constructor
+				# We assume point sources -> zCoordFloat is a 1D array of length 1
+				zCoord=SepVector.getSepVector(ns=[1])
+				xCoord=SepVector.getSepVector(ns=[1])
+				yCoord=SepVector.getSepVector(ns=[1])
 
-		# Shot axes
-		zShotAxis=Hypercube.axis(n=nzShot,o=oz+ozShot*dz,d=dzShot*dz)
-		xShotAxis=Hypercube.axis(n=nxShot,o=ox+oxShot*dx,d=dxShot*dx)
-		yShotAxis=Hypercube.axis(n=nyShot,o=oy+oyShot*dy,d=dyShot*dy)
-		nShotTemp=nzShot*nxShot*nyShot
-		# Check shot number consistency
-		if (nShotTemp != nShot):
-			raise ValueError("**** ERROR [buildSourceGeometry_3D]: Number of shots not consistent with source acquisition geometry (make sure nShot=nzShot*nxShot*nyShot) ****\n")
+				# Setting z, x and y-positions of the source for the given experiment
+				zCoord.set(sourceGeomVectorNd[2,ishot]) # n2, n1
+				xCoord.set(sourceGeomVectorNd[0,ishot])
+				yCoord.set(sourceGeomVectorNd[1,ishot])
 
-		# shotAxis=Hypercube.axis(n=nShot,o=0.0,d=1.0)
+				# Create a deviceGpu_3D for this source and append to sources vector
+				sourcesVector.append(deviceGpu_3D(zCoord.getCpp(), xCoord.getCpp(), yCoord.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
 
-		# Generate hypercube
-		shotHyper=Hypercube.hypercube(axes=[zShotAxis,xShotAxis,yShotAxis])
-		# shotHyperIrreg=Hypercube.hypercube(axes=[shotAxis])
+			# Generate hypercube with one axis which has the length of the number of shots
+			shotAxis=Hypercube.axis(n=nShot,o=0.0,d=1.0)
+			shotHyper=Hypercube.hypercube(axes=[shotAxis])
 
-		# Simultaneous shots
-		nzSource=1
-		dzSource=1
-		ozSource=ozShot
-		nxSource=1
-		dxSource=1
-		oxSource=oxShot
-		nySource=1
-		dySource=1
-		oySource=oyShot
+		# Reading regular source geometry from parameters
+		# Assumes all acquisition devices are located on finite-difference grid points
+		else:
 
-		# Create vectors containing deviceGpu_3D objects
-		for iyShot in range(nyShot):
-			for ixShot in range(nxShot):
-				for izShot in range(nzShot):
-					sourcesVector.append(deviceGpu_3D(nzSource,ozSource,dzSource,nxSource,oxSource,dxSource,nySource,oySource,dySource,vel.getCpp(),nts,parObject.param,dipole,zDipoleShift,xDipoleShift,yDipoleShift,"linear",hFilter1d))
-					ozSource=ozSource+dzShot # Shift source in z-direction [samples]
-				oxSource=oxSource+dxShot # Shift source in x-direction [samples]
-			oySource=oySource+dyShot # Shift source in y-direction [samples]
+			# Set the source geometry flag to "reg"
+			# regSourceGeom = 1
+
+			# z-axis
+			nzShot = parObject.getInt("nzShot")
+			ozShot = parObject.getInt("ozShot") # ozShot is in sample number (i.e., 1 means on the first grid point)
+			dzShot = parObject.getInt("dzShot")
+
+			# x-axis
+			nxShot = parObject.getInt("nxShot")
+			oxShot = parObject.getInt("oxShot")
+			dxShot = parObject.getInt("dxShot")
+
+			# y-axis
+			nyShot = parObject.getInt("nyShot")
+			oyShot = parObject.getInt("oyShot")
+			dyShot = parObject.getInt("dyShot")
+
+			# Position of first shot on each axis (convert to grid point index)
+			ozShot = ozShot-1 + parObject.getInt("zPadMinus") + parObject.getInt("fat")
+			oxShot = oxShot-1 + parObject.getInt("xPadMinus") + parObject.getInt("fat")
+			oyShot = oyShot-1 + parObject.getInt("yPad") + parObject.getInt("fat")
+
+			# Model coordinates + dimensions
+			dz=vel.getHyper().axes[0].d
+			oz=vel.getHyper().axes[0].o
+			dx=vel.getHyper().axes[1].d
+			ox=vel.getHyper().axes[1].o
+			dy=vel.getHyper().axes[2].d
+			oy=vel.getHyper().axes[2].o
+
+			# Shot axes
+			zShotAxis=Hypercube.axis(n=nzShot,o=oz+ozShot*dz,d=dzShot*dz)
+			xShotAxis=Hypercube.axis(n=nxShot,o=ox+oxShot*dx,d=dxShot*dx)
+			yShotAxis=Hypercube.axis(n=nyShot,o=oy+oyShot*dy,d=dyShot*dy)
+			nShotTemp=nzShot*nxShot*nyShot
+			# Check shot number consistency
+			if (nShotTemp != nShot):
+				raise ValueError("**** ERROR [buildSourceGeometry_3D]: Number of shots not consistent with source acquisition geometry (make sure nShot=nzShot*nxShot*nyShot) ****\n")
+
+			# shotAxis=Hypercube.axis(n=nShot,o=0.0,d=1.0)
+
+			# Generate hypercube
+			shotHyper=Hypercube.hypercube(axes=[zShotAxis,xShotAxis,yShotAxis])
+			# shotHyperIrreg=Hypercube.hypercube(axes=[shotAxis])
+
+			# Simultaneous shots
+			nzSource=1
+			dzSource=1
+			ozSource=ozShot
+			nxSource=1
+			dxSource=1
+			oxSource=oxShot
+			nySource=1
+			dySource=1
+			oySource=oyShot
+
+			# Create vectors containing deviceGpu_3D objects
+			for iyShot in range(nyShot):
+				for ixShot in range(nxShot):
+					for izShot in range(nzShot):
+						sourcesVector.append(deviceGpu_3D(nzSource,ozSource,dzSource,nxSource,oxSource,dxSource,nySource,oySource,dySource,vel.getCpp(),nts,parObject.param,dipole,zDipoleShift,xDipoleShift,yDipoleShift,"linear",hFilter1d))
+						ozSource=ozSource+dzShot # Shift source in z-direction [samples]
+					oxSource=oxSource+dxShot # Shift source in x-direction [samples]
+				oySource=oySource+dyShot # Shift source in y-direction [samples]
 
 	return sourcesVector,shotHyper
 
@@ -179,7 +410,7 @@ def buildSourceGeometry_3D(parObject,vel):
 ############################## Receivers geometry ##############################
 ################################################################################
 # Build receivers geometry
-def buildReceiversGeometry_3D(parObject,vel):
+def buildReceiversGeometry_3D(parObject, vel, client=None, parObjDist=None, velDist=None):
 
 	# Common parameters
 	info = parObject.getInt("info",0)
@@ -191,11 +422,6 @@ def buildReceiversGeometry_3D(parObject,vel):
 	yDipoleShift = parObject.getInt("yDipoleShift",0)
 	receiversVector=[]
 	spaceInterpMethod = parObject.getString("spaceInterpMethod","linear")
-
-	# Get total number of shots
-	nShot = parObject.getInt("nShot",-1)
-	if (nShot==-1):
-		raise ValueError("**** ERROR [buildSourceGeometry_3D]: User must provide the total number of shots ****\n")
 
 	# Check that user provides the number of receivers per shot (must be constant)
 	nReceiverPerShot = parObject.getInt("nReceiverPerShot",-1)
@@ -231,105 +457,167 @@ def buildReceiversGeometry_3D(parObject,vel):
 	if ( (spaceInterpMethod == "sinc") and (receiverGeomFile != "None")):
 		raise ValueError("**** ERROR [buildReceiversGeometry_3D]: Code can not handle sinc spatial interpolation for a regular receiver geometry ****\n")
 
-	# Irregular source geometry => Reading source geometry from file
-	if(receiverGeomFile != "None"):
+	if client:
 
-		# Read geometry file: 3 axes
-		# First (fast) axis: spatial coordinates
-		# Second axis: receiver index
-		# !!! The number of receivers per shot must be constant !!!
-		# Third axis: shot index
-		receiverGeomVectorNd = genericIO.defaultIO.getVector(receiverGeomFile,ndims=3).getNdArray()
+		#Getting number of workers
+		nWrks = client.getNworkers()
+		wrkIds = client.getWorkerIds()
 
-		# Check consistency with total number of shots
-		if (nShot != receiverGeomVectorNd.shape[2]):
-			raise ValueError("**** ERROR [buildReceiversGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with receivers' geometry file (#shots=%s) ****\n"%(nShot,receiverGeomVectorNd.shape[2]))
+		List_Shots = parObject.getInts("nShot",0)
+		# Get total number of shots
+		if (List_Shots==0):
+			raise ValueError("**** ERROR [buildSourceGeometry_3D]: User must provide the total number of shots ****\n")
 
-		# Read size of receivers' geometry file
-		# Check consistency between the size of the receiver geometry file and the number of receivers per shot
-		if(nReceiverPerShot != receiverGeomVectorNd.shape[1]):
-			raise ValueError("**** ERROR [buildReceiversGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with receivers' geometry file (#shots=%s) ****\n"%(nShot,receiverGeomVectorNd.shape[1]))
+		if len(List_Shots) != nWrks:
+			raise ValueError("Number of workers (#nWrk=%s) not consistent with length of the provided list of shots (nShot=%s)"%(nWrks,parObject.getString("nShot")))
 
-		nShot = receiverGeomVectorNd.shape[2]
-		if (nShot==1 and info==1):
-				print("**** [buildReceiversGeometry_3D]: User has requested a constant geometry (over shots) for receivers ****\n")
+		receiversVector = [[] for ii in range(nWrks)]
 
-		# If receiver geometry is constant -> use only one deviceGpu for the reveivers
+		receiverAxis=Hypercube.axis(n=nReceiverPerShot,o=1.0,d=1.0)
+		receiverHyper = [Hypercube.hypercube(axes=[receiverAxis])]*nWrks
 
-		# Generate vector containing deviceGpu_3D objects
-		for ishot in range(nShot):
+		if (receiverGeomFile != "None"):
 
-			# Create inputs for devceiGpu_3D constructor
-			zCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
-			xCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
-			yCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
+			# Read geometry file: 3 axes
+			# First (fast) axis: spatial coordinates
+			# Second axis: receiver index
+			# !!! The number of receivers per shot must be constant !!!
+			# Third axis: shot index
+			receiverGeomVectorNd = genericIO.defaultIO.getVector(receiverGeomFile,ndims=3).getNdArray()
 
-			zCoordNd=zCoord.getNdArray()
-			xCoordNd=xCoord.getNdArray()
-			yCoordNd=yCoord.getNdArray()
+			# Total number of shots
+			nShot=np.sum(List_Shots)
 
-			# Update the receiver's coordinates
-			zCoordNd[:]=receiverGeomVectorNd[2,:,ishot]
-			xCoordNd[:]=receiverGeomVectorNd[0,:,ishot]
-			yCoordNd[:]=receiverGeomVectorNd[1,:,ishot]
-			receiversVector.append(deviceGpu_3D(zCoord.getCpp(), xCoord.getCpp(), yCoord.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
+			# Check consistency with total number of shots
+			if (nShot != receiverGeomVectorNd.shape[2]):
+				raise ValueError("**** ERROR [buildReceiversGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with receivers' geometry file (#shots=%s) ****\n"%(nShot,receiverGeomVectorNd.shape[2]))
 
-		# Generate hypercubes
-		receiverAxis=Hypercube.axis(n=nReceiverPerShot,o=0.0,d=1.0)
-		receiverHyper=Hypercube.hypercube(axes=[receiverAxis])
+			shotIdx = 0
+			for idx,nShot in enumerate(List_Shots):
+				#Setting source geometry
+				for _ in range(nShot):
+					receiversVector[idx].append(client.getClient().submit(call_deviceGpu2, receiverGeomVectorNd[2,:,shotIdx],receiverGeomVectorNd[0,:,shotIdx],receiverGeomVectorNd[1,:,shotIdx], velDist.vecDask[idx], nts, parObjDist[idx], dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d,workers=wrkIds[idx],pure=False))
+					shotIdx += 1
+				daskD.wait(receiversVector[idx])
+
+
+		else:
+			# Reading regular receiver geometry from parameters
+			# Assumes all acquisition devices are located on finite-difference grid points
+			# Assumes constant receiver geometry (over shots)
+
+			# Set the source geometry flag to "reg"
+			# regReceiverGeom = 1
+
+			raise NotImplementedError("Regular receiver geometry currently not supported with Dask interface!")
+
 
 	else:
 
-		# Reading regular receiver geometry from parameters
-		# Assumes all acquisition devices are located on finite-difference grid points
-		# Assumes constant receiver geometry (over shots)
+		# Get total number of shots
+		nShot = parObject.getInt("nShot",-1)
+		if (nShot==-1):
+			raise ValueError("**** ERROR [buildSourceGeometry_3D]: User must provide the total number of shots ****\n")
 
-		# Set the source geometry flag to "reg"
-		# regReceiverGeom = 1
+		# Irregular source geometry => Reading source geometry from file
+		if(receiverGeomFile != "None"):
 
-		# z-axis
-		nzReceiver = parObject.getInt("nzReceiver")
-		ozReceiver = parObject.getInt("ozReceiver") # ozShot is in sample number (i.e., 1 means on the first grid point)
-		dzReceiver = parObject.getInt("dzReceiver")
+			# Read geometry file: 3 axes
+			# First (fast) axis: spatial coordinates
+			# Second axis: receiver index
+			# !!! The number of receivers per shot must be constant !!!
+			# Third axis: shot index
+			receiverGeomVectorNd = genericIO.defaultIO.getVector(receiverGeomFile,ndims=3).getNdArray()
 
-		# x-axis
-		nxReceiver = parObject.getInt("nxReceiver")
-		oxReceiver = parObject.getInt("oxReceiver")
-		dxReceiver = parObject.getInt("dxReceiver")
+			# Check consistency with total number of shots
+			if (nShot != receiverGeomVectorNd.shape[2]):
+				raise ValueError("**** ERROR [buildReceiversGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with receivers' geometry file (#shots=%s) ****\n"%(nShot,receiverGeomVectorNd.shape[2]))
 
-		# y-axis
-		nyReceiver = parObject.getInt("nyReceiver")
-		oyReceiver = parObject.getInt("oyReceiver")
-		dyReceiver = parObject.getInt("dyReceiver")
+			# Read size of receivers' geometry file
+			# Check consistency between the size of the receiver geometry file and the number of receivers per shot
+			if(nReceiverPerShot != receiverGeomVectorNd.shape[1]):
+				raise ValueError("**** ERROR [buildReceiversGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with receivers' geometry file (#shots=%s) ****\n"%(nShot,receiverGeomVectorNd.shape[1]))
 
-		# Position of first receiver on each axis
-		ozReceiver = ozReceiver-1 + parObject.getInt("zPadMinus") + parObject.getInt("fat")
-		oxReceiver = oxReceiver-1 + parObject.getInt("xPadMinus") + parObject.getInt("fat")
-		oyReceiver = oyReceiver-1 + parObject.getInt("yPad") + parObject.getInt("fat")
+			nShot = receiverGeomVectorNd.shape[2]
+			if (nShot==1 and info==1):
+					print("**** [buildReceiversGeometry_3D]: User has requested a constant geometry (over shots) for receivers ****\n")
 
-		# Model coordinates + dimensions
-		dz=vel.getHyper().axes[0].d
-		oz=vel.getHyper().axes[0].o
-		dx=vel.getHyper().axes[1].d
-		ox=vel.getHyper().axes[1].o
-		dy=vel.getHyper().axes[2].d
-		oy=vel.getHyper().axes[2].o
+			# If receiver geometry is constant -> use only one deviceGpu for the reveivers
 
-		# Shot axes
-		zReceiverAxis=Hypercube.axis(n=nzReceiver,o=oz+ozReceiver*dz,d=dzReceiver*dz)
-		xReceiverAxis=Hypercube.axis(n=nxReceiver,o=ox+oxReceiver*dx,d=dxReceiver*dx)
-		yReceiverAxis=Hypercube.axis(n=nyReceiver,o=oy+oyReceiver*dy,d=dyReceiver*dy)
-		nReceiver=nzReceiver*nxReceiver*nyReceiver
-		if(nReceiverPerShot != nReceiver):
-			raise ValueError("**** ERROR [buildReceiversGeometry_3D]: Number of receivers per shot from tag nReceiverPerShot (nReceiverPerShot=%s) not consistent product nReceiver = nzReceiver x nxReceiver x nyReceiver (nReceiver=%s) ****\n"%(nReceiverPerShot,nReceiver))
-		receiverAxis=Hypercube.axis(n=nReceiver,o=0.0,d=1.0)
+			# Generate vector containing deviceGpu_3D objects
+			for ishot in range(nShot):
 
-		# Generate hypercubes
-		receiverHyper=Hypercube.hypercube(axes=[zReceiverAxis,xReceiverAxis,yReceiverAxis])
-		# receiverHyperIrreg=Hypercube.hypercube(axes=[receiverAxis])
+				# Create inputs for devceiGpu_3D constructor
+				zCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
+				xCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
+				yCoord=SepVector.getSepVector(ns=[nReceiverPerShot])
 
-		# Create vector containing 1 deviceGpu_3D object
-		receiversVector.append(deviceGpu_3D(nzReceiver,ozReceiver,dzReceiver,nxReceiver,oxReceiver,dxReceiver,nyReceiver,oyReceiver,dyReceiver,vel.getCpp(),nts,parObject.param,dipole,zDipoleShift,xDipoleShift,yDipoleShift,"linear",hFilter1d))
+				zCoordNd=zCoord.getNdArray()
+				xCoordNd=xCoord.getNdArray()
+				yCoordNd=yCoord.getNdArray()
+
+				# Update the receiver's coordinates
+				zCoordNd[:]=receiverGeomVectorNd[2,:,ishot]
+				xCoordNd[:]=receiverGeomVectorNd[0,:,ishot]
+				yCoordNd[:]=receiverGeomVectorNd[1,:,ishot]
+				receiversVector.append(deviceGpu_3D(zCoord.getCpp(), xCoord.getCpp(), yCoord.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d))
+
+			# Generate hypercubes
+			receiverAxis=Hypercube.axis(n=nReceiverPerShot,o=0.0,d=1.0)
+			receiverHyper=Hypercube.hypercube(axes=[receiverAxis])
+
+		else:
+
+			# Reading regular receiver geometry from parameters
+			# Assumes all acquisition devices are located on finite-difference grid points
+			# Assumes constant receiver geometry (over shots)
+
+			# Set the source geometry flag to "reg"
+			# regReceiverGeom = 1
+
+			# z-axis
+			nzReceiver = parObject.getInt("nzReceiver")
+			ozReceiver = parObject.getInt("ozReceiver") # ozShot is in sample number (i.e., 1 means on the first grid point)
+			dzReceiver = parObject.getInt("dzReceiver")
+
+			# x-axis
+			nxReceiver = parObject.getInt("nxReceiver")
+			oxReceiver = parObject.getInt("oxReceiver")
+			dxReceiver = parObject.getInt("dxReceiver")
+
+			# y-axis
+			nyReceiver = parObject.getInt("nyReceiver")
+			oyReceiver = parObject.getInt("oyReceiver")
+			dyReceiver = parObject.getInt("dyReceiver")
+
+			# Position of first receiver on each axis
+			ozReceiver = ozReceiver-1 + parObject.getInt("zPadMinus") + parObject.getInt("fat")
+			oxReceiver = oxReceiver-1 + parObject.getInt("xPadMinus") + parObject.getInt("fat")
+			oyReceiver = oyReceiver-1 + parObject.getInt("yPad") + parObject.getInt("fat")
+
+			# Model coordinates + dimensions
+			dz=vel.getHyper().axes[0].d
+			oz=vel.getHyper().axes[0].o
+			dx=vel.getHyper().axes[1].d
+			ox=vel.getHyper().axes[1].o
+			dy=vel.getHyper().axes[2].d
+			oy=vel.getHyper().axes[2].o
+
+			# Shot axes
+			zReceiverAxis=Hypercube.axis(n=nzReceiver,o=oz+ozReceiver*dz,d=dzReceiver*dz)
+			xReceiverAxis=Hypercube.axis(n=nxReceiver,o=ox+oxReceiver*dx,d=dxReceiver*dx)
+			yReceiverAxis=Hypercube.axis(n=nyReceiver,o=oy+oyReceiver*dy,d=dyReceiver*dy)
+			nReceiver=nzReceiver*nxReceiver*nyReceiver
+			if(nReceiverPerShot != nReceiver):
+				raise ValueError("**** ERROR [buildReceiversGeometry_3D]: Number of receivers per shot from tag nReceiverPerShot (nReceiverPerShot=%s) not consistent product nReceiver = nzReceiver x nxReceiver x nyReceiver (nReceiver=%s) ****\n"%(nReceiverPerShot,nReceiver))
+			receiverAxis=Hypercube.axis(n=nReceiver,o=0.0,d=1.0)
+
+			# Generate hypercubes
+			receiverHyper=Hypercube.hypercube(axes=[zReceiverAxis,xReceiverAxis,yReceiverAxis])
+			# receiverHyperIrreg=Hypercube.hypercube(axes=[receiverAxis])
+
+			# Create vector containing 1 deviceGpu_3D object
+			receiversVector.append(deviceGpu_3D(nzReceiver,ozReceiver,dzReceiver,nxReceiver,oxReceiver,dxReceiver,nyReceiver,oyReceiver,dyReceiver,vel.getCpp(),nts,parObject.param,dipole,zDipoleShift,xDipoleShift,yDipoleShift,"linear",hFilter1d))
 
 	return receiversVector,receiverHyper
 
@@ -676,13 +964,22 @@ def createBoundVectors_3D(parObject,model):
 ################################################################################
 ############################ Nonlinear propagation #############################
 ################################################################################
-def nonlinearOpInitFloat_3D(args):
+def nonlinearOpInitFloat_3D(args, client=None):
 
 	"""Function to correctly initialize nonlinear 3D operator
 	   The function will return the necessary variables for operator construction
 	"""
 	# IO object
 	parObject=genericIO.io(params=args)
+
+	# Time axis
+	nts=parObject.getInt("nts",-1)
+	ots=parObject.getFloat("ots",0.0)
+	dts=parObject.getFloat("dts",-1.0)
+	timeAxis=Hypercube.axis(n=nts,o=ots,d=dts)
+
+	# Dummy axis
+	dummyAxis=Hypercube.axis(n=1)
 
 	# Read flag to display information
 	info = parObject.getInt("info",0)
@@ -705,71 +1002,117 @@ def nonlinearOpInitFloat_3D(args):
 	if (constantWavelet != 0 and constantWavelet != 1):
 		raise ValueError("**** ERROR [nonlinearOpInitFloat_3D]: User did not specify an acceptable value for tag constantWavelet (must be 0 or 1) ****\n")
 
-	# Build sources/receivers geometry
-	sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat)
-	receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat)
+	if client:
+		# Dask interface
 
-	# Compute the number of shots
-	if (shotHyper.getNdim() > 1):
-		# Case where we have a regular source geometry (the hypercube has 3 axes)
-		nShot=shotHyper.axes[0].n*shotHyper.axes[1].n*shotHyper.axes[2].n
-		zShotAxis=shotHyper.axes[0]
-		xShotAxis=shotHyper.axes[1]
-		yShotAxis=shotHyper.axes[2]
+		#Getting number of workers and passing
+		nWrks = client.getNworkers()
+
+		#Spreading/Instantiating the parameter objects
+		parObjectDist = spreadParObj(client,args,parObject)
+
+		#Spreading velocity model to workers
+		velFloatDist = pyDaskVector.DaskVector(client,vectors=[velFloat]*nWrks)
+
+		# Build sources/receivers geometry
+		sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat,client,parObjectDist,velFloatDist)
+		receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat,client,parObjectDist,velFloatDist)
+
+		# Overwriting local velocity vector with distributed one
+		velFloat = velFloatDist
+
+		# Allocate model
+		# If we use a constant wavelet => allocate a 2D array where the second axis has a length of 1
+		if (constantWavelet == 1):
+			modelHyper=Hypercube.hypercube(axes=[timeAxis,dummyAxis])
+			model = SepVector.getSepVector(modelHyper)
+			modelLocal = model
+			model = pyDaskVector.DaskVector(client,vectors=[model]*nWrks)
+		else:
+			# If we do not use a constant wavelet
+			# Allocate a 2D array where the second axis has a length of the total number of shots
+			model = []
+			for iwrk in range(nWrks):
+				modelHyper=Hypercube.hypercube(axes=[timeAxis,shotHyper[iwrk].getAxis(1)])
+				model.append(SepVector.getSepVector(modelHyper))
+			modelLocal = model
+			model = pyDaskVector.DaskVector(client,vectors=model,copy=False)
+
+		#Allocating data vectors to be spread
+		dataFloat = []
+		for iwrk in range(nWrks):
+			dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverHyper[iwrk].getAxis(1),shotHyper[iwrk].getAxis(1)])
+			dataFloat.append(SepVector.getSepVector(dataHyper))
+		data = pyDaskVector.DaskVector(client,vectors=dataFloat,copy=False)
+
+		parObject = parObjectDist
+
+		# Currently supporting only irregular geometry
+		dataHyperForOutput = None
+
 	else:
-		# Case where we have an irregular geometry (the shot hypercube has one axis)
-		nShot=shotHyper.axes[0].n
 
-	# Create shot axis for the modeling
-	shotAxis=Hypercube.axis(n=nShot)
+		# Build sources/receivers geometry
+		sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat)
+		receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat)
 
-	# Compute the number of receivers per shot (the number is constant for all shots)
-	if (receiverHyper.getNdim() > 1):
-		# Regular geometry
-		nReceiver=receiverHyper.axes[0].n*receiverHyper.axes[1].n*receiverHyper.axes[2].n
-		zReceiverAxis=receiverHyper.axes[0]
-		xReceiverAxis=receiverHyper.axes[1]
-		yReceiverAxis=receiverHyper.axes[2]
-	else:
-		# Irregular geometry
-		nReceiver=receiverHyper.axes[0].n
+		# Compute the number of shots
+		if (shotHyper.getNdim() > 1):
+			# Case where we have a regular source geometry (the hypercube has 3 axes)
+			nShot=shotHyper.axes[0].n*shotHyper.axes[1].n*shotHyper.axes[2].n
+			zShotAxis=shotHyper.axes[0]
+			xShotAxis=shotHyper.axes[1]
+			yShotAxis=shotHyper.axes[2]
+		else:
+			# Case where we have an irregular geometry (the shot hypercube has one axis)
+			nShot=shotHyper.axes[0].n
 
-	# Create receiver axis for the modeling
-	receiverAxis=Hypercube.axis(n=nReceiver)
+		# Create shot axis for the modeling
+		shotAxis=Hypercube.axis(n=nShot)
 
-	# Time axis
-	nts=parObject.getInt("nts",-1)
-	ots=parObject.getFloat("ots",0.0)
-	dts=parObject.getFloat("dts",-1.0)
-	timeAxis=Hypercube.axis(n=nts,o=ots,d=dts)
+		# Compute the number of receivers per shot (the number is constant for all shots)
+		if (receiverHyper.getNdim() > 1):
+			# Regular geometry
+			nReceiver=receiverHyper.axes[0].n*receiverHyper.axes[1].n*receiverHyper.axes[2].n
+			zReceiverAxis=receiverHyper.axes[0]
+			xReceiverAxis=receiverHyper.axes[1]
+			yReceiverAxis=receiverHyper.axes[2]
+		else:
+			# Irregular geometry
+			nReceiver=receiverHyper.axes[0].n
 
-	# Allocate model
-	# If we use a constant wavelet => allocate a 2D array where the second axis has a length of 1
-	if (constantWavelet == 1):
-		dummyAxis=Hypercube.axis(n=1)
-		modelHyper=Hypercube.hypercube(axes=[timeAxis,dummyAxis])
-		model=SepVector.getSepVector(modelHyper)
+		# Create receiver axis for the modeling
+		receiverAxis=Hypercube.axis(n=nReceiver)
 
-	else:
-		# If we do not use a constant wavelet
-		# Allocate a 2D array where the second axis has a length of the total number of shots
-		modelHyper=Hypercube.hypercube(axes=[timeAxis,shotAxis])
-		model=SepVector.getSepVector(modelHyper)
 
-	# Allocate data
-	dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
-	data=SepVector.getSepVector(dataHyper)
+		# Allocate model
+		# If we use a constant wavelet => allocate a 2D array where the second axis has a length of 1
+		if (constantWavelet == 1):
+			modelHyper=Hypercube.hypercube(axes=[timeAxis,dummyAxis])
+			model=SepVector.getSepVector(modelHyper)
+		else:
+			# If we do not use a constant wavelet
+			# Allocate a 2D array where the second axis has a length of the total number of shots
+			modelHyper=Hypercube.hypercube(axes=[timeAxis,shotAxis])
+			model=SepVector.getSepVector(modelHyper)
 
-	# Create data hypercube for writing the data to disk
-	# Regular geometry for both the sources and receivers
-	if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
-		dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
-	# Irregular geometry for both the sources and receivers
-	if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
-		dataHyperForOutput=dataHyper
+		# Local model necessary for Dask interface
+		modelLocal = model
+
+		# Allocate data
+		dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
+		data=SepVector.getSepVector(dataHyper)
+
+		# Create data hypercube for writing the data to disk
+		# Regular geometry for both the sources and receivers
+		if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
+			dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
+		# Irregular geometry for both the sources and receivers
+		if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
+			dataHyperForOutput=dataHyper
 
 	# Outputs
-	return model,data,velFloat,parObject,sourcesVector,receiversVector,dataHyperForOutput
+	return model,data,velFloat,parObject,sourcesVector,receiversVector,dataHyperForOutput,modelLocal
 
 class nonlinearPropShotsGpu_3D(Op.Operator):
 	"""Wrapper encapsulating PYBIND11 module for non-linear 3D propagator"""
