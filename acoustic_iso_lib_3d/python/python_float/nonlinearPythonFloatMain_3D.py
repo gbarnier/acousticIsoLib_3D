@@ -40,10 +40,7 @@ if __name__ == '__main__':
 		else:
 			nonlinearOp=Acoustic_iso_float_3D.nonlinearPropShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,receiversVector)
 	else:
-		if client:
-			raise NotImplementedError("Ginsu option, not supported for Dask interface yet")
-		else:
-			nonlinearOp=Acoustic_iso_float_3D.nonlinearPropShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,ixVectorGinsu,iyVectorGinsu)
+		nonlinearOp=Acoustic_iso_float_3D.nonlinearPropShotsGpu_3D(modelFloat,dataFloat,velFloat,parObject,sourcesVector,receiversVector,velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,ixVectorGinsu,iyVectorGinsu)
 
 	#Testing dot-product test of the operator
 	if (parObject.getInt("dpTest",0) == 1):
@@ -90,8 +87,7 @@ if __name__ == '__main__':
 
 		# Write data
 		dataFloat.writeVec(dataFile)
-		# genericIO.defaultIO.writeVector(dataFile,dataFloat)
-
+		
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
 		print("-------------------------------------------------------------------\n")
@@ -132,7 +128,6 @@ if __name__ == '__main__':
 		    quit()
 
 		modelFloatLocal.writeVec(modelFile)
-		# genericIO.defaultIO.writeVector(modelFile,modelFloat)
 
 		print("-------------------------------------------------------------------")
 		print("--------------------------- All done ------------------------------")
