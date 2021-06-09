@@ -1697,13 +1697,19 @@ class BornShotsGpu_3D(Op.Operator):
 ################################################################################
 ############################## Born extended ###################################
 ################################################################################
-def BornExtOpInitFloat_3D(args):
+def BornExtOpInitFloat_3D(args, client=None):
 	"""Function to correctly initialize Born extended operator
 	   The function will return the necessary variables for operator construction
 	"""
 
 	# IO object
 	parObject=genericIO.io(params=args)
+
+	# Time Axis
+	nts=parObject.getInt("nts",-1)
+	ots=parObject.getFloat("ots",0.0)
+	dts=parObject.getFloat("dts",-1.0)
+	timeAxis=Hypercube.axis(n=nts,o=ots,d=dts)
 
 	# Read flag to display information
 	info = parObject.getInt("info",0)
@@ -1715,74 +1721,6 @@ def BornExtOpInitFloat_3D(args):
 	if (velFile == "noVelFile"):
 		raise ValueError("**** ERROR [BornExtOpInitFloat_3D]: User did not provide velocity file ****\n")
 	velFloat=genericIO.defaultIO.getVector(velFile)
-
-	# Determine if the source time signature is constant over shots
-	constantWavelet = parObject.getInt("constantWavelet",-1)
-	if (info == 1 and constantWavelet == 1):
-		print("**** [BornExtOpInitFloat_3D]: Using the same seismic source time signature for all shots ****\n")
-	if (info == 1 and constantWavelet == 0):
-		print("**** [BornExtOpInitFloat_3D]: Using different seismic source time signatures for each shot ****\n")
-	if (constantWavelet != 0 and constantWavelet != 1):
-		raise ValueError("**** ERROR [BornExtOpInitFloat_3D]: User did not specify an acceptable value for tag constantWavelet (must be 0 or 1) ****\n")
-
-	# Build sources/receivers geometry
-	sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat)
-	receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat)
-
-	# Compute the number of shots
-	if (shotHyper.getNdim() > 1):
-		# Case where we have a regular source geometry (the hypercube has 3 axes)
-		nShot=shotHyper.axes[0].n*shotHyper.axes[1].n*shotHyper.axes[2].n
-		zShotAxis=shotHyper.axes[0]
-		xShotAxis=shotHyper.axes[1]
-		yShotAxis=shotHyper.axes[2]
-	else:
-		# Case where we have an irregular geometry (the shot hypercube has one axis)
-		nShot=shotHyper.axes[0].n
-
-	# Create shot axis for the modeling
-	shotAxis=Hypercube.axis(n=nShot)
-
-	# Compute the number of receivers per shot (the number is constant for all shots for both regular/irregular geometries)
-	if (receiverHyper.getNdim() > 1):
-		# Regular geometry
-		nReceiver=receiverHyper.axes[0].n*receiverHyper.axes[1].n*receiverHyper.axes[2].n
-		zReceiverAxis=receiverHyper.axes[0]
-		xReceiverAxis=receiverHyper.axes[1]
-		yReceiverAxis=receiverHyper.axes[2]
-	else:
-		# Irregular geometry
-		nReceiver=receiverHyper.axes[0].n
-
-	# Create receiver axis for the modeling
-	receiverAxis=Hypercube.axis(n=nReceiver)
-
-	# Time Axis
-	nts=parObject.getInt("nts",-1)
-	ots=parObject.getFloat("ots",0.0)
-	dts=parObject.getFloat("dts",-1.0)
-	timeAxis=Hypercube.axis(n=nts,o=ots,d=dts)
-
-	# Read velocity and convert to double
-	sourcesSignalsFile=parObject.getString("sources","noSourcesFile")
-	if (sourcesSignalsFile == "noSourcesFile"):
-		raise IOError("**** ERROR [BornExtOpInitFloat_3D]: User did not provide seismic sources file ****\n")
-	sourcesSignalsFloat=genericIO.defaultIO.getVector(sourcesSignalsFile,ndims=2)
-
-	# Allocate data
-	dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
-	dataFloat=SepVector.getSepVector(dataHyper)
-
-	########################## Delete once QC'ed ###############################
-	# Create data hypercurbe for writing the data to disk
-	# Regular geometry for both the sources and receivers
-
-	if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
-		dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
-	# Irregular geometry for both the sources and receivers
-	if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
-		dataHyperForOutput=dataHyper
-	############################################################################
 
 	# Allocate model
 	extension=parObject.getString("extension", "noExtensionType")
@@ -1838,7 +1776,110 @@ def BornExtOpInitFloat_3D(args):
 
 	modelFloat=SepVector.getSepVector(Hypercube.hypercube(axes=[zAxis,xAxis,yAxis,ext1Axis,ext2Axis]))
 
-	return modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput
+	modelLocal = modelFloat
+
+	# Determine if the source time signature is constant over shots
+	constantWavelet = parObject.getInt("constantWavelet",-1)
+	if (info == 1 and constantWavelet == 1):
+		print("**** [BornExtOpInitFloat_3D]: Using the same seismic source time signature for all shots ****\n")
+	if (info == 1 and constantWavelet == 0):
+		print("**** [BornExtOpInitFloat_3D]: Using different seismic source time signatures for each shot ****\n")
+	if (constantWavelet != 0 and constantWavelet != 1):
+		raise ValueError("**** ERROR [BornExtOpInitFloat_3D]: User did not specify an acceptable value for tag constantWavelet (must be 0 or 1) ****\n")
+
+	# Read velocity and convert to double
+	sourcesSignalsFile=parObject.getString("sources","noSourcesFile")
+	if (sourcesSignalsFile == "noSourcesFile"):
+		raise IOError("**** ERROR [BornExtOpInitFloat_3D]: User did not provide seismic sources file ****\n")
+	sourcesSignalsFloat=genericIO.defaultIO.getVector(sourcesSignalsFile,ndims=2)
+
+	if client:
+		# Dask interface
+
+		#Getting number of workers and passing
+		nWrks = client.getNworkers()
+
+		#Spreading/Instantiating the parameter objects
+		parObjectDist = spreadParObj(client,args,parObject)
+
+		#Spreading velocity model to workers
+		velFloatDist = pyDaskVector.DaskVector(client,vectors=[velFloat]*nWrks)
+
+		#Spreading source wavelet
+		sourcesSignalsFloat = pyDaskVector.DaskVector(client,vectors=[sourcesSignalsFloat]*nWrks)
+
+		# Build sources/receivers geometry
+		sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat,client,parObjectDist,velFloatDist)
+		receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat,client,parObjectDist,velFloatDist)
+
+		# Overwriting local velocity vector with distributed one
+		velFloat = velFloatDist
+
+		#Spreading reflectivity model to workers
+		modelFloat = pyDaskVector.DaskVector(client,vectors=[modelFloat]*nWrks)
+
+		#Allocating data vectors to be spread
+		dataFloat = []
+		for iwrk in range(nWrks):
+			dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverHyper[iwrk].getAxis(1),shotHyper[iwrk].getAxis(1)])
+			dataFloat.append(SepVector.getSepVector(dataHyper))
+		dataFloat = pyDaskVector.DaskVector(client,vectors=dataFloat,copy=False)
+
+		parObject = parObjectDist
+
+		# Currently supporting only irregular geometry
+		dataHyperForOutput = None
+
+	else:
+
+		# Build sources/receivers geometry
+		sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat)
+		receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat)
+
+		# Compute the number of shots
+		if (shotHyper.getNdim() > 1):
+			# Case where we have a regular source geometry (the hypercube has 3 axes)
+			nShot=shotHyper.axes[0].n*shotHyper.axes[1].n*shotHyper.axes[2].n
+			zShotAxis=shotHyper.axes[0]
+			xShotAxis=shotHyper.axes[1]
+			yShotAxis=shotHyper.axes[2]
+		else:
+			# Case where we have an irregular geometry (the shot hypercube has one axis)
+			nShot=shotHyper.axes[0].n
+
+		# Create shot axis for the modeling
+		shotAxis=Hypercube.axis(n=nShot)
+
+		# Compute the number of receivers per shot (the number is constant for all shots for both regular/irregular geometries)
+		if (receiverHyper.getNdim() > 1):
+			# Regular geometry
+			nReceiver=receiverHyper.axes[0].n*receiverHyper.axes[1].n*receiverHyper.axes[2].n
+			zReceiverAxis=receiverHyper.axes[0]
+			xReceiverAxis=receiverHyper.axes[1]
+			yReceiverAxis=receiverHyper.axes[2]
+		else:
+			# Irregular geometry
+			nReceiver=receiverHyper.axes[0].n
+
+		# Create receiver axis for the modeling
+		receiverAxis=Hypercube.axis(n=nReceiver)
+
+		# Allocate data
+		dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
+		dataFloat=SepVector.getSepVector(dataHyper)
+
+		########################## Delete once QC'ed ###############################
+		# Create data hypercurbe for writing the data to disk
+		# Regular geometry for both the sources and receivers
+
+		if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
+			dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
+		# Irregular geometry for both the sources and receivers
+		if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
+			dataHyperForOutput=dataHyper
+		############################################################################
+
+	return modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput,modelLocal
 
 class BornExtShotsGpu_3D(Op.Operator):
 	"""Wrapper encapsulating PYBIND11 module for Born extended operator"""

@@ -153,6 +153,10 @@ if __name__ == '__main__':
 			dataFloatNp=dataFloat.getNdArray()
 			dataFloatNp.flat[:]=dataFloatTempNp
 
+		if(client):
+			#Chunking the data and spreading them across workers if dask was requested
+			dataFloat = Acoustic_iso_float_3D.chunkData(dataFloat,BornOp.getRange())
+
 		# Apply adjoint
 		BornOp.adjoint(False,modelFloatLocal,dataFloat)
 
