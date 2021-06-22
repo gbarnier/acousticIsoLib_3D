@@ -20,6 +20,10 @@ import pyProblem as Prblm
 import inversionUtilsFloat_3D
 from sys_util import logger
 
+#Dask-related modules
+import pyDaskOperator as DaskOp
+import pyDaskVector
+
 # Template for linearized waveform inversion workflow
 if __name__ == '__main__':
 
@@ -39,6 +43,9 @@ if __name__ == '__main__':
 	stop,logFile,saveObj,saveRes,saveGrad,saveModel,prefix,bufferSize,iterSampling,restartFolder,flushMemory,info=inversionUtilsFloat_3D.inversionInitFloat_3D(sys.argv)
 	# Logger
 	inv_log = logger(logFile)
+
+	# Checking if Dask was requested
+	client, nWrks = Acoustic_iso_float_3D.create_client(parObject)
 
 	# Display information
 	if(pyinfo==1): print("-------------------------------------------------------------------")
@@ -61,6 +68,7 @@ if __name__ == '__main__':
 		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requested to use a free surface modeling ----")
 
 	# Data tapering
+	dataMask = None
 	if (dataTaper==1):
 		if (pyinfo==1):
 			print("--- [extLsrtmFloatMain_3D]: User has requested to use a data tapering mask for the data ---")
@@ -68,18 +76,29 @@ if __name__ == '__main__':
 		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry,dataMask=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# Initialize Born
-	modelInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.BornExtOpInitFloat_3D(sys.argv)
+	modelInitFloat,dataFloat,velFloat,parObject1,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput,modelFloatLocal=Acoustic_iso_float_3D.BornExtOpInitFloat_3D(sys.argv,client)
 
 	# Check if Ginsu is required
 	if (parObject.getInt("ginsu",0) == 1):
 		if (pyinfo==1):
 			print("---- [extLsrtmFloatMain_3D]: User has requested to use a Ginsu modeling ----")
 		inv_log.addToLog("---- [extLsrtmFloatMain_3D]: User has requested to use a Ginsu modeling ----")
+		if client:
+			raise NotImplementedError("Ginsu option, not supported for Dask interface yet")
 		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu=Acoustic_iso_float_3D.buildGeometryGinsu_3D(parObject,velFloat,sourcesVector,receiversVector)
 
 	# Construct Born operator object - No Ginsu
 	if (parObject.getInt("ginsu",0) == 0):
-		BornOp=Acoustic_iso_float_3D.BornExtShotsGpu_3D(modelInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector)
+		if client:
+			iwrk = 0
+			#Instantiating Dask Operator
+			BornExtOp_args = [(modelInitFloat.vecDask[iwrk],dataFloat.vecDask[iwrk],velFloat.vecDask[iwrk],parObject1[iwrk],sourcesVector[iwrk],sourcesSignalsFloat.vecDask[iwrk],receiversVector[iwrk]) for iwrk in range(nWrks)]
+			BornOp = DaskOp.DaskOperator(client,Acoustic_iso_float_3D.BornExtShotsGpu_3D,BornExtOp_args,[1]*nWrks)
+			#Adding spreading operator and concatenating with Born operator (using modelFloatLocal)
+			Sprd = DaskOp.DaskSpreadOp(client,modelFloatLocal,[1]*nWrks)
+			BornOp = pyOp.ChainOperator(Sprd,BornOp)
+		else:
+			BornOp=Acoustic_iso_float_3D.BornExtShotsGpu_3D(modelInitFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector)
 
 	# With Ginsu
 	else:
@@ -92,13 +111,20 @@ if __name__ == '__main__':
 	# Read initial model
 	modelInitFile=parObject.getString("modelInit","None")
 	if (modelInitFile=="None"):
-		modelInitFloat.set(0.0)
+		modelFloatLocal.set(0.0)
+		modelInitFloat = modelFloatLocal
 	else:
 		modelInitFloat=genericIO.defaultIO.getVector(modelInitFile,ndims=5)
 
 	# Data
 	dataFile=parObject.getString("data")
 	dataFloat=genericIO.defaultIO.getVector(dataFile,ndims=3)
+
+	if(client):
+			#Chunking the data and spreading them across workers if dask was requested
+			dataFloat = Acoustic_iso_float_3D.chunkData(dataFloat,BornOp.getRange())
+			if dataMask is not None:
+				dataMask = Acoustic_iso_float_3D.chunkData(dataMask,BornOp.getRange())
 
 	# Diagonal Preconditioning
 	PrecFile = parObject.getString("PrecFile","None")
@@ -115,8 +141,13 @@ if __name__ == '__main__':
 
 	# Data tapering
 	if (dataTaper==1):
-		# Instantiate operator
-		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry,dataMask)
+		if client:
+			hypers = client.getClient().map(lambda x: x.getHyper(),dataFloat.vecDask,pure=False)
+			dataTaper_args = [(dataFloat.vecDask[iwrk],dataFloat.vecDask[iwrk],t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,hypers[iwrk],sourceGeometry,receiverGeometry,dataMask.vecDask[iwrk]) for iwrk in range(nWrks)]
+			dataTaperOp = DaskOp.DaskOperator(client,dataTaperModule_3D.datTaper,dataTaper_args,[1]*nWrks)
+		else:
+			# Instantiate operator
+			dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry,dataMask)
 		# If input data have not been tapered yet -> taper them
 		if (rawData==1):
 			if (pyinfo==1):
