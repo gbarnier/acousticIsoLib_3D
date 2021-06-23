@@ -26,6 +26,10 @@ from pyStopper import BasicStopper as Stopper
 from sys_util import logger
 import inversionUtilsFloat_3D
 
+#Dask-related modules
+import pyDaskOperator as DaskOp
+import pyDaskVector
+
 # Template for FWI workflow
 if __name__ == '__main__':
 
@@ -47,6 +51,9 @@ if __name__ == '__main__':
 
 	# Initialize parameters for inversion
 	stop,logFile,saveObj,saveRes,saveGrad,saveModel,prefix,bufferSize,iterSampling,restartFolder,flushMemory,info=inversionUtilsFloat_3D.inversionInitFloat_3D(sys.argv)
+
+	# Checking if Dask was requested
+	client, nWrks = Acoustic_iso_float_3D.create_client(parObject)
 
 	# Logger
 	inv_log = logger(logFile)
@@ -72,17 +79,20 @@ if __name__ == '__main__':
 		inv_log.addToLog("--- [fwiFloatMain_3D]: User has requested to use a trace normalization operator on the data ---")
 
 	# Data tapering
+	dataMask = None
 	if (dataTaper==1):
 		print("--- [fwiFloatMain_3D]: User has requested to use a data tapering mask for the data ---")
 		inv_log.addToLog("--- [fwiFloatMain_3D]: User has requested to use a data tapering mask for the data ---")
 		t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,sourceGeometry,receiverGeometry,dataMask=dataTaperModule_3D.dataTaperInit_3D(sys.argv)
 
 	# FWI nonlinear operator
-	modelFineInitFloat,dataFloat,sourcesSignalsFloat,parObject,sourcesVector,receiversVector,dataHyperForOutput=Acoustic_iso_float_3D.nonlinearFwiOpInitFloat_3D(sys.argv)
+	modelFineInitFloat,dataFloat,sourcesSignalsFloat,parObject1,sourcesVector,receiversVector,dataHyperForOutput,modelFineInitFloatLocal=Acoustic_iso_float_3D.nonlinearFwiOpInitFloat_3D(sys.argv,client)
 
 	# Ginsu
 	if (parObject.getInt("ginsu",0) == 1):
 		print("--- [fwiFloatMain_3D]: User has requested to use a Ginsu modeling ---")
+		if client:
+			raise NotImplementedError("Ginsu option, not supported for Dask interface yet")
 		inv_log.addToLog("--- [fwiFloatMain_3D]: User has requested to use a Ginsu modeling ---")
 		velHyperVectorGinsu,xPadMinusVectorGinsu,xPadPlusVectorGinsu,sourcesVector,receiversVector,ixVectorGinsu,iyVectorGinsu,nxMaxGinsu,nyMaxGinsu=Acoustic_iso_float_3D.buildGeometryGinsu_3D(parObject,modelFineInitFloat,sourcesVector,receiversVector)
 	else:
@@ -104,17 +114,26 @@ if __name__ == '__main__':
 		modelCoarseInitFile=parObject.getString("modelCoarseInit")
 		modelCoarseInit=genericIO.defaultIO.getVector(modelCoarseInitFile,ndims=3)
 
-	# Data
-	dataFile=parObject.getString("data")
-	dataFloat=genericIO.defaultIO.getVector(dataFile)
-
 	############################# Instantiation ################################
 	# No Ginsu
 	if (parObject.getInt("ginsu",0) == 0):
-		# Nonlinear
-		nonlinearFwiOp=Acoustic_iso_float_3D.nonlinearFwiPropShotsGpu_3D(modelFineInitFloat,dataFloat,sourcesSignalsFloat,parObject,sourcesVector,receiversVector)
-		# Born
-		BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFineInitFloat,dataFloat,modelFineInitFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector)
+		if client:
+			#Instantiating Dask Operator
+			nonlinearFwiOp_args = [(modelFineInitFloat.vecDask[iwrk],dataFloat.vecDask[iwrk],sourcesSignalsFloat.vecDask[iwrk],parObject1[iwrk],sourcesVector[iwrk],receiversVector[iwrk]) for iwrk in range(nWrks)]
+			nonlinearFwiOp = DaskOp.DaskOperator(client,Acoustic_iso_float_3D.nonlinearFwiPropShotsGpu_3D,nonlinearFwiOp_args,[1]*nWrks)
+			#Adding spreading operator and concatenating with Born operator (using modelFloatLocal)
+			Sprd = DaskOp.DaskSpreadOp(client,modelFineInitFloatLocal,[1]*nWrks)
+			nonlinearFwiOp = pyOp.ChainOperator(Sprd,nonlinearFwiOp)
+			#Instantiating Dask Operator
+			BornOp_args = [(modelFineInitFloat.vecDask[iwrk],dataFloat.vecDask[iwrk],modelFineInitFloat.vecDask[iwrk],parObject1[iwrk],sourcesVector[iwrk],sourcesSignalsFloat.vecDask[iwrk],receiversVector[iwrk]) for iwrk in range(nWrks)]
+			BornOpDask = DaskOp.DaskOperator(client,Acoustic_iso_float_3D.BornShotsGpu_3D,BornOp_args,[1]*nWrks,setbackground_func_name="setVel_3D",spread_op=Sprd)
+			#Adding spreading operator and concatenating with Born operator (using modelFloatLocal)
+			BornOp = pyOp.ChainOperator(Sprd,BornOpDask)
+		else:
+			# Nonlinear
+			nonlinearFwiOp=Acoustic_iso_float_3D.nonlinearFwiPropShotsGpu_3D(modelFineInitFloat,dataFloat,sourcesSignalsFloat,parObject,sourcesVector,receiversVector)
+			# Born
+			BornOp=Acoustic_iso_float_3D.BornShotsGpu_3D(modelFineInitFloat,dataFloat,modelFineInitFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector)
 
 	# With Ginsu
 	else:
@@ -127,32 +146,52 @@ if __name__ == '__main__':
 	BornInvOp=BornOp
 
 	if (gradientMask==1):
-		maskGradientOp=maskGradientModule_3D.maskGradient_3D(modelFineInitFloat,modelFineInitFloat,velDummy,bufferUp,bufferDown,taperExp,fat,wbShift,gradientMaskFile,bathymetryFile)
+		maskGradientOp=maskGradientModule_3D.maskGradient_3D(modelFineInitFloatLocal,modelFineInitFloatLocal,velDummy,bufferUp,bufferDown,taperExp,fat,wbShift,gradientMaskFile,bathymetryFile)
 		if reg == 0:
 			# Chain mask if problem is not regularized
 			BornInvOp=pyOp.ChainOperator(maskGradientOp,BornOp)
 		gMask=maskGradientOp.getMask()
 
 	# Conventional FWI
-	fwiInvOp=pyOp.NonLinearOperator(nonlinearFwiOp,BornInvOp,BornOp.setVel_3D)
-	modelInit=modelFineInitFloat
+	if client:
+		fwiInvOp=pyOp.NonLinearOperator(nonlinearFwiOp,BornInvOp,BornOpDask.set_background)
+	else:
+		fwiInvOp=pyOp.NonLinearOperator(nonlinearFwiOp,BornInvOp,BornOp.setVel_3D)
+	modelInit=modelFineInitFloatLocal
+
+	# Data
+	dataFile=parObject.getString("data")
+	dataFloat=genericIO.defaultIO.getVector(dataFile)
+
+	if(client):
+			#Chunking the data and spreading them across workers if dask was requested
+			dataFloat = Acoustic_iso_float_3D.chunkData(dataFloat,BornOp.getRange())
+			if dataMask is not None:
+				dataMask = Acoustic_iso_float_3D.chunkData(dataMask,BornOp.getRange())
 
 	# Spline
 	if (spline==1):
 		modelInit=modelCoarseInit
-		splineOp=interpBSplineModule_3D.bSpline3d(modelCoarseInit,modelFineInitFloat,zOrder,xOrder,yOrder,zSplineMesh,xSplineMesh,ySplineMesh,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat)
+		splineOp=interpBSplineModule_3D.bSpline3d(modelCoarseInit,modelFineInitFloatLocal,zOrder,xOrder,yOrder,zSplineMesh,xSplineMesh,ySplineMesh,zDataAxis,xDataAxis,yDataAxis,nzParam,nxParam,nyParam,scaling,zTolerance,xTolerance,yTolerance,zFat,xFat,yFat)
 		splineNlOp=pyOp.NonLinearOperator(splineOp,splineOp) # Create spline nonlinear operator
 		fwiInvOp=pyOp.CombNonlinearOp(splineNlOp,fwiInvOp)
 
 	# Trace normalization
 	if (traceNorm==1):
 		epsilonTraceNorm=parObject.getFloat("epsilonTraceNorm",1e-10)
-		# Instantiate nonlinear forward
-		traceNormOp=traceNormModule_3D.traceNorm_3D(dataFloat,dataFloat,epsilonTraceNorm)
-		# Instantiate Jacobian
-		traceNormDerivOp=traceNormModule_3D.traceNormDeriv_3D(dataFloat,epsilonTraceNorm)
-		# Instantiate nonlinear operator
-		traceNormNlFwiOp=pyOp.NonLinearOperator(traceNormOp,traceNormDerivOp,traceNormDerivOp.setData)
+		if client:
+			traceNormOp_args = [(dataFloat.vecDask[iwrk],dataFloat.vecDask[iwrk],epsilonTraceNorm) for iwrk in range(nWrks)]
+			traceNormOp = DaskOp.DaskOperator(client,traceNormModule_3D.traceNorm_3D,traceNormOp_args,[1]*nWrks)
+			traceNormDerivOp_args = [(dataFloat.vecDask[iwrk],epsilonTraceNorm) for iwrk in range(nWrks)]
+			traceNormDerivOp = DaskOp.DaskOperator(client,traceNormModule_3D.traceNormDeriv_3D,traceNormDerivOp_args,[1]*nWrks,setbackground_func_name="setData")
+			traceNormNlFwiOp=pyOp.NonLinearOperator(traceNormOp,traceNormDerivOp,traceNormDerivOp.set_background)
+		else:
+			# Instantiate nonlinear forward
+			traceNormOp=traceNormModule_3D.traceNorm_3D(dataFloat,dataFloat,epsilonTraceNorm)
+			# Instantiate Jacobian
+			traceNormDerivOp=traceNormModule_3D.traceNormDeriv_3D(dataFloat,epsilonTraceNorm)
+			# Instantiate nonlinear operator
+			traceNormNlFwiOp=pyOp.NonLinearOperator(traceNormOp,traceNormDerivOp,traceNormDerivOp.setData)
 		# If input data has not been normalized yet -> normalize it
 		if (rawData==1):
 			if (pyinfo==1):
@@ -166,8 +205,13 @@ if __name__ == '__main__':
 
 	# Data tapering
 	if (dataTaper==1):
-		# Instantiate operator
-		dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry,dataMask)
+		if client:
+			hypers = client.getClient().map(lambda x: x.getHyper(),dataFloat.vecDask,pure=False)
+			dataTaper_args = [(dataFloat.vecDask[iwrk],dataFloat.vecDask[iwrk],t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,time,offset,hypers[iwrk],sourceGeometry,receiverGeometry,dataMask.vecDask[iwrk]) for iwrk in range(nWrks)]
+			dataTaperOp = DaskOp.DaskOperator(client,dataTaperModule_3D.datTaper,dataTaper_args,[1]*nWrks,setbackground_func_name="setData")
+		else:
+			# Instantiate operator
+			dataTaperOp=dataTaperModule_3D.dataTaper(dataFloat,dataFloat,t0,velMute,expTime,taperWidthTime,moveout,timeMuting,maxOffset,expOffset,taperWidthOffset,offsetMuting,taperEndTraceWidth,tPow,time,offset,dataFloat.getHyper(),sourceGeometry,receiverGeometry,dataMask)
 		# If input data have not been tapered yet -> taper them
 		if (rawData==1):
 			if (pyinfo==1):
