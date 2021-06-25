@@ -23,7 +23,7 @@ if __name__ == '__main__':
 	modelFloat,dataFloat,velFloat,parObject1,sourcesVector,sourcesSignalsFloat,receiversVector,dataHyperForOutput,modelFloatLocal=Acoustic_iso_float_3D.BornExtOpInitFloat_3D(sys.argv, client)
 
 	if (parObject.getInt("fwime", 0) == 1):
-		_,_,_,_,_,_,_,reflectivityExtFloat,_=Acoustic_iso_float_3D.tomoExtOpInitFloat_3D(sys.argv, client)
+		_,_,_,_,_,_,_,reflectivityExtFloat,_,_=Acoustic_iso_float_3D.tomoExtOpInitFloat_3D(sys.argv, client)
 	else:
 		wavefieldVecObj=None
 

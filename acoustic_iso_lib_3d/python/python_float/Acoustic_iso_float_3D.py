@@ -2059,7 +2059,7 @@ def tomoExtOpInitFloat_3D(args, client=None):
 	# Read flag to display information
 	info = parObject.getInt("info",0)
 	if (info == 1):
-		print("**** [BornExtOpInitFloat_3D]: User has requested to display information ****\n")
+		print("**** [tomoExtOpInitDouble_3D]: User has requested to display information ****\n")
 
 	############################## Velocity ####################################
 	# Read velocity and convert to double
@@ -2067,57 +2067,6 @@ def tomoExtOpInitFloat_3D(args, client=None):
 	if (velFile == "noVelFile"):
 		raise ValueError("**** ERROR [tomoExtOpInitDouble_3D]: User did not provide velocity file ****\n")
 	velFloat=genericIO.defaultIO.getVector(velFile)
-
-	############################## Sources #####################################
-	# Determine if the source time signature is constant over shots
-	constantWavelet = parObject.getInt("constantWavelet",-1)
-	if (info == 1 and constantWavelet == 1):
-		print("**** [tomoExtOpInitDouble_3D]: Using the same seismic source time signature for all shots ****\n")
-	if (info == 1 and constantWavelet == 0):
-		print("**** [tomoExtOpInitDouble_3D]: Using different seismic source time signatures for each shot ****\n")
-	if (constantWavelet != 0 and constantWavelet != 1):
-		raise ValueError("**** ERROR [tomoExtOpInitDouble_3D]: User did not specify an acceptable value for tag constantWavelet (must be 0 or 1) ****\n")
-
-	# Build sources geometry
-	sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat)
-
-	# Compute the number of shots
-	if (shotHyper.getNdim() > 1):
-		# Case where we have a regular source geometry (the hypercube has 3 axes)
-		nShot=shotHyper.axes[0].n*shotHyper.axes[1].n*shotHyper.axes[2].n
-		zShotAxis=shotHyper.axes[0]
-		xShotAxis=shotHyper.axes[1]
-		yShotAxis=shotHyper.axes[2]
-	else:
-		# Case where we have an irregular geometry (the shot hypercube has one axis)
-		nShot=shotHyper.axes[0].n
-
-	# Create shot axis for the modeling
-	shotAxis=Hypercube.axis(n=nShot)
-
-	# Read sources signals and convert to double
-	sourcesSignalsFile=parObject.getString("sources","noSourcesFile")
-	if (sourcesSignalsFile == "noSourcesFile"):
-		raise IOError("**** ERROR [tomoExtOpInitDouble_3D]: User did not provide seismic sources file ****\n")
-	sourcesSignalsFloat=genericIO.defaultIO.getVector(sourcesSignalsFile,ndims=2)
-
-	############################## Receivers ###################################
-	# Build receivers geometry
-	receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat)
-
-	# Compute the number of receivers per shot (the number is constant for all shots for both regular/irregular geometries)
-	if (receiverHyper.getNdim() > 1):
-		# Regular geometry
-		nReceiver=receiverHyper.axes[0].n*receiverHyper.axes[1].n*receiverHyper.axes[2].n
-		zReceiverAxis=receiverHyper.axes[0]
-		xReceiverAxis=receiverHyper.axes[1]
-		yReceiverAxis=receiverHyper.axes[2]
-	else:
-		# Irregular geometry
-		nReceiver=receiverHyper.axes[0].n
-
-	# Create receiver axis for the modeling
-	receiverAxis=Hypercube.axis(n=nReceiver)
 
 	############################## Axes ########################################
 	# Time Axis
@@ -2174,6 +2123,26 @@ def tomoExtOpInitFloat_3D(args, client=None):
 	extAxis1=Hypercube.axis(n=nExt1,o=oExt1,d=dExt1) # Create extended axis #1
 	extAxis2=Hypercube.axis(n=nExt2,o=oExt2,d=dExt2) # Create extended axis #2
 
+	# Read sources signals and convert to double
+	sourcesSignalsFile=parObject.getString("sources","noSourcesFile")
+	if (sourcesSignalsFile == "noSourcesFile"):
+		raise IOError("**** ERROR [tomoExtOpInitDouble_3D]: User did not provide seismic sources file ****\n")
+	sourcesSignalsFloat=genericIO.defaultIO.getVector(sourcesSignalsFile,ndims=2)
+
+	############################## Sources #####################################
+	# Determine if the source time signature is constant over shots
+	constantWavelet = parObject.getInt("constantWavelet",-1)
+	if (info == 1 and constantWavelet == 1):
+		print("**** [tomoExtOpInitDouble_3D]: Using the same seismic source time signature for all shots ****\n")
+	if (info == 1 and constantWavelet == 0):
+		print("**** [tomoExtOpInitDouble_3D]: Using different seismic source time signatures for each shot ****\n")
+	if (constantWavelet != 0 and constantWavelet != 1):
+		raise ValueError("**** ERROR [tomoExtOpInitDouble_3D]: User did not specify an acceptable value for tag constantWavelet (must be 0 or 1) ****\n")
+
+	############################## Model #######################################
+	modelFloat=SepVector.getSepVector(Hypercube.hypercube(axes=[zAxis,xAxis,yAxis]))
+	modelLocal = modelFloat
+
 	######################## Extended reflectivity #############################
 	# Read extended reflectivity and convert to double
 	reflectivityFile=parObject.getString("reflectivity","noReflectivityFile")
@@ -2181,24 +2150,96 @@ def tomoExtOpInitFloat_3D(args, client=None):
 		raise ValueError("**** ERROR [tomoExtOpInitFloat_3D]: User did not provide reflectivity file ****\n")
 	reflectivityFloat=genericIO.defaultIO.getVector(reflectivityFile,ndims=5)
 
-	############################## Data ########################################
-	# Allocate data
-	dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
-	dataFloat=SepVector.getSepVector(dataHyper)
+	if client:
+		# Dask interface
 
-	# Create data hypercurbe for writing the data to disk
-	# Regular geometry for both the sources and receivers
-	if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
-		dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
-	# Irregular geometry for both the sources and receivers
-	if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
-		dataHyperForOutput=dataHyper
+		#Getting number of workers and passing
+		nWrks = client.getNworkers()
 
-	############################## Model #######################################
-	modelFloat=SepVector.getSepVector(Hypercube.hypercube(axes=[zAxis,xAxis,yAxis]))
+		#Spreading/Instantiating the parameter objects
+		parObjectDist = spreadParObj(client,args,parObject)
+
+		#Spreading velocity model to workers
+		velFloatDist = pyDaskVector.DaskVector(client,vectors=[velFloat]*nWrks)
+
+		#Spreading source wavelet
+		sourcesSignalsFloat = pyDaskVector.DaskVector(client,vectors=[sourcesSignalsFloat]*nWrks)
+
+		# Build sources/receivers geometry
+		sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat,client,parObjectDist,velFloatDist)
+		receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat,client,parObjectDist,velFloatDist)
+
+		# Overwriting local velocity vector with distributed one
+		velFloat = velFloatDist
+
+		#Spreading model and reflectivity to workers
+		modelFloat = pyDaskVector.DaskVector(client,vectors=[modelFloat]*nWrks)
+		reflectivityFloat = pyDaskVector.DaskVector(client,vectors=[reflectivityFloat]*nWrks)
+
+		#Allocating data vectors to be spread
+		dataFloat = []
+		for iwrk in range(nWrks):
+			dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverHyper[iwrk].getAxis(1),shotHyper[iwrk].getAxis(1)])
+			dataFloat.append(SepVector.getSepVector(dataHyper))
+		dataFloat = pyDaskVector.DaskVector(client,vectors=dataFloat,copy=False)
+
+		parObject = parObjectDist
+
+		# Currently supporting only irregular geometry
+		dataHyperForOutput = None
+
+	else:
+
+		# Build sources geometry
+		sourcesVector,shotHyper=buildSourceGeometry_3D(parObject,velFloat)
+
+		# Compute the number of shots
+		if (shotHyper.getNdim() > 1):
+			# Case where we have a regular source geometry (the hypercube has 3 axes)
+			nShot=shotHyper.axes[0].n*shotHyper.axes[1].n*shotHyper.axes[2].n
+			zShotAxis=shotHyper.axes[0]
+			xShotAxis=shotHyper.axes[1]
+			yShotAxis=shotHyper.axes[2]
+		else:
+			# Case where we have an irregular geometry (the shot hypercube has one axis)
+			nShot=shotHyper.axes[0].n
+
+		# Create shot axis for the modeling
+		shotAxis=Hypercube.axis(n=nShot)
+
+		############################## Receivers ###################################
+		# Build receivers geometry
+		receiversVector,receiverHyper=buildReceiversGeometry_3D(parObject,velFloat)
+
+		# Compute the number of receivers per shot (the number is constant for all shots for both regular/irregular geometries)
+		if (receiverHyper.getNdim() > 1):
+			# Regular geometry
+			nReceiver=receiverHyper.axes[0].n*receiverHyper.axes[1].n*receiverHyper.axes[2].n
+			zReceiverAxis=receiverHyper.axes[0]
+			xReceiverAxis=receiverHyper.axes[1]
+			yReceiverAxis=receiverHyper.axes[2]
+		else:
+			# Irregular geometry
+			nReceiver=receiverHyper.axes[0].n
+
+		# Create receiver axis for the modeling
+		receiverAxis=Hypercube.axis(n=nReceiver)
+
+		############################## Data ########################################
+		# Allocate data
+		dataHyper=Hypercube.hypercube(axes=[timeAxis,receiverAxis,shotAxis])
+		dataFloat=SepVector.getSepVector(dataHyper)
+
+		# Create data hypercurbe for writing the data to disk
+		# Regular geometry for both the sources and receivers
+		if (shotHyper.getNdim()>1 and receiverHyper.getNdim()>1):
+			dataHyperForOutput=Hypercube.hypercube(axes=[timeAxis,zReceiverAxis,xReceiverAxis,yReceiverAxis,zShotAxis,xShotAxis,yShotAxis])
+		# Irregular geometry for both the sources and receivers
+		if (shotHyper.getNdim()==1 and receiverHyper.getNdim()==1):
+			dataHyperForOutput=dataHyper
 
 	############################## Output ######################################
-	return modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,reflectivityFloat,dataHyperForOutput
+	return modelFloat,dataFloat,velFloat,parObject,sourcesVector,sourcesSignalsFloat,receiversVector,reflectivityFloat,dataHyperForOutput,modelLocal
 
 class tomoExtShotsGpu_3D(Op.Operator):
 	"""Wrapper encapsulating PYBIND11 module for the extended tomographic operator"""
