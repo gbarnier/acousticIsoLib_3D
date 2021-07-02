@@ -2026,7 +2026,12 @@ class BornExtShotsGpu_3D(Op.Operator):
 		self.tmp_fine_model = Spline_op.range.clone()
 		return
 
-	def setVel_3D(self,vel):
+	def setVel_3D(self,vel_in):
+		if("Spline_op" in dir(self)):
+			self.Spline_op.forward(False,vel_in,self.tmp_fine_model)
+			vel = self.tmp_fine_model
+		else:
+			vel = vel_in
 		#Checking if getCpp is present
 		if("getCpp" in dir(vel)):
 			vel = vel.getCpp()
