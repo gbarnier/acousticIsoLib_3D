@@ -162,7 +162,7 @@ def call_deviceGpu2(z_dev, x_dev, y_dev, vel, nts, parObject, dipole, zDipoleShi
 	obj = deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d)
 	return obj
 
-def chunkData(dataVecLocal,dataSpaceRemote):
+def chunkData(dataVecLocal,dataSpaceRemote, shotBuff=10):
 	"""Function to chunk and spread the data vector across dask workers"""
 	dask_client = dataSpaceRemote.dask_client #Getting Dask client
 	client = dask_client.getClient()
@@ -180,11 +180,21 @@ def chunkData(dataVecLocal,dataSpaceRemote):
 		firstShot += nShot
 	#Copying the data to remove vector
 	dataVecRemote = dataSpaceRemote.clone()
+	print("Scattering data vector onto workers...this might take some time!")
 	for idx,wrkId in enumerate(wrkIds):
-		arrD = client.scatter(dataArrays[idx],workers=[wrkId])
+		arrD = []
+		shotBuff = min(shotBuff,dataArrays[idx].shape[0])
+		shotId = np.linspace(0,dataArrays[idx].shape[0],int(dataArrays[idx].shape[0]/shotBuff+0.5)).astype(int)
+		for idxBuff in range(1,shotId.shape[0]):
+			arrD.append(client.scatter(dataArrays[idx][shotId[idxBuff-1]:shotId[idxBuff],:,:],workers=[wrkId]))
 		daskD.wait(arrD)
+		# Concatenating temporary buffered arrays
+		arrD = client.submit(np.concatenate,arrD, 0, workers=[wrkId], pure=False)
+		daskD.wait(arrD)
+		# Copying remote array from spread array
 		daskD.wait(client.submit(pyDaskVector.copy_from_NdArray,dataVecRemote.vecDask[idx],arrD,workers=[wrkId],pure=False))
 	# daskD.wait(client.map(pyDaskVector.copy_from_NdArray,dataVecRemote.vecDask,dataArrays,pure=False))
+	print("DONE")
 	return dataVecRemote
 
 ################################################################################
@@ -2026,12 +2036,7 @@ class BornExtShotsGpu_3D(Op.Operator):
 		self.tmp_fine_model = Spline_op.range.clone()
 		return
 
-	def setVel_3D(self,vel_in):
-		if("Spline_op" in dir(self)):
-			self.Spline_op.forward(False,vel_in,self.tmp_fine_model)
-			vel = self.tmp_fine_model
-		else:
-			vel = vel_in
+	def setVel_3D(self,vel):
 		#Checking if getCpp is present
 		if("getCpp" in dir(vel)):
 			vel = vel.getCpp()
