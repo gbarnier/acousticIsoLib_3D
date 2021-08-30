@@ -16,6 +16,7 @@ from pyAcoustic_iso_float_nl_3D import deviceGpu_3D
 #Dask-related modules and functions
 import dask.distributed as daskD
 from dask_util import DaskClient
+from pyDaskVector import scatter_large_data
 import pyDaskVector
 import re
 
@@ -162,7 +163,7 @@ def call_deviceGpu2(z_dev, x_dev, y_dev, vel, nts, parObject, dipole, zDipoleShi
 	obj = deviceGpu_3D(zCoordFloat.getCpp(), xCoordFloat.getCpp(), yCoordFloat.getCpp(), vel.getCpp(), nts, parObject.param, dipole, zDipoleShift, xDipoleShift, yDipoleShift, spaceInterpMethod, hFilter1d)
 	return obj
 
-def chunkData(dataVecLocal,dataSpaceRemote, shotBuff=10):
+def chunkData(dataVecLocal,dataSpaceRemote):
 	"""Function to chunk and spread the data vector across dask workers"""
 	dask_client = dataSpaceRemote.dask_client #Getting Dask client
 	client = dask_client.getClient()
@@ -180,22 +181,15 @@ def chunkData(dataVecLocal,dataSpaceRemote, shotBuff=10):
 		firstShot += nShot
 	#Copying the data to remove vector
 	dataVecRemote = dataSpaceRemote.clone()
-	print("Scattering data vector onto workers...this might take some time!")
 	for idx,wrkId in enumerate(wrkIds):
-		arrD = []
-		shotBuff = min(shotBuff,dataArrays[idx].shape[0])
-		shotId = np.linspace(0,dataArrays[idx].shape[0],int(dataArrays[idx].shape[0]/shotBuff+0.5)).astype(int)
-		for idxBuff in range(1,shotId.shape[0]):
-			arrD.append(client.scatter(dataArrays[idx][shotId[idxBuff-1]:shotId[idxBuff],:,:],workers=[wrkId]))
-		daskD.wait(arrD)
-		# Concatenating temporary buffered arrays
-		arrD = client.submit(np.concatenate,arrD, 0, workers=[wrkId], pure=False)
-		daskD.wait(arrD)
-		# Copying remote array from spread array
+		# arrD = client.scatter(dataArrays[idx],workers=[wrkId])
+		# daskD.wait(arrD)
+		arrD = scatter_large_data(dataArrays[idx], wrkId, client)
 		daskD.wait(client.submit(pyDaskVector.copy_from_NdArray,dataVecRemote.vecDask[idx],arrD,workers=[wrkId],pure=False))
 	# daskD.wait(client.map(pyDaskVector.copy_from_NdArray,dataVecRemote.vecDask,dataArrays,pure=False))
-	print("DONE")
 	return dataVecRemote
+
+
 
 ################################################################################
 ############################## Sources geometry ################################
@@ -277,7 +271,7 @@ def buildSourceGeometry_3D(parObject, vel, client=None, parObjDist=None, velDist
 			sourceGeomVectorNd = genericIO.defaultIO.getVector(sourceGeomFile,ndims=2).getNdArray()
 
 			nShot = np.sum(List_Shots)
-		
+
 			# Check for consistency between number of shots and provided coordinates
 			if (nShot != sourceGeomVectorNd.shape[1]):
 				raise ValueError("**** ERROR [buildSourceGeometry_3D]: Number of shots from parfile (#shot=%s) not consistent with geometry file (#shots=%s)! ****\n" %(nShot,sourceGeomVectorNd.shape[1]))
@@ -301,7 +295,7 @@ def buildSourceGeometry_3D(parObject, vel, client=None, parObjDist=None, velDist
 
 			raise NotImplementedError("Regular shot geometry currently not supported with Dask interface!")
 	else:
-		
+
 		# Get total number of shots
 		nShot = parObject.getInt("nShot",-1)
 		if (nShot==-1):
@@ -1223,7 +1217,7 @@ def nonlinearFwiOpInitFloat_3D(args, client=None):
 	modelStartFloat=genericIO.defaultIO.getVector(modelStartFile)
 
 	# Local model necessary for Dask interface
-	modelLocal = modelStartFloat	
+	modelLocal = modelStartFloat
 
 	# Determine if the source time signature is constant over shots
 	constantWavelet = parObject.getInt("constantWavelet",-1)
@@ -1434,7 +1428,7 @@ def BornOpInitFloat_3D(args, client=None):
 	if (sourcesSignalsFile == "noSourcesFile"):
 		raise IOError("**** ERROR [BornOpInitDouble_3D]: User did not provide seismic sources file ****\n")
 	sourcesSignalsFloat=genericIO.defaultIO.getVector(sourcesSignalsFile,ndims=2)
- 
+
 	if client:
 		# Dask interface
 
@@ -2036,7 +2030,12 @@ class BornExtShotsGpu_3D(Op.Operator):
 		self.tmp_fine_model = Spline_op.range.clone()
 		return
 
-	def setVel_3D(self,vel):
+	def setVel_3D(self,vel_in):
+		if("Spline_op" in dir(self)):
+			self.Spline_op.forward(False,vel_in,self.tmp_fine_model)
+			vel = self.tmp_fine_model
+		else:
+			vel = vel_in
 		#Checking if getCpp is present
 		if("getCpp" in dir(vel)):
 			vel = vel.getCpp()
