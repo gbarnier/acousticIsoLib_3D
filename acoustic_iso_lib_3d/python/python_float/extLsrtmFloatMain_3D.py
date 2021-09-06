@@ -193,7 +193,7 @@ if __name__ == '__main__':
 			dsoOp=dsoGpuModule_3D.dsoGpu_3D(modelInitFloat,modelInitFloat,nz,nx,ny,nExt1,nExt2,fat,zeroShift)
 
 			# Instantiate problem
-			if ModMask is not None: 
+			if ModMask is not None:
 				dsoOp = pyOp.ChainOperator(ModMask,dsoOp)
 			invProb=Prblm.ProblemL2LinearReg(modelInitFloat,dataFloat,invOp,epsilon,reg_op=dsoOp,prec=Precond)
 		else:
