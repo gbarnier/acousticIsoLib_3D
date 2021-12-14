@@ -50,12 +50,12 @@ BornExtShotsGpu_3D::BornExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 	_wavefieldVectorObj = wavefieldVectorObj;
 
 	// Allocate wavefields on pinned memory
-	std::cout << "Allocating source wavefields on pinned memory" << std::endl;
+	std::cout << "[BornExtShotsGpu_3D - FWIME constructor] Allocating source wavefields on pinned memory" << std::endl;
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
-		std::cout << "Allocating wavefield # " << iGpu << std::endl;
+		std::cout << "[BornExtShotsGpu_3D - FWIME constructor] Allocating wavefield # " << iGpu << std::endl;
 		setPinnedBornExtGpuFwime_3D(_wavefieldVectorObj->_pinWavefieldVec[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
-	std::cout << "Done allocating source wavefields on pinned memory" << std::endl;
+	std::cout << "[BornExtShotsGpu_3D - FWIME constructor] Done allocating source wavefields on pinned memory" << std::endl;
 }
 
 // Constructor for Ginsu
@@ -360,7 +360,7 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 
 	// Check whether we use the same source signals for all shots
 	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
-		std::cout << "Constant source signal over shots" << std::endl;
+		std::cout << "[BornExtShotsGpu_3D - Adjoint] - Constant source signal over shots" << std::endl;
 		constantSrcSignal = 1;}
 	else {constantSrcSignal=0;}
 

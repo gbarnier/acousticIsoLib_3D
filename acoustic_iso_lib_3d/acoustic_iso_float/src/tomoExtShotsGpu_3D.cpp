@@ -17,7 +17,8 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 		throw std::runtime_error("Error in getGpuInfo_3D");
    	}
 	_ginsu = par->getInt("ginsu");
-	_fwime = par->getInt("fwime", 0);
+	_fwime = par->getInt("fwime");
+	std::cout << "[tomoExtShotsGpu_3D] fwime: " << _fwime << std::endl;
 	_sourcesVector = sourcesVector;
 	_receiversVector = receiversVector;
 	_sourcesSignals = sourcesSignals;
@@ -43,11 +44,11 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 		_wavefieldVectorObj = std::make_shared<wavefieldVector_3D>();
 		_wavefieldVectorObj->_pinWavefieldVec.clear();
 
-		std::cout << "Allocating source wavefields on pinned memory for tomo (FWIME)" << std::endl;
+		std::cout << "[tomoExtShotsGpu_3D - FWIME constructor] Allocating source wavefields on pinned memory for tomo (FWIME)" << std::endl;
 
 		for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
 
-			std::cout << "Allocating wavefield # " << iGpu << std::endl;
+			std::cout << "[tomoExtShotsGpu_3D - FWIME constructor] Allocating wavefield # " << iGpu << std::endl;
 
 			// Temporary array for wavefield address
 			float *arrayTemp;
@@ -61,6 +62,8 @@ tomoExtShotsGpu_3D::tomoExtShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std
 			// Delete temporary pointer
 			arrayTemp = NULL;
 		}
+		std::cout << "[tomoExtShotsGpu_3D - FWIME constructor] Done allocating source wavefields on pinned memory for tomo (FWIME)" << std::endl;
+
 	}
 }
 

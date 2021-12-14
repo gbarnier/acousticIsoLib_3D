@@ -105,12 +105,12 @@ void initBornExtGpu_3D(float dz, float dx, float dy, int nz, int nx, int ny, int
 	host_sub = sub;
 	host_ntw = (nts - 1) * sub + 1;
 	host_extension = extension;
-    host_nExt1 = nExt1;
+	host_nExt1 = nExt1;
     host_nExt2 = nExt2;
 	host_hExt1 = (nExt1-1)/2;
     host_hExt2 = (nExt2-1)/2;
-    host_nModelExt = nz * nx * ny * nExt1 * nExt2;
-    host_nVel = nz * nx * ny;
+	host_nVel = nz * nx * ny;
+	host_nModelExt = host_nVel * nExt1 * nExt2;
 	host_extStride = host_nExt1 * host_nVel;
 
 	/**************************** ALLOCATE ARRAYS OF ARRAYS *****************************/

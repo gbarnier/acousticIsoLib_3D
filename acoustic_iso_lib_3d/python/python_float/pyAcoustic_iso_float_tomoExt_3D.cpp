@@ -28,7 +28,7 @@ PYBIND11_MODULE(pyAcoustic_iso_float_tomoExt_3D, clsGeneric) {
 
       .def("setVel_3D",(void (tomoExtShotsGpu_3D::*)(std::shared_ptr<float3DReg>)) &tomoExtShotsGpu_3D::setVel_3D,"Function to set background velocity")
 
-      .def("setExtReflectivity_3D",(void (tomoExtShotsGpu_3D::*)(std::shared_ptr<float3DReg>)) &tomoExtShotsGpu_3D::setExtReflectivity_3D,"Function to set background velocity")
+      .def("setExtReflectivity_3D",(void (tomoExtShotsGpu_3D::*)(std::shared_ptr<float5DReg>)) &tomoExtShotsGpu_3D::setExtReflectivity_3D,"Function to set background velocity")
 
       .def("deallocatePinnedTomoExtGpu_3D",(void (tomoExtShotsGpu_3D::*)()) &tomoExtShotsGpu_3D::deallocatePinnedTomoExtGpu_3D,"Function to deallocate the pinned memory where the source wavefields are stored")
 

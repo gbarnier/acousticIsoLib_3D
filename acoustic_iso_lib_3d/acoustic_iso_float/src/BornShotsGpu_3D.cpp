@@ -51,12 +51,12 @@ BornShotsGpu_3D::BornShotsGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shar
 	_wavefieldVectorObj = wavefieldVectorObj;
 
 	// Allocate wavefields on pinned memory
-	// std::cout << "Allocating source wavefields on pinned memory for Born" << std::endl;
+	std::cout << "[BornShotsGpu_3D - FWIME constructor] Allocating source wavefields on pinned memory"<< std::endl;
 	for (int iGpu=0; iGpu<_gpuList.size(); iGpu++){
-		std::cout << "Allocating wavefield # " << iGpu << std::endl;
+		std::cout << "[BornShotsGpu_3D - FWIME constructor] Allocating wavefield # " << iGpu << std::endl;
 		setPinnedBornGpuFwime_3D(_wavefieldVectorObj->_pinWavefieldVec[iGpu], _gpuList.size(), iGpu, _gpuList[iGpu], _iGpuAlloc);
 	}
-	// std::cout << "Done allocating source wavefields on pinned memory for Born" << std::endl;
+	std::cout << "[BornShotsGpu_3D - FWIME constructor] Done allocating source wavefields on pinned memory" << std::endl;
 }
 
 // Constructor for Ginsu
@@ -203,7 +203,7 @@ void BornShotsGpu_3D::forward(const bool add, const std::shared_ptr<float3DReg> 
 
 	// Check if we have constant receiver geometry
 	if (_receiversVector.size() == 1) {
-		std::cout << "Constant receiver geometry over shots" << std::endl;
+		std::cout << "[BornShotsGpu_3D - forward] Constant receiver geometry over shots" << std::endl;
 		constantRecGeom=1;}
 	else {constantRecGeom=0;}
 
@@ -360,7 +360,7 @@ void BornShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float3DReg> model,
 
 	// Check whether we use the same source signals for all shots
 	if (_sourcesSignals->getHyper()->getAxis(2).n == 1) {
-		std::cout << "Constant source signal over shots" << std::endl;
+		std::cout << "[BornShotsGpu_3D - adjoint] Constant source signal over shots" << std::endl;
 		constantSrcSignal = 1;}
 	else {constantSrcSignal=0;}
 

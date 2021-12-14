@@ -362,8 +362,8 @@ void nonlinearPropShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float2DRe
 		}
 	}
 
-	std::cout << "Nonlinear adjoint, min model = " << model->min() << std::endl;
-	std::cout << "Nonlinear adjoint, max model = " << model->max() << std::endl;
+	// std::cout << "Nonlinear adjoint, min model = " << model->min() << std::endl;
+	// std::cout << "Nonlinear adjoint, max model = " << model->max() << std::endl;
 
 	if (_ginsu == 0){
 		// Deallocate memory on device

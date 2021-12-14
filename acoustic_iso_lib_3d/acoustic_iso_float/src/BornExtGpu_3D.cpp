@@ -10,7 +10,7 @@ BornExtGpu_3D::BornExtGpu_3D(std::shared_ptr<SEP::float3DReg> vel, std::shared_p
 	_iGpuId = iGpuId;
 	_ginsu = _fdParam_3D->_par->getInt("ginsu");
 	_slowSquare = par->getInt("slowSquare");
-	std::cout << "Slowness squared = " << _slowSquare << std::endl;
+	std::cout << "[BornExtGpu_3D - constructor] Slowness squared = " << _slowSquare << std::endl;
 
 	// Initialize GPU
 	if (_ginsu == 0){

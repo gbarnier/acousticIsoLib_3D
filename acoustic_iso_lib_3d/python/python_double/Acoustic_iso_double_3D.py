@@ -1624,7 +1624,7 @@ class BornExtShotsGpu_3D(Op.Operator):
 		if("getCpp" in dir(vel)):
 			vel = vel.getCpp()
 		with pyAcoustic_iso_double_BornExt_3D.ostream_redirect():
-			self.pyOp.setVel(vel)
+			self.pyOp.setVel_3D(vel)
 		return
 
 	def deallocatePinnedBornExtGpu_3D(self):
@@ -1947,7 +1947,7 @@ class tomoExtShotsGpu_3D(Op.Operator):
 		if("getCpp" in dir(vel)):
 			vel = vel.getCpp()
 		with pyAcoustic_iso_double_tomoExt_3D.ostream_redirect():
-			self.pyOp.setVel(vel)
+			self.pyOp.setVel_3D(vel)
 		return
 
 	def setExtReflectivity_3D(self,vel):

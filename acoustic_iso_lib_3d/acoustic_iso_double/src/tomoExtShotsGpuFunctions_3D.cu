@@ -114,8 +114,8 @@ void initTomoExtGpu_3D(double dz, double dx, double dy, int nz, int nx, int ny, 
     host_nExt2 = nExt2;
 	host_hExt1 = (nExt1-1)/2;
     host_hExt2 = (nExt2-1)/2;
-    host_nModelExt = nz * nx * ny * nExt1 * nExt2;
-    host_nVel = nz * nx * ny;
+	host_nVel = nz * nx * ny;
+    host_nModelExt = host_nVel * nExt1 * nExt2;
 	host_extStride = host_nExt1 * host_nVel;
 	host_leg1 = leg1;
 	host_leg2 = leg2;

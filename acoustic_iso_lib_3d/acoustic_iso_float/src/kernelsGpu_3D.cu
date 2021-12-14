@@ -681,7 +681,8 @@ __global__ void dampCosineEdgeFreeSurface_32_3D(float *dev_p1, float *dev_p2) {
 __global__ void stepFwdGpu_3D(float *dev_o, float *dev_c, float *dev_n, float *dev_vel2Dtw2) {
 
     // Allocate shared memory for a specific block
-	__shared__ float shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT];  // Current wavefield y-slice block
+    // Note: Shared memory is allocated per thread block, so all threads in the block have access to the same shared memory. Threads can access data in shared memory loaded from global memory by other threads within the same thread block.
+    __shared__ float shared_c[BLOCK_SIZE_X+2*FAT][BLOCK_SIZE_Z+2*FAT];  // Current wavefield y-slice block
 
     // Global coordinates for the faster two axes (z and x)
 	long long izGlobal = FAT + blockIdx.x * BLOCK_SIZE_Z + threadIdx.x; // Coordinate of current thread on the z-axis
@@ -741,7 +742,7 @@ __global__ void stepFwdGpu_3D(float *dev_o, float *dev_c, float *dev_n, float *d
         // Threads with x-index ranging from 0,...,FAT will load the first and last FAT elements of the block on the x-axis to shared memory
         if (threadIdx.y < FAT) {
     			// shared_c[ixLocal-FAT][izLocal] = dev_c[iGlobal-dev_nz*FAT]; // Left side
-					shared_c[threadIdx.y][izLocal] = dev_c[iGlobal-dev_nz*FAT]; // Left side
+				shared_c[threadIdx.y][izLocal] = dev_c[iGlobal-dev_nz*FAT]; // Left side
     			shared_c[ixLocal+BLOCK_SIZE_X][izLocal] = dev_c[iGlobal+dev_nz*BLOCK_SIZE_X]; // Right side
     		}
 
