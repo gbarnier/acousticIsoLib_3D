@@ -150,7 +150,7 @@ if __name__ == '__main__':
 		if reg == 0:
 			# Chain mask if problem is not regularized
 			BornInvOp=pyOp.ChainOperator(maskGradientOp,BornOp)
-		gMask=maskGradientOp.getMask()
+		gMask=maskGradientOp.getMask_3D()
 
 	# Conventional FWI
 	if client:
