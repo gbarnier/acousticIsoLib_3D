@@ -5291,9 +5291,9 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *s
 
 		// Apply imaging condition for its+1
 		for (int ihy = -host_hExt2; ihy <= host_hExt2; ihy++){
-			long long iExt2 = ihy + host_hExt2;
+			unsigned long long iExt2 = ihy + host_hExt2;
 			for (int ihx = -host_hExt1; ihx <= host_hExt1; ihx++){
-				long long iExt1 = ihx + host_hExt1;
+				unsigned long long iExt1 = ihx + host_hExt1;
 				imagingHxHyAdjGpu_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_pRight[iGpu], dev_pSourceWavefield[iGpu], ihx, iExt1, ihy, iExt2);
 			}
 		}
@@ -5353,6 +5353,7 @@ void BornHxHyFreeSurfaceShotsAdjGpu_3D(float *model, float *dataRegDts, float *s
 				scaleReflectivityLinHxHy_3D<<<dimGrid, dimBlock, 0, compStream[iGpu]>>>(dev_modelBornExt[iGpu], dev_reflectivityScale[iGpu], extStride1, extStride2);
 			}
 		}
+
 	} else {
 		// Apply scalings to reflectivity coming from for the wave-equation linearization: (1) 2.0*1/v^3
 		for (int iExt2=0; iExt2<host_nExt2; iExt2++){

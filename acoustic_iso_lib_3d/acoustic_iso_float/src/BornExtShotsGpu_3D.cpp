@@ -279,11 +279,11 @@ void BornExtShotsGpu_3D::forward(const bool add, const std::shared_ptr<float5DRe
 			// Copy values into Ginsu model
 			modelTemp->scale(0.0);
 			#pragma omp parallel for collapse(5)
-			for (int iExt2 = 0; iExt2 < nExt2; iExt2++){
-				for (int iExt1 = 0; iExt1 < nExt1; iExt1++){
-					for (int iy = fat; iy < nyGinsu-fat; iy++){
-						for (int ix = fat; ix < nxGinsu-fat; ix++){
-							for (int iz = 	fat; iz < nzGinsu-fat; iz++){
+			for (long long iExt2 = 0; iExt2 < nExt2; iExt2++){
+				for (long long iExt1 = 0; iExt1 < nExt1; iExt1++){
+					for (long long iy = fat; iy < nyGinsu-fat; iy++){
+						for (long long ix = fat; ix < nxGinsu-fat; ix++){
+							for (long long iz = 	fat; iz < nzGinsu-fat; iz++){
 								(*modelTemp->_mat)[iExt2][iExt1][iy][ix][iz] = (*model->_mat)[iExt2][iExt1][iy+iyGinsu][ix+ixGinsu][iz+izGinsu];
 							}
 						}
@@ -489,12 +489,7 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 		// Launch modeling
 		if (_ginsu==0){
 			// Launch adjoint
-			// std::cout << "Shots ext adj" << std::endl;
-			// std::cout << "dataSliceVector[iGpu] max = " << dataSliceVector[iGpu]->max() << std::endl;
-			// std::cout << "dataSliceVector[iGpu] min = " << dataSliceVector[iGpu]->min() << std::endl;
 			BornExtObjectVector[iGpu]->adjoint(true, modelSliceVector[iGpu], dataSliceVector[iGpu]);
-			// std::cout << "modelSliceVector[iGpu] max = " << modelSliceVector[iGpu]->max() << std::endl;
-			// std::cout << "modelSliceVector[iGpu] min = " << modelSliceVector[iGpu]->min() << std::endl;
 		} else {
 			// Launch adjoint
 			BornExtObjectVector[iGpu]->adjoint(false, modelTemp, dataSliceVector[iGpu]);
@@ -511,11 +506,11 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 
 			// Copy values into Ginsu model
 			#pragma omp parallel for collapse(5)
-			for (int iExt2=0; iExt2<model->getHyper()->getAxis(5).n; iExt2++){
-				for (int iExt1=0; iExt1<model->getHyper()->getAxis(4).n; iExt1++){
-					for (int iy = fat; iy < nyGinsu-fat; iy++){
-						for (int ix = fat; ix < nxGinsu-fat; ix++){
-							for (int iz = 	fat; iz < nzGinsu-fat; iz++){
+			for (long long iExt2=0; iExt2<model->getHyper()->getAxis(5).n; iExt2++){
+				for (long long iExt1=0; iExt1<model->getHyper()->getAxis(4).n; iExt1++){
+					for (long long iy = fat; iy < nyGinsu-fat; iy++){
+						for (long long ix = fat; ix < nxGinsu-fat; ix++){
+							for (long long iz = fat; iz < nzGinsu-fat; iz++){
 								(*modelSliceVector[iGpu]->_mat)[iExt2][iExt1][iy+iyGinsu][ix+ixGinsu][iz+izGinsu] += (*modelTemp->_mat)[iExt2][iExt1][iy][ix][iz];
 							}
 						}
@@ -529,12 +524,12 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 
 	// Stack models computed by each GPU
     for (int iGpu=0; iGpu<_nGpu; iGpu++){
-        #pragma omp parallel for collapse(5)
-		for (int iExt2=0; iExt2<model->getHyper()->getAxis(5).n; iExt2++){
-			for (int iExt1=0; iExt1<model->getHyper()->getAxis(4).n; iExt1++){
-        		for (int iy=0; iy<model->getHyper()->getAxis(3).n; iy++){
-            		for (int ix=0; ix<model->getHyper()->getAxis(2).n; ix++){
-                		for (int iz=0; iz<model->getHyper()->getAxis(1).n; iz++){
+		#pragma omp parallel for collapse(5)
+		for (long long iExt2=0; iExt2<model->getHyper()->getAxis(5).n; iExt2++){
+			for (long long iExt1=0; iExt1<model->getHyper()->getAxis(4).n; iExt1++){
+        		for (long long iy=0; iy<model->getHyper()->getAxis(3).n; iy++){
+            		for (long long ix=0; ix<model->getHyper()->getAxis(2).n; ix++){
+                		for (long long iz=0; iz<model->getHyper()->getAxis(1).n; iz++){
                     		(*model->_mat)[iExt2][iExt1][iy][ix][iz] += (*modelSliceVector[iGpu]->_mat)[iExt2][iExt1][iy][ix][iz];
                 		}
             		}
@@ -549,7 +544,4 @@ void BornExtShotsGpu_3D::adjoint(const bool add, std::shared_ptr<float5DReg> mod
 			deallocateBornExtShotsGpu_3D(iGpu, _gpuList[iGpu]);
 		}
 	}
-	//
-	// std::cout << "Born extended adjoint, min model = " << model->min() << std::endl;
-	// std::cout << "Born extended adjoint, max model = " << model->max() << std::endl;
 }
