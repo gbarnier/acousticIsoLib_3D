@@ -34,7 +34,7 @@ execute_process(COMMAND git submodule update --init --recursive -- external/pybi
 add_subdirectory(external/pybind11)
 
 #Adding ioLibs submodule
-execute_process(COMMAND git submodule update --init --recursive -- external/ioLibs WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+#execute_process(COMMAND git submodule update --init --recursive -- external/ioLibs WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(external/ioLibs)
 
 # Finding multithread libraries
